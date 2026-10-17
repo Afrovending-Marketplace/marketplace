@@ -1,0 +1,30 @@
+{
+  "summary": "Phase 01 Public Storefront frontend-only testing via Playwright on the public URL (desktop 1920, tablet 768, mobile 390). All 13 requested feature groups passed: announcement bar dismiss+persist, header search (desktop/mobile dialog, shea results, empty/nonsense -> search-empty), account/cart coming-soon, cart count 0, become-vendor/vendors nav, all 9 category-nav routes with category-title + counts (no empty categories), all home sections (9 tiles), hero/promo/CTA links, product & vendor card links, listing sort (price-asc/desc/newest/featured verified numerically + ?sort= in URL, direct ?sort URL honoured), sidebar filter links, unknown category/product/vendor -> not-found, PDP (title, $89.00, thumb switch, variant aria-pressed, qty clamps 1..10, disabled add-to-cart w/ note, 3 tabs, related), 5 vendor cards, vendor store (name, story, 5 products, category chips), contact validation + 'nothing was sent' result, newsletter error + 'nothing was saved or sent' result, all 16 footer links resolve (no 404), /faq#vendors scrolls to section, FAQ accordion, legal-draft-alert on privacy/terms, sell-apply disabled, /help and /become-vendor redirects, 404 for /xyz, footer-api-status=ok, design-system modal. Mobile: menu with Marketplace/Categories/Company groups, links navigate and close sheet; category nav scrolls horizontally (1111/390) with no page-level overflow on 11 pages. A11y: first Tab = skip link, Enter moves focus to #main-content, no unlabelled links/buttons, axe-core wcag2a/aa/21a/21aa = 0 violations on 14 desktop pages plus mobile home, open mobile menu, mobile PDP and open search dialog. No console/page errors; no broken images.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Home featured products (desktop lg 4-col grid)", "issues": ["7 featured products leave an orphan row with an empty 4th slot; consider 8 featured items or a 'View all' tile"]},
+      {"screen": "Header at 1024-1279px", "issues": ["'Vendors' text link is xl-only and the mobile menu button is lg:hidden, so between 1024 and 1279px there is no header path to /vendors (only footer/home section)"]},
+      {"screen": "Home hero at tablet 768px", "issues": ["Hero headline wraps to 4 lines in the narrow left column and the eyebrow wraps 'GLOBAL' onto its own line; consider single-column hero below lg"]},
+      {"screen": "Dev imagery", "issues": ["Raw Whipped Shea Butter card image shows a coconut + jar (looks like a coconut product); minor relevance mismatch in dev data"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: make Vendors reachable in header between lg and xl (show link at lg or show menu button until xl)",
+    "Optional: balance featured products grid (8 items) and refine tablet hero layout"
+  ],
+  "critical_code_review_comments": [
+    "Empty search submit navigates to /search?q= (works, shows search-empty with prompt) - could instead keep dialog open/disable submit when blank",
+    "SearchEntry renders two Dialog instances (desktop + mobile compact) each with input id='site-search'; only one is open at a time so no duplicate-ID in DOM, but keep in mind if both mount content",
+    "Dev data created_at dates are 2026-08..10 (future relative to now) - harmless but 'newest' ordering relies on them"
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (all requested checks passed; 4 minor design notes)"},
+  "seed_data_creation": "None. Only localStorage key av_announcement_dismissed_v1 toggled in test browser.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 01 storefront is frontend-only dev data (src/data/dev/catalog.js: 9 categories, 5 vendors, 16 products). axe-core available at /app/frontend/node_modules/axe-core/axe.min.js - inject via page.add_script_tag(content=open(...).read()). Mobile nav testids are mobile-nav-<path-with-dashes> e.g. mobile-nav-categories-books. Contact inputs: contact-name-input/contact-email-input/contact-message-input/contact-submit-button; newsletter: newsletter-email-input/newsletter-submit-button. Sort options: listing-sort-<value>."
+}

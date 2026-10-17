@@ -17,3 +17,12 @@ Test data rule: any record a test creates must use a `TEST_` prefix and be delet
 Fixed after testing: React `fetchPriority` warning, mobile menu missing dialog description (a11y), unhandled 500s now keep `X-Request-ID`/CORS headers.
 
 Not covered: frontend unit tests (no Jest/RTL suites yet; e2e covers the shell).
+
+## Phase 01 — 2026-10-17
+| Suite | Scope | Result |
+|---|---|---|
+| Backend regression (19) | Phase 00 suites (phase assertion relaxed to ≥ 0) | ✅ 19/19 |
+| E2E Playwright (testing agent, iteration_2) | 13 feature groups: announcement bar, header search/account/cart/sell, 9 category routes, home sections, product/vendor cards, sort, PDP interactions, vendor store, contact & newsletter (UI-only messaging), FAQ, legal drafts, redirects, 404, footer links (16/16), mobile menu, no page overflow on 11 pages at 390px | ✅ 100% |
+| Accessibility (axe-core wcag2a/aa/21a/21aa) | 14 desktop pages + mobile home, mobile menu, mobile PDP, search dialog; keyboard skip link | ✅ 0 violations (after fixing clay contrast, search trigger ARIA, select label, step-number contrast) |
+
+Design notes fixed after testing: hero stacks to one column below 1024px; 8 featured products (no orphan slot); shea product image corrected.

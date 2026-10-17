@@ -40,6 +40,11 @@ frontend/src/
   components/home/, components/design-system/
   pages/                    # one default-export page per route
   lib/api.js                # axios instance → `${REACT_APP_BACKEND_URL}/api/v1`
+  lib/catalog.js            # storefront read layer (Phase 01: dev data; Phase 04+: API)
+  data/dev/catalog.js       # DEVELOPMENT DATA ONLY (fictional categories/vendors/products)
+  components/commerce/      # ProductCard, VendorCard, CategoryTile, ProductRail, ListingLayout, SortSelect, FilterSidebar
+  components/product/       # ProductGallery, PurchasePanel, ProductInfoTabs
+  components/marketing/     # NewsletterSignup (UI only)
   constants/testIds/        # data-testid registry per feature
 docs/                       # this documentation set
 ```

@@ -14,6 +14,9 @@
 - **Auth (from Phase 01):** documented per endpoint as `Auth: public | customer | vendor | admin(<role>)`.
 - **Idempotency (from Phase 06/07):** mutating money endpoints require `Idempotency-Key` header.
 
+## Phase 01
+No new endpoints (storefront uses frontend development data). `health.phase` now reports `1`.
+
 ## Implemented endpoints (Phase 00)
 
 | Method | Path | Auth | Description |

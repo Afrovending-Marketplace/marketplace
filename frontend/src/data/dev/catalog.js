@@ -33,9 +33,9 @@ const p = (slug, title, category_slug, vendor_slug, price_minor, images, created
 
 export const PRODUCTS = [
   p("kente-wrap-dress", "Kente Wrap Dress", "fashion", "adwoa-threads", 8900, [img("p-fashion-1"), img("cat-fashion")], "2026-09-02", { is_featured: true, variants: SIZES }),
-  p("ankara-print-shirt", "Ankara Print Shirt", "fashion", "adwoa-threads", 6500, [img("p-fashion-2")], "2026-10-10", { variants: SIZES }),
-  p("raw-shea-butter", "Raw Whipped Shea Butter", "beauty", "island-roots-botanicals", 1800, [img("p-beauty-1"), img("cat-beauty")], "2026-08-20", { is_featured: true, variants: ["4 oz", "8 oz"] }),
-  p("coconut-body-cream", "Coconut Body Cream", "beauty", "island-roots-botanicals", 2200, [img("p-beauty-2")], "2026-10-12", { variants: ["8 oz"] }),
+  p("ankara-print-shirt", "Ankara Print Shirt", "fashion", "adwoa-threads", 6500, [img("p-fashion-2")], "2026-10-10", { is_featured: true, variants: SIZES }),
+  p("raw-shea-butter", "Raw Whipped Shea Butter", "beauty", "island-roots-botanicals", 1800, [img("p-beauty-2"), img("cat-beauty")], "2026-08-20", { is_featured: true, variants: ["4 oz", "8 oz"] }),
+  p("coconut-body-cream", "Coconut Body Cream", "beauty", "island-roots-botanicals", 2200, [img("p-beauty-1")], "2026-10-12", { variants: ["8 oz"] }),
   p("suya-spice-blend", "Suya Spice Blend", "food-groceries", "oyin-pantry", 1200, [img("p-food-1")], "2026-09-15", { is_featured: true, variants: ["100 g", "250 g"] }),
   p("market-spice-sampler", "Market Spice Sampler", "food-groceries", "oyin-pantry", 3400, [img("p-food-2"), img("cat-food")], "2026-10-14"),
   p("woven-wall-basket-set", "Woven Wall Basket Set", "home-living", "sankofa-crafts-house", 7500, [img("p-home-1"), img("cat-home")], "2026-09-01", { is_featured: true, variants: ["Set of 3", "Set of 5"] }),

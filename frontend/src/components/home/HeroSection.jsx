@@ -11,8 +11,8 @@ const VALUES = [
 
 export const HeroSection = () => (
   <section className="relative overflow-hidden mud-pattern">
-    <div className="av-container grid items-center gap-10 py-12 md:grid-cols-12 lg:py-20">
-      <div className="md:col-span-6 lg:col-span-7 space-y-7 av-rise">
+    <div className="av-container grid items-center gap-10 py-12 lg:grid-cols-12 lg:py-20">
+      <div className="lg:col-span-7 space-y-7 av-rise">
         <p className="av-eyebrow">African · Caribbean · Diaspora · Global</p>
         <h1 data-testid={HOME.heroTitle} className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.02] text-av-ink">
           From Culture<br />to <em className="text-av-clay">Commerce</em>.
@@ -25,7 +25,7 @@ export const HeroSection = () => (
           <Button asChild size="lg" variant="outline" data-testid={HOME.vendorButton}><Link to="/sell">Sell on AfroVending</Link></Button>
         </div>
       </div>
-      <div className="md:col-span-6 lg:col-span-5 relative av-rise" style={{ animationDelay: "150ms" }}>
+      <div className="lg:col-span-5 relative av-rise max-w-xl" style={{ animationDelay: "150ms" }}>
         <div className="grain overflow-hidden rounded-[2rem] aspect-[4/5] shadow-2xl shadow-av-indigo/20">
           <img src="/images/hero.jpg" alt="Woman in kente-print dress at an artisan market" className="h-full w-full object-cover" fetchPriority="high" />
         </div>

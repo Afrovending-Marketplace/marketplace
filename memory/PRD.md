@@ -16,11 +16,12 @@ Multi-vendor marketplace modules A–N; server-side RBAC; versioned migrations; 
 
 ## Implemented
 - 2026-10-17 — Phase 00: app shell, design system (/design-system), coming-soon routes per phase, 404; /api/v1 health/platform/system-schema; error envelope + request-id logging; entity registry (31 collections) + migration 0001; platform_settings fixtures; docs set; pytest baseline (11 + 8) and e2e 47/47.
+- 2026-10-17 — Phase 01 Public Storefront: announcement bar, header (search entry, account, cart, sell link), 9-category nav, mobile menu, homepage sections, reusable product/vendor/category cards, category/product/vendor/search/shop templates, About/Contact/FAQ/Privacy/Terms/Sell layouts, UI-only newsletter & contact forms, labelled development data (frontend). Roadmap renumbered (auth now Phase 02). Tests: backend 19/19, e2e 100%, axe 0 violations.
 
 ## Prioritized backlog
-- P0: Phase 01 Auth, accounts & roles (choose single auth provider)
-- P1: Phases 02–08 (vendor onboarding → orders/shipping)
+- P0: Phase 02 Auth, accounts & roles (choose single auth provider)
+- P1: Phases 03–08 (vendor onboarding → orders/shipping)
 - P2: Phases 09–14
 
 ## Next tasks
-Await owner approval for Phase 01. Open owner decisions: default currency (USD assumed), commission rate, auth provider.
+Await owner approval for Phase 02. Open owner decisions: default currency (USD assumed), commission rate, auth provider, support email, legal copy, supported markets.
