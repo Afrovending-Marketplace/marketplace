@@ -27,7 +27,7 @@ export const HeroSection = () => (
       <div className="md:col-span-5 relative av-rise" style={{ animationDelay: "150ms" }}>
         <div className="grain overflow-hidden rounded-[2rem] aspect-[4/5] shadow-2xl shadow-av-indigo/20">
           <img src="/images/hero.jpg" alt="Handcrafted goods from African and diaspora artisans"
-            className="h-full w-full object-cover" fetchpriority="high" />
+            className="h-full w-full object-cover" fetchPriority="high" />
         </div>
         <div className="absolute -bottom-6 -left-4 sm:-left-10 max-w-[16rem] rounded-2xl border border-av-line bg-white/90 p-5 shadow-xl backdrop-blur-md">
           <div className="flex items-center gap-2 text-av-emerald">

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { Menu, ChevronRight } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/layout/BrandLogo";
 import { NAV_LINKS } from "@/config/site";
@@ -19,6 +19,7 @@ export const MobileNav = () => {
       <SheetContent side="left" className="bg-av-linen w-[85vw] max-w-sm" data-testid={SHELL.mobileMenu}>
         <SheetHeader className="text-left">
           <SheetTitle asChild><div><BrandLogo testId="mobile-menu-brand-logo" /></div></SheetTitle>
+          <SheetDescription className="sr-only">Main navigation</SheetDescription>
         </SheetHeader>
         <div className="kente-strip h-1 my-6 rounded-full" aria-hidden="true" />
         <nav aria-label="Mobile" className="flex flex-col">

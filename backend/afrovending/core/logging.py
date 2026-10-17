@@ -5,6 +5,8 @@ import uuid
 
 from fastapi import FastAPI, Request
 
+from afrovending.core.errors import error_response
+
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9\-]{8,64}$")
 logger = logging.getLogger("afrovending.request")
 
@@ -23,7 +25,11 @@ def register_request_logging(app: FastAPI) -> None:
         request_id = incoming if REQUEST_ID_PATTERN.match(incoming) else uuid.uuid4().hex
         request.state.request_id = request_id
         start = time.perf_counter()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception("Unhandled error request_id=%s", request_id)
+            response = error_response(request, 500, "internal_error", "An unexpected error occurred.")
         duration_ms = (time.perf_counter() - start) * 1000
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
