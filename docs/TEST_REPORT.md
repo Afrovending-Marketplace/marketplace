@@ -26,3 +26,13 @@ Not covered: frontend unit tests (no Jest/RTL suites yet; e2e covers the shell).
 | Accessibility (axe-core wcag2a/aa/21a/21aa) | 14 desktop pages + mobile home, mobile menu, mobile PDP, search dialog; keyboard skip link | ✅ 0 violations (after fixing clay contrast, search trigger ARIA, select label, step-number contrast) |
 
 Design notes fixed after testing: hero stacks to one column below 1024px; 8 featured products (no orphan slot); shea product image corrected.
+
+## Phase 02 — 2026-10-17
+| Suite | Scope | Result |
+|---|---|---|
+| `backend/tests/test_phase02_identity.py` (13) + `test_phase02_extended.py` (10, testing agent) + Phase 00 suites | Registration, bcrypt hashing, duplicate/weak password, logout revocation, expired token, lockout (incl. XFF spoof bypass), reset & verify tokens single-use, RBAC 403s, address ownership, deactivation, foreign Origin | ✅ 42/42 (after fixing XFF bypass) |
+| E2E Playwright (iteration_3) | Register/login/logout/next, recovery pages, profile, password change, addresses CRUD/default, privacy requests, deactivation, /admin & /vendor gating, content pages, 6 policy drafts, Phase 01 regression, 390px overflow | ✅ all flows except contact delivery (DNS) — admin nav link added after run and verified |
+| Email delivery | Verification email to `delivered+…@resend.dev` | ✅ delivered (202). Provider burst limit (429) observed during bulk tests — handled gracefully |
+| Contact → info@afrovending.com | Real send | ❌ PENDING — provider: "Undeliverable recipient" (afrovending.com MX lookups refused) |
+
+Note: tests require the HTTPS preview URL (Secure cookies).

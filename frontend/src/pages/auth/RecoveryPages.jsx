@@ -39,12 +39,21 @@ export const ResetPasswordPage = () => {
   const { setUser } = useAuth();
   const [pw, setPw] = useState({ password: "", confirm: "" });
   const [error, setError] = useState("");
+  const token = params.get("token");
+  if (!token) {
+    return (
+      <AuthCard testId="reset-password-page" title="Reset link missing">
+        <StatusAlert tone="error" title="This reset link is invalid or incomplete." testId="reset-password-missing-token">Request a new link from the sign-in page.</StatusAlert>
+        <Button asChild className="mt-6"><Link to="/forgot-password">Request a new link</Link></Button>
+      </AuthCard>
+    );
+  }
   const onSubmit = async (e) => {
     e.preventDefault();
     if (pw.password !== pw.confirm) return setError("Passwords don't match.");
     setError("");
     try {
-      await api.post("/auth/reset-password", { token: params.get("token") || "", password: pw.password });
+      await api.post("/auth/reset-password", { token, password: pw.password });
       setUser(false);
       navigate("/login?reset=1", { replace: true });
     } catch (err) {

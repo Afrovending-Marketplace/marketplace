@@ -1,0 +1,45 @@
+{
+  "summary": "Phase 02 Identity + content tested end to end against the public URL. Backend: the existing suite passed 32/32 (pytest -n 0). I added test_phase02_extended.py: 9 of 10 pass and 1 fails on a security issue (login lockout can be bypassed by spoofing X-Forwarded-For). Playwright checks: register (mismatch, weak, duplicate), verify banner, header initial, logout, ?next=, login error, forgot/reset/verify invalid-token states, profile persists after reload, wrong current password error, address CRUD with default badge, make default, edit and delete, privacy request with duplicate 409 error, deactivate (wrong password error, then sign-out and login refused), customer sent to /forbidden for /admin and /vendor/dashboard, admin can open /admin, About/Contact/FAQ/footer content, all 6 policy pages show the founder + legal review draft alert, footer legal links, Phase 01 home/shop/category/PDP/vendor pages, and no horizontal overflow at 390px on 10 pages. Two problems: (1) the one real contact form submission returned 503 because the email provider rejects info@afrovending.com as an undeliverable recipient. The afrovending.com DNS is lame-delegated (Cloudflare nameservers refuse MX/A queries). (2) account-nav-admin is not implemented, so admins have no admin link in the account nav.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/v1/auth/login (and every rate limit using client_ip)", "issue": "client_ip() takes the FIRST X-Forwarded-For entry, which the client controls. Reproduced: after 5 failures the login returns 429, but the same request with header 'X-Forwarded-For: 1.2.3.4' returns 200. This bypasses the brute-force lockout, and the register, forgot, reset, verify and contact IP limits are bypassable the same way.", "priority": "HIGH"},
+      {"endpoint": "POST /api/v1/contact", "issue": "Returns 503. Backend log: Emergent email provider 422 'Undeliverable recipient: info@afrovending.com'. Root cause: afrovending.com has broken DNS (dns.google: 'Name servers refused query (lame delegation?)', Cloudflare NS REFUSED, no MX). The message is saved in contact_messages with status=failed, and the UI shows 'Message not sent ... email info@afrovending.com directly'. No contact message can reach the inbox until the domain DNS/MX is fixed.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/v1/auth/register", "issue": "The test registration returned verification_email_sent=false; the UI showed 'couldn't send the verification email' (likely the provider burst limit noted in the context). Not treated as a bug."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AccountLayout nav", "issue": "account-nav-admin is not implemented anywhere (no admin link for admin users in account nav or header). The admin can only reach /admin by typing the URL.", "selector": "[data-testid='account-nav-admin']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Contact form valid submission", "issue": "Shows 'Message not sent' because of the backend 503 (domain DNS issue above). The UI error handling itself works correctly.", "affected_selectors": ["[data-testid='contact-result']"]}
+    ],
+    "design_issues": [
+      {"screen": "Address book", "issues": ["Delete removes the address right away with no confirmation"]},
+      {"screen": "/reset-password with no token", "issues": ["Renders the full new-password form instead of an 'invalid or missing link' state. It only fails after submit."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase02_identity.py", "/app/backend/tests/test_phase02_extended.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Fix client_ip(): trust only the right-most X-Forwarded-For hop added by the ingress, or a configured trusted-proxy count. Also keep a per-email lockout counter that does not depend on IP.",
+    "Fix afrovending.com DNS (nameserver delegation + MX records) so info@afrovending.com can receive mail. Consider a configurable CONTACT_INBOX env fallback until then.",
+    "Add an account-nav-admin link (to /admin) in AccountLayout for isAdmin(user), and optionally in the header account menu.",
+    "Optional UX: confirm before deleting an address; show an invalid-link state on /reset-password when there is no token."
+  ],
+  "critical_code_review_comments": [
+    "security.client_ip uses the spoofable left-most XFF value. All rate limits depend on it.",
+    "tests/test_phase02_identity.py hardcodes the admin password and default MONGO_URL/DB_NAME as fallbacks. Read them from backend/.env only.",
+    "auth.verify_email does two separate update_one calls; they could be one atomic update.",
+    "contact endpoint blocks for about 7.6s waiting on the provider. Consider a background send or a shorter timeout."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase02_extended.py"],
+  "success_rate": {"backend": "95% (41/42 tests; 1 security failure) plus contact delivery failing for an environmental DNS reason", "frontend": "96% (all requested flows pass except account-nav-admin missing)"},
+  "test_credentials": "Super admin from /app/memory/test_credentials.md works (not modified, not deactivated).",
+  "seed_data_creation": "None kept. All TEST_ users, their sessions/tokens/addresses/privacy requests and the TEST contact_messages row were deleted. The rate_limits collection was cleared.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest -n 0 on backend/tests (identity + extended). The XFF lockout test is expected to fail until client_ip is fixed. Do not resubmit the real contact form until afrovending.com DNS/MX is fixed (check with https://dns.google/resolve?name=afrovending.com&type=MX). Mock /api/v1/contact with page.route to test the UI. The FAQ email (faq-support-email) is inside a collapsed accordion item. Admin is redirected to /forbidden on /vendor/dashboard (vendor-only route, by design).",
+  "rca of the issue": "Contact 503: backend.err.log shows POST integrations.emergentagent.com/api/v1/email/send -> 422 undeliverable_recipient for info@afrovending.com. DNS lookup for afrovending.com returns SERVFAIL/REFUSED from its Cloudflare nameservers (lame delegation), so the provider cannot verify the mailbox. Fix this at the domain registrar/Cloudflare, not in code. Lockout bypass: reproduce with 5 bad logins, then a correct login with header X-Forwarded-For: 1.2.3.4, which returns 200 instead of 429."
+}

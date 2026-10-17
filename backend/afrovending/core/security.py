@@ -68,8 +68,9 @@ def hash_token(raw: str) -> str:
 
 
 def client_ip(request: Request) -> str:
+    # Rightmost entry is appended by our ingress; left entries are client-controlled.
     fwd = request.headers.get("x-forwarded-for", "")
-    return fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "unknown")
+    return fwd.split(",")[-1].strip() if fwd else (request.client.host if request.client else "unknown")
 
 
 def set_auth_cookies(response: Response, access: str, refresh: str | None = None) -> None:

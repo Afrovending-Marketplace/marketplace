@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { LayoutDashboard, User, MapPin, ShieldCheck, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, isAdmin } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -31,6 +31,11 @@ export default function AccountLayout() {
               <Icon className="h-4 w-4" />{label}
             </NavLink>
           ))}
+        {isAdmin(user) && (
+            <NavLink to="/admin" data-testid="account-nav-admin" className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-sm text-av-ink/80 hover:bg-av-sand">
+              <ShieldCheck className="h-4 w-4" />Admin console
+            </NavLink>
+          )}
           <button type="button" onClick={signOut} data-testid="logout-button"
             className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-sm text-av-clay hover:bg-av-clay-light">
             <LogOut className="h-4 w-4" />Sign out

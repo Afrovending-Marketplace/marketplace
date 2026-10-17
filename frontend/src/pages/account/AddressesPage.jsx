@@ -61,6 +61,7 @@ export default function AddressesPage() {
     load();
   }, [load]);
   const remove = async (id) => {
+    if (!window.confirm("Delete this address?")) return;
     await api.delete(`/account/addresses/${id}`);
     toast.success("Address removed");
     load();

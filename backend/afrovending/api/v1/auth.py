@@ -17,6 +17,7 @@ from afrovending.core.sessions import consume_token, issue_token, revoke_all_ses
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 LOGIN_LIMIT, LOGIN_WINDOW = 5, 15 * 60
+ACCOUNT_LOGIN_LIMIT = 20
 
 
 class RegisterIn(BaseModel):
@@ -74,17 +75,20 @@ async def register(body: RegisterIn, request: Request, response: Response):
 async def login(body: LoginIn, request: Request, response: Response):
     email = body.email.lower()
     key = f"login:{client_ip(request)}:{email}"
-    if await rate_limit.count(key) >= LOGIN_LIMIT:
+    account_key = f"login-account:{email}"
+    if await rate_limit.count(key) >= LOGIN_LIMIT or await rate_limit.count(account_key) >= ACCOUNT_LOGIN_LIMIT:
         raise APIError(429, "rate_limited", "Too many failed sign-in attempts. Try again in 15 minutes.")
     doc = await db.users.find_one({"email": email})
     if not doc or not doc.get("password_hash") or not verify_password(body.password, doc["password_hash"]):
         await rate_limit.hit(key, LOGIN_LIMIT, LOGIN_WINDOW, raise_over=False)
+        await rate_limit.hit(account_key, ACCOUNT_LOGIN_LIMIT, LOGIN_WINDOW, raise_over=False)
         await audit("auth.login_failed", "users", request=request, entity_id=str(doc["_id"]) if doc else None, email=email)
         raise APIError(401, "invalid_credentials", "Incorrect email or password.")
     user = User.from_mongo(doc)
     if user.status in INACTIVE:
         raise APIError(403, "account_inactive", "This account is deactivated. Contact support to restore it.")
     await rate_limit.reset(key)
+    await rate_limit.reset(account_key)
     await db.users.update_one({"_id": ObjectId(user.id)}, {"$set": {"last_login_at": utcnow()}})
     await start_session(response, user, request)
     await audit("auth.login", "users", request=request, actor=user, entity_id=user.id)

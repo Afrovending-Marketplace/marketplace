@@ -7,7 +7,9 @@
 | Production | https://www.afrovending.com via Emergent deploy | **Only with explicit owner approval.** |
 
 ## Environment variables (names only — never commit values)
-Backend (`backend/.env`, template `backend/.env.example`): `MONGO_URL`, `DB_NAME`, `CORS_ORIGINS`, `APP_ENV` (`development|staging|production`), `LOG_LEVEL`.
+Backend (`backend/.env`, template `backend/.env.example`): `MONGO_URL`, `DB_NAME`, `CORS_ORIGINS`, `APP_ENV` (`development|staging|production`), `LOG_LEVEL`, `FRONTEND_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `EMERGENT_EMAIL_KEY`, `EMAIL_FROM_NAME`, `EMAIL_REPLY_TO`, `CONTACT_INBOX`.
+Before production: set a NEW `JWT_SECRET` and a NEW strong `ADMIN_PASSWORD` (14+ chars, upper/lower/number/symbol — boot fails otherwise), and set `FRONTEND_URL` to `https://www.afrovending.com`.
+DNS: fix afrovending.com nameserver delegation and add MX records so info@afrovending.com can receive mail (contact form depends on it).
 Frontend (`frontend/.env`, template `frontend/.env.example`): `REACT_APP_BACKEND_URL`.
 Reserved for future phases (add when the phase starts): `JWT_SECRET` (01), `STORAGE_*` (03), `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET` (07), `RESEND_API_KEY`, `SENDER_EMAIL` (11).
 
