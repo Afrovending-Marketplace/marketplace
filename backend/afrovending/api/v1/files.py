@@ -30,6 +30,8 @@ async def upload(request: Request, purpose: str = Form(...), file: UploadFile = 
     if purpose not in LIMITS:
         raise APIError(422, "validation_error", "Unknown file purpose.")
     await rate_limit.hit(f"upload:{user.id}", 30, 3600)
+    if await db.vendors.find_one({"owner_user_id": ObjectId(user.id), "status": "suspended"}):
+        raise APIError(403, "vendor_suspended", "Uploads are disabled while your vendor account is suspended.")
     allowed = DOC_TYPES if purpose == "verification_doc" else IMAGE_TYPES
     if file.content_type not in allowed:
         raise APIError(422, "validation_error", "Unsupported file type. Use JPG, PNG, WEBP" + (" or PDF." if purpose == "verification_doc" else "."))

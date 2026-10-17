@@ -54,10 +54,11 @@ async def get_application(app_id: str, _: User = Depends(REVIEWER)):
 
 @router.post("/vendor-applications/{app_id}/decision")
 async def decide(app_id: str, body: DecisionIn, request: Request, admin: User = Depends(REVIEWER)):
-    app = await db.vendor_applications.find_one({"_id": _oid(app_id)})
-    if not app or app["status"] not in REVIEWABLE:
+    app = await db.vendor_applications.find_one_and_update({"_id": _oid(app_id), "status": {"$in": list(REVIEWABLE)}}, {"$set": {"status": "deciding"}})
+    if not app:
         raise APIError(409, "conflict", "Only submitted applications can be reviewed.")
     if body.decision != "approve" and len(body.note.strip()) < 5:
+        await db.vendor_applications.update_one({"_id": app["_id"]}, {"$set": {"status": app["status"]}})
         raise APIError(422, "validation_error", "Add a note for the applicant.")
     now = utcnow()
     status = {"approve": "approved", "reject": "rejected", "request_info": "changes_requested"}[body.decision]
@@ -68,7 +69,7 @@ async def decide(app_id: str, body: DecisionIn, request: Request, admin: User = 
         sets["verification_status"] = "verified" if app.get("verification_status") == "pending" else app.get("verification_status", "not_required")
         vendor_id = (await db.vendors.insert_one({"owner_user_id": app["user_id"], "application_id": app["_id"], "slug": app["desired_slug"],
                                                   "name": app["business_name"], "status": "active", "approved_at": now, "created_at": now, "updated_at": now})).inserted_id
-        location = ", ".join(x for x in (app["city"], app.get("region"), app["country"]) if x)
+        location = ", ".join(x.strip() for x in (app["city"], app.get("region", ""), app["country"]) if x and x.strip())
         await db.vendor_stores.insert_one({"vendor_id": vendor_id, "owner_user_id": app["user_id"], "slug": app["desired_slug"], "display_name": app["business_name"],
                                            "tagline": "", "description": app["description"], "location": location, "categories": app["categories"],
                                            "logo_file_id": app.get("logo_file_id"), "banner_file_id": app.get("banner_file_id"), "status": "draft",

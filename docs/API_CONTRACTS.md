@@ -14,6 +14,23 @@
 - **Auth (from Phase 01):** documented per endpoint as `Auth: public | customer | vendor | admin(<role>)`.
 - **Idempotency (from Phase 06/07):** mutating money endpoints require `Idempotency-Key` header.
 
+## Phase 03 endpoints (all under `/api/v1`)
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/files` | user, 30/h | multipart `purpose` = logo (2 MB) / banner (5 MB) / verification_doc (10 MB, PDF allowed); blocked when vendor suspended |
+| GET | `/files/{id}` | public | logo/banner only; private docs → 404 |
+| GET | `/vendor/policy` | public | current Vendor Agreement version |
+| GET/PUT | `/vendor/application` | verified user | own application only; editable in draft / changes_requested; new draft allowed after rejection |
+| POST | `/vendor/application/submit` | user | `{accept_policy, policy_version}`; records acceptance |
+| GET/PATCH | `/vendor/store` | approved vendor (own store only) | PATCH blocked when suspended; slug unique |
+| POST | `/vendor/store/publish` · `/unpublish` | approved vendor | publish requires vendor `active` |
+| GET | `/stores`, `/stores/{slug}` | public | published stores of active vendors only |
+| GET | `/admin/vendor-applications[/{id}]` | marketplace_admin, super_admin | detail includes documents + policy acceptance |
+| POST | `/admin/vendor-applications/{id}/decision` | marketplace_admin, super_admin | `{decision: approve|reject|request_info, note, require_documents}`; emails applicant |
+| GET/DELETE | `/admin/vendor-documents/{file_id}` | marketplace_admin, super_admin | download (audited) / soft delete |
+| GET | `/admin/vendors` | marketplace_admin, super_admin | |
+| POST | `/admin/vendors/{id}/suspend` · `/reactivate` | marketplace_admin, super_admin | `{reason}`; suspend pauses store |
+
 ## Phase 02 endpoints (all under `/api/v1`)
 | Method | Path | Auth | Notes |
 |---|---|---|---|

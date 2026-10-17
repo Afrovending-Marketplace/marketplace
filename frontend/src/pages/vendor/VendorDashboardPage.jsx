@@ -49,7 +49,7 @@ export default function VendorDashboardPage() {
       </div>
       {suspended && <StatusAlert tone="error" title="Vendor account suspended" testId="vendor-suspended-alert">{data.vendor.status_reason || "Contact info@afrovending.com."}</StatusAlert>}
       <div className="flex flex-wrap gap-3">
-        <Button onClick={toggle} disabled={suspended} data-testid="vendor-publish-toggle">{data.store.status === "published" ? "Unpublish store" : "Publish store"}</Button>
+        <Button onClick={toggle} disabled={suspended} variant={data.store.status === "published" ? "outline" : "default"} data-testid="vendor-publish-toggle">{data.store.status === "published" ? "Unpublish store" : "Publish store"}</Button>
         {data.store.status === "published" && <Button asChild variant="outline" data-testid="vendor-view-store"><Link to={`/store/${data.store.slug}`}>View live store</Link></Button>}
       </div>
       <form onSubmit={save} className="grid gap-5 rounded-2xl border border-av-line bg-white p-6 md:p-8 sm:grid-cols-2" data-testid="vendor-store-form">

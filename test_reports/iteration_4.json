@@ -1,0 +1,47 @@
+{
+  "summary": "Phase 03 Vendor Onboarding and the brand red theme were tested end to end against the public URL. Backend: the existing suite passes 45/45 (pytest -n 0). I added test_phase03_extended.py with 7 tests: 5 pass and 2 fail (store slug change is not synced to the vendors record; a rejected applicant can never re-apply). Full suite: 50/52. The full UI flow passed: register a customer, then on /vendor/apply the unverified alert shows and submit is disabled. Customer is sent to /forbidden for /vendor/dashboard and /admin/vendors. After marking the user verified, the full form was filled with logo and banner uploads, and the previews loaded. Submitting without the policy checkbox shows 'You must accept the current Vendor Agreement'. With it, the badge shows 'submitted'. Admin path: /admin -> admin-vendors-link -> review dialog shows the policy version and timestamp. Request info without a note shows an error toast. Request info with admin-require-docs sends the applicant to 'More information requested' with vendor-doc-upload. Resubmitting without a doc is blocked; uploading a PNG and resubmitting works. Admin sees the download button and the download works (doc.png). Approve shows go-vendor-dashboard. Dashboard: edit name and tagline, save, and the change persists after reload. Publish works, vendor-view-store opens /store/<slug>, and the name, logo and banner images load. Admin suspend via window.prompt: the store returns 404, the dashboard shows vendor-suspended-alert with the reason, and publish and save are disabled. Reactivate works and the vendor can publish again. Brand red #D40000 (rgb 212,0,0) is on primary buttons and links. Home, login and account show no regressions or page errors. One mobile problem: /vendor/apply overflows horizontally at 390px (scrollWidth 414).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/v1/vendor/store", "issue": "Changing the store slug updates vendor_stores.slug but not vendors.slug, so /admin/vendors shows the stale /store/<old-slug>. The old slug also stays reserved for other users forever, because check_slug still matches the approved application's desired_slug."},
+      {"endpoint": "PUT /api/v1/vendor/application", "issue": "After a rejection, my_application returns the rejected application and save returns 409 'Your application is rejected and can't be edited.' A rejected applicant can never re-apply. Allow a new application when the latest one is rejected or withdrawn, or document this as intended."},
+      {"endpoint": "POST /api/v1/admin/vendor-applications/{id}/decision", "issue": "The status check and the vendor insert are not atomic. Two concurrent approve calls could create two vendors and stores. A sequential double approve correctly returns 409. Use find_one_and_update with a status filter, plus a unique index on vendors.owner_user_id and vendor_stores.slug."},
+      {"endpoint": "POST /api/v1/files (logo/banner)", "issue": "A suspended vendor can still upload media. The UI ImageUpload has no disabled prop, so the file inputs stay active while the store is suspended. Low impact, because saving is blocked."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "VendorApplyPage slug row (mobile 390px)", "issue": "Horizontal overflow: document scrollWidth is 414 vs viewport 390. The flex row with 'afrovending.com/store/' and an input with no min-w-0 forces the single-column grid wider than the screen, so every form input is cut off on the right.", "selector": "[data-testid='vendor-slug-input']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin review dialog", "issues": ["Approve (primary red) and Reject (destructive red) look almost the same color. This makes a wrong decision easy. Give Reject a distinct outline/destructive style or make Approve green/ink.", "Success toast reads 'Application approve' / 'Application reject' / 'Application request info'. It needs past-tense labels.", "Location line renders 'Lagos,  NG' with a double space or stray comma when region is empty."]},
+      {"screen": "/admin/vendors", "issues": ["Every application status badge uses the gold tone, including approved and rejected. Use the same TONE map as the applicant page.", "The Vendors list has no empty state, unlike Applications ('No applications yet')."]},
+      {"screen": "Vendor dashboard", "issues": ["'Unpublish store' uses the primary red style. Consider outline/secondary for the destructive or less common action."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase03_vendors.py", "/app/backend/tests/test_phase03_extended.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Fix mobile overflow on /vendor/apply: add min-w-0 to the slug input (className 'h-11 min-w-0 flex-1 ...'), let the prefix wrap or shrink (flex-wrap or shorter prefix), and add grid-cols-1 to the form grid.",
+    "Sync vendors.slug (and optionally vendors.name) when the vendor PATCHes the store slug or name. Exclude the vendor's own approved application from blocking the old slug, or release it.",
+    "Decide on and implement a re-apply path for rejected applicants: create a new application doc when the latest is rejected.",
+    "Make approve atomic (find_one_and_update on status in REVIEWABLE) and add unique indexes: vendors.owner_user_id, vendor_stores.slug.",
+    "Make the admin Reject button visually distinct from Approve, and fix the toast wording.",
+    "Pass disabled to ImageUpload on the dashboard when suspended. Optionally block media uploads for suspended vendors."
+  ],
+  "critical_code_review_comments": [
+    "admin_vendors.decide: race condition on approve (non-atomic read-then-insert). There is no unique index on vendor_stores.slug, so slug uniqueness relies only on check_slug, which is also racy.",
+    "vendors.update_store does not update vendors.slug or vendors.name. Admin views become stale.",
+    "files.public_file serves any non-private logo/banner by id, even from non-approved users. Acceptable, but consider restricting to files attached to a published store.",
+    "AdminVendorsPage download(): it revokes the object URL synchronously right after a.click(). This works in Chromium but can cancel downloads in Safari/Firefox. Revoke inside a setTimeout.",
+    "VendorApplyPage and VendorDashboardPage load() have no error handling or loading state. An API failure leaves a blank page (return null forever).",
+    "Test hygiene: the phase02 test cleanup deletes all TEST_ users globally without deleting their vendors, stores, applications or files. Running the full suite after a UI vendor test leaves orphan vendor docs (I found and removed one). Make the Phase 02 cleanup also remove vendor data, or scope it to its own users."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase03_extended.py"],
+  "success_rate": {"backend": "96% (50/52; 2 business-logic failures)", "frontend": "95% (all requested flows pass; mobile overflow on vendor apply form)"},
+  "test_credentials": "Super admin from /app/memory/test_credentials.md works and was not modified. Admin bcrypt hash starts with $2b$. The client_ip XFF issue from iteration 3 is fixed (now uses the right-most hop).",
+  "seed_data_creation": "None kept. The UI test users (TEST_UIVendor, TEST_Mobile) and their vendor, store, application, files and policy acceptances were deleted.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && pytest tests -n 0. test_phase03_extended.py has 2 expected failures until the main agent fixes the slug sync and the rejected re-apply. UI flow verified: register -> mongo verify -> /vendor/apply -> admin request info with docs -> doc upload -> resubmit -> admin download and approve -> dashboard edit/publish -> /store/<slug> -> suspend (prompt) -> 404 and suspended alert -> reactivate -> republish (the store stays 'paused' after reactivate until the vendor republishes). Recheck mobile 390px scrollWidth on /vendor/apply."
+}

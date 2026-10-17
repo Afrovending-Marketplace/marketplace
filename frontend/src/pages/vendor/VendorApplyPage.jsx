@@ -80,7 +80,7 @@ export default function VendorApplyPage() {
           {TEXT.map(([k, l]) => <Field key={k} id={`va-${k}`} label={l} value={form[k]} onChange={set(k)} testId={`vendor-${k.replace("_", "-")}-input`} />)}
           <div className="sm:col-span-2 space-y-2">
             <Label htmlFor="va-slug">Store URL</Label>
-            <div className="flex items-center gap-2 text-sm text-av-muted">afrovending.com/store/<input id="va-slug" value={form.desired_slug} onChange={set("desired_slug")} data-testid="vendor-slug-input" className="h-11 flex-1 rounded-md border border-av-line px-3 text-av-ink" /></div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-av-muted"><span className="break-all">afrovending.com/store/</span><input id="va-slug" value={form.desired_slug} onChange={set("desired_slug")} data-testid="vendor-slug-input" className="h-11 min-w-0 flex-1 rounded-md border border-av-line px-3 text-av-ink" /></div>
           </div>
           <fieldset className="sm:col-span-2"><legend className="mb-2 text-sm font-medium">Product categories</legend>
             <div className="flex flex-wrap gap-2">{getCategories().map((c) => (

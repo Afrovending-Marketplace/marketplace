@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { api, getErrorMessage } from "@/lib/api";
 
+const TONE = { submitted: "gold", changes_requested: "clay", approved: "success", rejected: "danger" };
+
 const download = async (doc) => {
   const r = await api.get(`/admin/vendor-documents/${doc.id}`, { responseType: "blob" });
   const url = URL.createObjectURL(r.data);
@@ -27,7 +29,7 @@ const Review = ({ id, onDone }) => {
   const decide = async (decision) => {
     try {
       await api.post(`/admin/vendor-applications/${id}/decision`, { decision, note, require_documents: docs });
-      toast.success(`Application ${decision.replace("_", " ")}`);
+      toast.success(`Application ${{ approve: "approved", reject: "rejected", request_info: "returned for more information" }[decision]}`);
       onDone();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -52,7 +54,7 @@ const Review = ({ id, onDone }) => {
                 <Textarea aria-label="Note to applicant" placeholder="Note to applicant (required for reject / request info)" value={note} onChange={(e) => setNote(e.target.value)} className="bg-white" data-testid="admin-decision-note" />
                 <label className="flex items-center gap-2"><Checkbox checked={docs} onCheckedChange={(v) => setDocs(!!v)} data-testid="admin-require-docs" /> Require a verification document</label>
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => decide("approve")} data-testid="admin-approve-button">Approve</Button>
+                  <Button variant="indigo" onClick={() => decide("approve")} data-testid="admin-approve-button">Approve</Button>
                   <Button variant="outline" onClick={() => decide("request_info")} data-testid="admin-request-info-button">Request info</Button>
                   <Button variant="destructive" onClick={() => decide("reject")} data-testid="admin-reject-button">Reject</Button>
                 </div>
@@ -95,13 +97,14 @@ export default function AdminVendorsPage() {
           {apps.map((a) => (
             <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <span><b>{a.business_name}</b> <span className="text-sm text-av-muted">/{a.desired_slug}</span></span>
-              <span className="flex items-center gap-3"><StatusBadge tone="gold">{a.status.replace("_", " ")}</StatusBadge>
+              <span className="flex items-center gap-3"><StatusBadge tone={TONE[a.status] || "gold"}>{a.status.replace("_", " ")}</StatusBadge>
                 <Button size="sm" variant="outline" onClick={() => setOpen(a.id)} data-testid={`admin-review-${a.id}`}>Review</Button></span>
             </li>))}
         </ul>
       </section>
       <section><h2 className="mb-4 text-xl font-semibold">Vendors</h2>
         <ul className="divide-y divide-av-line rounded-2xl border border-av-line bg-white" data-testid="admin-vendor-list">
+          {vendors.length === 0 && <li className="p-5 text-sm text-av-muted">No vendors yet.</li>}
           {vendors.map((v) => (
             <li key={v.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <span><b>{v.name}</b> <span className="text-sm text-av-muted">/store/{v.slug}</span></span>

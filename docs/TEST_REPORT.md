@@ -36,3 +36,9 @@ Design notes fixed after testing: hero stacks to one column below 1024px; 8 feat
 | Contact → info@afrovending.com | Real send | ❌ PENDING — provider: "Undeliverable recipient" (afrovending.com MX lookups refused) |
 
 Note: tests require the HTTPS preview URL (Secure cookies).
+
+## Phase 03 — 2026-10-17
+| Suite | Scope | Result |
+|---|---|---|
+| `test_phase03_vendors.py` (3) + `test_phase03_extended.py` (7, testing agent) + all earlier suites | Only approved+active vendors publish; draft/suspended stores not public; suspend/reactivate; policy acceptance required & recorded; request-info + required document; docs hidden from public, owner and other users, admin-only download; vendor isolation (applications, files); slug uniqueness & sync; re-apply after rejection | ✅ 52/52 |
+| E2E Playwright (iteration_4) | Apply flow with uploads, unverified gating, admin review dialog, request info → doc upload → approve, vendor dashboard edit/publish, public store, suspend/reactivate, /forbidden gating, brand red | ✅ all flows; fixes applied after: mobile slug row overflow, Approve/Reject colours, toast wording, status badge colours, empty vendor list state, location formatting |

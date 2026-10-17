@@ -115,6 +115,8 @@ async def save_application(body: ApplicationIn, request: Request, user: User = D
     if set(body.categories) - CATEGORIES:
         raise APIError(422, "validation_error", "Unknown category.")
     app = await my_application(user)
+    if app and app["status"] in ("rejected", "withdrawn"):
+        app = None  # start a fresh application; the old one stays for the record
     if app and app["status"] not in EDITABLE:
         raise APIError(409, "conflict", f"Your application is {app['status'].replace('_', ' ')} and can't be edited.")
     data = {**body.model_dump(), "country": body.country.upper(), "desired_slug": await check_slug(body.desired_slug, user.id),
@@ -167,6 +169,8 @@ async def update_store(body: StoreIn, request: Request, user: User = Depends(get
     data = {**body.model_dump(), "slug": await check_slug(body.slug, user.id), "logo_file_id": await own_file(body.logo_file_id, user.id, "logo"),
             "banner_file_id": await own_file(body.banner_file_id, user.id, "banner"), "updated_at": utcnow()}
     await db.vendor_stores.update_one({"vendor_id": vendor["_id"]}, {"$set": data})
+    await db.vendors.update_one({"_id": vendor["_id"]}, {"$set": {"slug": data["slug"], "name": data["display_name"], "updated_at": utcnow()}})
+    await db.vendor_applications.update_one({"_id": vendor["application_id"]}, {"$set": {"desired_slug": data["slug"]}})
     await audit("vendor.store_updated", "vendor_stores", request=request, actor=user, entity_id=str(vendor["_id"]))
     return {"store": ser(await db.vendor_stores.find_one({"vendor_id": vendor["_id"]}))}
 
