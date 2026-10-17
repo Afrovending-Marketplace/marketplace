@@ -39,7 +39,7 @@ export const FormSection = () => {
         <div className="space-y-2 sm:col-span-2">
           <Label>Category</Label>
           <Select>
-            <SelectTrigger className={fieldCls} data-testid={DS.formCategory}><SelectValue placeholder="Select a category" /></SelectTrigger>
+            <SelectTrigger aria-label="Category" className={fieldCls} data-testid={DS.formCategory}><SelectValue placeholder="Select a category" /></SelectTrigger>
             <SelectContent>
               {["Fashion & Textiles", "Home & Ceramics", "Spices & Teas"].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>

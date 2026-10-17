@@ -34,7 +34,7 @@ export const HowItWorks = () => (
             <ol className="mt-6 space-y-5">
               {steps.map((s, i) => (
                 <li key={s} className="flex gap-4">
-                  <span className="font-serif text-2xl leading-none text-av-gold">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="font-serif text-2xl leading-none text-av-gold-deep">{String(i + 1).padStart(2, "0")}</span>
                   <span className="text-sm text-av-ink/80 leading-relaxed">{s}</span>
                 </li>
               ))}

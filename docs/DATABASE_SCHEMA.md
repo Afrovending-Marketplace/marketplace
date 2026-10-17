@@ -32,17 +32,17 @@
 | PlatformSettings | `platform_settings` | 00 | K | system (super_admin writes) |
 | AuditLogs | `audit_logs` | 00 | N | system (admins read) |
 | SchemaMigrations | `schema_migrations` | 00 | N | system |
-| Users | `users` | 01 | B | self (user_id = _id) |
-| Roles | `roles` | 01 | B | system (super_admin writes) |
-| VendorApplications | `vendor_applications` | 02 | C | applicant user_id; admins review |
-| Vendors | `vendors` | 02 | C | owner_user_id; admins manage status |
-| VendorVerification | `vendor_verifications` | 02 | C | vendor_id (read); admins write |
-| Categories | `categories` | 03 | E | system (marketplace_admin writes) |
-| Products | `products` | 03 | E | vendor_id |
-| ProductVariants | `product_variants` | 03 | E | vendor_id (via product) |
-| ProductImages | `product_images` | 03 | E | vendor_id (via product) |
-| Inventory | `inventory` | 03 | E | vendor_id |
-| VendorStores | `vendor_stores` | 04 | D | vendor_id |
+| Users | `users` | 02 | B | self (user_id = _id) |
+| Roles | `roles` | 02 | B | system (super_admin writes) |
+| VendorApplications | `vendor_applications` | 03 | C | applicant user_id; admins review |
+| Vendors | `vendors` | 03 | C | owner_user_id; admins manage status |
+| VendorVerification | `vendor_verifications` | 03 | C | vendor_id (read); admins write |
+| Categories | `categories` | 04 | E | system (marketplace_admin writes) |
+| Products | `products` | 04 | E | vendor_id |
+| ProductVariants | `product_variants` | 04 | E | vendor_id (via product) |
+| ProductImages | `product_images` | 04 | E | vendor_id (via product) |
+| Inventory | `inventory` | 04 | E | vendor_id |
+| VendorStores | `vendor_stores` | 05 | D | vendor_id |
 | Carts | `carts` | 06 | G | user_id or guest_token |
 | CartItems | `cart_items` | 06 | G | cart owner |
 | Orders | `orders` | 06 | G | customer_id |
@@ -87,7 +87,7 @@ Applied versioned migrations.
 - **Append-only:** yes
 - **Index** `version_1` (unique)
 
-## Users (`users`) — Phase 01
+## Users (`users`) — Phase 02
 
 Single identity table for customers, vendors and admins. Roles are an array.
 
@@ -97,14 +97,14 @@ Single identity table for customers, vendors and admins. Roles are an array.
 - **Index** `roles_1`
 - **Index** `status_1_created_at_-1`
 
-## Roles (`roles`) — Phase 01
+## Roles (`roles`) — Phase 02
 
 Role catalog with permission sets; keys match afrovending.core.roles.Role.
 
 - **Owner:** system (super_admin writes)
 - **Index** `key_1` (unique)
 
-## VendorApplications (`vendor_applications`) — Phase 02
+## VendorApplications (`vendor_applications`) — Phase 03
 
 Business details submitted by a vendor applicant.
 
@@ -114,7 +114,7 @@ Business details submitted by a vendor applicant.
 - **Index** `user_id_1_created_at_-1`
 - **Index** `status_1_submitted_at_-1`
 
-## Vendors (`vendors`) — Phase 02
+## Vendors (`vendors`) — Phase 03
 
 Approved business entity on the marketplace.
 
@@ -125,7 +125,7 @@ Approved business entity on the marketplace.
 - **Index** `slug_1` (unique)
 - **Index** `status_1`
 
-## VendorVerification (`vendor_verifications`) — Phase 02
+## VendorVerification (`vendor_verifications`) — Phase 03
 
 Identity / business / payout-eligibility checks per vendor.
 
@@ -135,7 +135,7 @@ Identity / business / payout-eligibility checks per vendor.
 - **Index** `vendor_id_1_check_type_1` (unique)
 - **Index** `status_1`
 
-## Categories (`categories`) — Phase 03
+## Categories (`categories`) — Phase 04
 
 Hierarchical catalog taxonomy (parent_id).
 
@@ -145,7 +145,7 @@ Hierarchical catalog taxonomy (parent_id).
 - **Index** `slug_1` (unique)
 - **Index** `parent_id_1_sort_order_1`
 
-## Products (`products`) — Phase 03
+## Products (`products`) — Phase 04
 
 Sellable listing owned by one vendor.
 
@@ -157,7 +157,7 @@ Sellable listing owned by one vendor.
 - **Index** `category_id_1_status_1`
 - **Index** `title_text_description_text_tags_text`
 
-## ProductVariants (`product_variants`) — Phase 03
+## ProductVariants (`product_variants`) — Phase 04
 
 Purchasable SKU (size/colour/etc.) with price in minor units.
 
@@ -167,7 +167,7 @@ Purchasable SKU (size/colour/etc.) with price in minor units.
 - **Index** `sku_1` (unique)
 - **Index** `product_id_1`
 
-## ProductImages (`product_images`) — Phase 03
+## ProductImages (`product_images`) — Phase 04
 
 Object-storage references for product media.
 
@@ -175,7 +175,7 @@ Object-storage references for product media.
 - **Relations:** `product_id -> products`, `variant_id -> product_variants`
 - **Index** `product_id_1_sort_order_1`
 
-## Inventory (`inventory`) — Phase 03
+## Inventory (`inventory`) — Phase 04
 
 Stock per variant: quantity_on_hand, quantity_reserved.
 
@@ -184,7 +184,7 @@ Stock per variant: quantity_on_hand, quantity_reserved.
 - **Index** `variant_id_1` (unique)
 - **Index** `vendor_id_1`
 
-## VendorStores (`vendor_stores`) — Phase 04
+## VendorStores (`vendor_stores`) — Phase 05
 
 Public storefront profile (branding, policies) for a vendor.
 

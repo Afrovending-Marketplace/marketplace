@@ -19,7 +19,7 @@ class TestHealth:
         assert r.status_code == 200
         d = r.json()
         assert d["status"] == "ok" and d["database"] == "ok"
-        assert d["phase"] in (0, "0", "00")
+        assert int(d["phase"]) >= 0
         assert r.headers.get("X-Request-ID")
 
     def test_request_id_echo(self, s):

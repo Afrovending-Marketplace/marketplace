@@ -8,7 +8,7 @@ Organic, earthy luxury with African textile accents ("kente strip" utility). War
 ## Tokens
 | Token | Hex | Use |
 |---|---|---|
-| `av-clay` / `-hover` / `-active` / `-light` | #C85A32 / #B24B25 / #963A17 / #FBEBE4 | Primary actions, brand emphasis |
+| `av-clay` / `-hover` / `-active` / `-bright` / `-light` | #B24B25 / #963A17 / #7E2F12 / #C85A32 / #FBEBE4 | Primary actions, links, brand emphasis. `-bright` (original terracotta) is decorative only — it fails 4.5:1 for small text (Phase 01 a11y fix, D-012) |
 | `av-gold` / `-hover` / `-deep` / `-light` | #D9822B / #C0701F / #9A5412 / #FEF3E2 | Secondary CTA, eyebrows, ratings, warnings |
 | `av-indigo` / `-hover` / `-line` / `-light` | #1E2A38 / #141C27 / #2A394B / #EAEFF5 | Footer, dark panels, info |
 | `av-emerald` / `-hover` / `-light` | #2D5A44 / #214433 / #E9F2ED | Success, verified vendor |

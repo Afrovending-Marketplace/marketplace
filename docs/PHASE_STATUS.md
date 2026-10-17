@@ -2,16 +2,18 @@
 
 | Phase | Status | Date |
 |---|---|---|
-| 00 Project foundation | ✅ Complete — awaiting owner approval | 2026-10-17 |
-| 01 Authentication, accounts & roles | ⏸ Not started (awaiting approval) | — |
-| 02–14 | ⏸ Not started | — |
+| 00 Project foundation | ✅ Complete | 2026-10-17 |
+| 01 Public storefront | ✅ Complete — awaiting owner approval | 2026-10-17 |
+| 02 Authentication, accounts & roles | ⏸ Not started | — |
+| 03–14 | ⏸ Not started | — |
 
-## Phase 00 deliverables
-- Modular backend package `afrovending/` (config, db, models, roles, errors, logging, entity registry, migrations, `/api/v1` system router).
-- Migration `0001_phase00_foundation`: indexes for phase-00 entities; idempotent seed of `platform_settings` from `fixtures/platform_settings.json`.
-- Frontend app shell (header, mobile nav, footer with live API status), Home, `/design-system`, phase-tagged Coming Soon routes, 404.
-- Docs set in `/docs`; schema doc generated from code.
-- Baseline pytest suite `backend/tests/test_phase00_foundation.py`.
+## Phase 01 deliverables
+- Announcement bar (dismissible, remembered per browser), redesigned header (logo, search entry, account, cart, "Sell on AfroVending"), category navigation for all 9 categories, mobile menu.
+- Homepage: promotional hero, shop-by-category, featured products, trending categories, new arrivals, featured vendors, how it works, vendor CTA.
+- Reusable `ProductCard`, `VendorCard`, `CategoryTile`, `ProductRail`, `ListingLayout`, `SortSelect`, `FilterSidebar`, `Breadcrumbs`, `PageHero`, `DevDataNotice`, `LegalLayout`, `NewsletterSignup`.
+- Templates: `/shop`, `/categories`, `/categories/:slug`, `/products/:slug`, `/vendors`, `/vendors/:slug`, `/search?q=`.
+- Content layouts: `/about`, `/contact`, `/faq`, `/privacy`, `/terms`, `/sell` (vendor info). `/help` → `/faq`, `/become-vendor` → `/sell`.
+- Development data: `frontend/src/data/dev/catalog.js` (9 categories, 5 fictional vendors, 16 fictional products). Labelled on every page and card.
 
 ## Deferred (intentionally not built)
-Auth, vendor onboarding, catalog, search, cart/checkout, payments, orders, dashboards, reviews, email, CMS, real search/cart/account behaviour (header icons show a "coming in Phase X" notice).
+Accounts (Phase 02), cart/checkout (06), real search & filters (05), newsletter & contact delivery (11/12), reviews (11), legal copy (owner/legal counsel), vendor applications (03).

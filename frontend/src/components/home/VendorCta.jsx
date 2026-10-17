@@ -15,7 +15,7 @@ export const VendorCta = () => (
           AfroVending is being built for continental, Caribbean and diaspora businesses. Vendor applications open soon.
         </p>
         <Button asChild size="lg" variant="gold" data-testid={HOME.vendorCtaButton}>
-          <Link to="/become-vendor">Start selling <ArrowRight /></Link>
+          <Link to="/sell">Start selling <ArrowRight /></Link>
         </Button>
       </div>
       <div className="relative md:col-span-5 min-h-[260px]">

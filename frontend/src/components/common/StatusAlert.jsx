@@ -15,7 +15,7 @@ export const StatusAlert = ({ tone = "info", title, children, testId }) => {
     <Alert data-testid={testId} role={tone === "error" ? "alert" : "status"} className={cn("rounded-xl", cls)}>
       <Icon className="h-4 w-4" />
       <AlertTitle className="font-semibold">{title}</AlertTitle>
-      {children && <AlertDescription className="opacity-90">{children}</AlertDescription>}
+      {children && <AlertDescription>{children}</AlertDescription>}
     </Alert>
   );
 };
