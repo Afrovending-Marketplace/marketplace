@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { DS_SECTIONS } from "@/config/designTokens";
-import { ColorSection, TypographySection, SpacingSection } from "@/components/design-system/FoundationSections";
+import { LogoSection, ColorSection, TypographySection, SpacingSection } from "@/components/design-system/FoundationSections";
 import { ButtonSection, CardSection } from "@/components/design-system/ComponentSections";
 import { FormSection } from "@/components/design-system/FormSection";
 import { AlertSection, TableSection, ModalSection } from "@/components/design-system/DataSections";
@@ -35,7 +35,7 @@ export default function DesignSystemPage() {
           </ul>
         </nav>
         <div className="min-w-0">
-          <ColorSection /><TypographySection /><SpacingSection /><ButtonSection /><CardSection />
+          <LogoSection /><ColorSection /><TypographySection /><SpacingSection /><ButtonSection /><CardSection />
           <FormSection /><AlertSection /><TableSection /><ModalSection />
         </div>
       </div>

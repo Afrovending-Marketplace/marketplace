@@ -12,7 +12,8 @@ module.exports = {
       fontFamily: {
         serif: ['"Playfair Display"', 'Georgia', 'serif'],
         sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace']
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        brand: ['Oswald', 'Impact', 'sans-serif']
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -21,6 +22,7 @@ module.exports = {
       },
       colors: {
         av: {
+          brand: '#D40000',
           clay: { DEFAULT: '#B24B25', hover: '#963A17', active: '#7E2F12', light: '#FBEBE4', bright: '#C85A32' },
           gold: { DEFAULT: '#D9822B', hover: '#C0701F', light: '#FEF3E2', deep: '#9A5412' },
           indigo: { DEFAULT: '#1E2A38', hover: '#141C27', light: '#EAEFF5', line: '#2A394B' },

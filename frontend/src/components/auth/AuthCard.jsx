@@ -3,12 +3,13 @@ import { Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusAlert } from "@/components/common/StatusAlert";
+import { BrandMark } from "@/components/layout/BrandLogo";
 
 export const AuthCard = ({ title, description, children, footer, testId }) => (
   <section data-testid={testId} className="mud-pattern">
     <div className="av-container grid min-h-[70vh] place-items-center py-14">
       <div className="w-full max-w-md rounded-[1.5rem] border border-av-line bg-white p-6 shadow-xl shadow-av-indigo/5 sm:p-10">
-        <div className="kente-strip mb-6 h-1 w-16 rounded-full" aria-hidden="true" />
+        <BrandMark className="mb-5 h-14 w-14" />
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-av-ink">{title}</h1>
         {description && <p className="mt-2 text-sm text-av-muted">{description}</p>}
         <div className="mt-8">{children}</div>

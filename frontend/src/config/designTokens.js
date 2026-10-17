@@ -18,6 +18,6 @@ export const TYPE_SCALE = [
 export const SPACING = [2, 4, 6, 8, 12, 16, 24, 32];
 
 export const DS_SECTIONS = [
-  ["colors", "Colors"], ["typography", "Typography"], ["spacing", "Spacing"], ["buttons", "Buttons"],
+  ["logo", "Logo"], ["colors", "Colors"], ["typography", "Typography"], ["spacing", "Spacing"], ["buttons", "Buttons"],
   ["cards", "Cards"], ["forms", "Forms"], ["alerts", "Alerts & badges"], ["tables", "Tables"], ["modal", "Modal"],
 ];

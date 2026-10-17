@@ -5,6 +5,9 @@ Source of truth: `design_guidelines.json`, `frontend/tailwind.config.js` (`av.*`
 ## Identity
 Organic, earthy luxury with African textile accents ("kente strip" utility). Warm linen base, terracotta primary, gold accent, deep indigo structure, savanna emerald for success/verified.
 
+## Logo (official)
+Files in `frontend/public/brand/`: `logo-full.png` (mark + wordmark, red), `logo-full-white.png`, `logo-mark.png` (Africa + cart), `logo-mark-white.png`, `favicon-64.png`; `public/favicon.ico`, `logo192.png`, `logo512.png`. Header/mobile menu use `BrandLogo` (mark + "AFROVENDING" in Oswald, `av-brand` #D40000); footer and emails use the white mark on indigo; auth cards show the mark. Never redraw or recolour the mark.
+
 ## Tokens
 | Token | Hex | Use |
 |---|---|---|

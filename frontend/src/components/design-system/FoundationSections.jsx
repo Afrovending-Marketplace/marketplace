@@ -1,6 +1,16 @@
 import { COLORS, TYPE_SCALE, SPACING } from "@/config/designTokens";
 import { DsSection } from "@/components/design-system/DsSection";
 
+export const LogoSection = () => (
+  <DsSection id="logo" title="Logo" description="Official AfroVending logo (Africa + cart). Use /brand assets only; never redraw, recolour or stretch.">
+    <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid place-items-center rounded-2xl border border-av-line bg-white p-6"><img src="/brand/logo-full.png" alt="AfroVending logo" className="h-40 object-contain" data-testid="ds-logo-full" /></div>
+      <div className="grid place-items-center rounded-2xl bg-av-indigo p-6"><img src="/brand/logo-full-white.png" alt="AfroVending logo on dark" className="h-40 object-contain" /></div>
+      <div className="grid place-items-center rounded-2xl border border-av-line bg-white p-6"><img src="/brand/logo-mark.png" alt="AfroVending mark" className="h-24 object-contain" /><p className="mt-3 font-mono text-xs text-av-muted">av-brand #D40000</p></div>
+    </div>
+  </DsSection>
+);
+
 export const ColorSection = () => (
   <DsSection id="colors" title="Colors" description="Tailwind tokens under the `av-*` namespace. Primary actions are clay; indigo anchors structure.">
     <div className="space-y-8">
