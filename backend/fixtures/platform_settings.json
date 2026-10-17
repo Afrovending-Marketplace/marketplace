@@ -1,0 +1,8 @@
+[
+  {"key": "marketplace.name", "value": "AfroVending Online Marketplace", "is_public": true, "description": "Display name"},
+  {"key": "marketplace.legal_name", "value": "AfroVending Online Marketplace LLC", "is_public": true, "description": "Legal entity"},
+  {"key": "marketplace.tagline", "value": "From Culture to Commerce", "is_public": true, "description": "Brand positioning"},
+  {"key": "marketplace.domain", "value": "https://www.afrovending.com", "is_public": true, "description": "Production domain"},
+  {"key": "marketplace.default_currency", "value": "USD", "is_public": true, "description": "ASSUMPTION pending owner confirmation (see DECISION_LOG D-006)"},
+  {"key": "commission.default_rate_bps", "value": null, "is_public": false, "description": "Not decided. To be set by owner before Phase 07"}
+]

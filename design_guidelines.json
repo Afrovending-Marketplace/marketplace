@@ -1,0 +1,250 @@
+{
+  "project_name": "AfroVending Online Marketplace",
+  "company": "AfroVending Online Marketplace LLC",
+  "tagline": "From Culture to Commerce",
+  "domain": "afrovending.com",
+  "app_type": "Multi-Vendor E-Commerce Marketplace (African, Caribbean, Diaspora & Global)",
+  "phase": "Phase 00 - Project Foundation & Responsive App Shell",
+  "archetype": "ORGANIC & EARTHY LUXURY WITH KINETIC AFRICAN ACCENTS",
+  "design_philosophy": {
+    "core_motto": "From Culture to Commerce - Warmth, Honor, Craft & Tactile Digital Runway",
+    "fusion_disciplines": [
+      "Traditional African textile geometry (Kente/Bogolan rhythm)",
+      "Editorial Swiss typography with rich contrast",
+      "Tactile pottery & terracotta ceramic warmth"
+    ],
+    "principles": [
+      "Fusion over Imitation: Mix craft heritage with high-end digital flagship polish.",
+      "Emotion First: Evoke pride, authenticity, warmth, trust, and global connection.",
+      "Content is King: Celebrate the vendor stories and artisan roots in every layout.",
+      "Tactile Framing: Deep rich neutral bases (#0E0C0A charcoal, #FAF7F2 warm warm linen) paired with Terracotta (#C85A32), Royal Gold (#D9822B), and Deep Indigo (#1E2338) accents."
+    ]
+  },
+  "theme": {
+    "default_mode": "light",
+    "toggle_supported": true,
+    "light_mode": {
+      "bg_primary": "#FAF7F2",
+      "bg_surface": "#FFFFFF",
+      "bg_subtle": "#F3EDE4",
+      "text_main": "#1A1613",
+      "text_muted": "#6E675F",
+      "border": "#E6DEC5"
+    },
+    "dark_mode": {
+      "bg_primary": "#0F0D0B",
+      "bg_surface": "#1A1714",
+      "bg_subtle": "#26221E",
+      "text_main": "#F8F5F0",
+      "text_muted": "#A39B91",
+      "border": "#363028"
+    }
+  },
+  "color_palette": {
+    "primary_terracotta": {
+      "main": "#C85A32",
+      "hover": "#B24B25",
+      "active": "#963A17",
+      "light": "#FBEBE4",
+      "description": "Earth clay warmth used for primary action buttons, brand focus, and key emphasis."
+    },
+    "warm_gold_amber": {
+      "main": "#D9822B",
+      "hover": "#C0701F",
+      "light": "#FEF3E2",
+      "description": "Cultural sunshine and wealth accent for ratings, highlights, and badges."
+    },
+    "deep_indigo": {
+      "main": "#1E2A38",
+      "hover": "#141C27",
+      "light": "#EAEFF5",
+      "description": "Deep ocean and dye tint for anchor headers, footers, and crisp structure."
+    },
+    "savanna_emerald": {
+      "main": "#2D5A44",
+      "hover": "#214433",
+      "light": "#E9F2ED",
+      "description": "Lush flora green for success badges, vendor verified marks, and organic categories."
+    },
+    "neutrals": {
+      "obsidian_dark": "#0F0D0B",
+      "charcoal_text": "#1A1613",
+      "warm_grey_muted": "#6E675F",
+      "border_soft": "#E6DFD3",
+      "linen_white": "#FAF7F2",
+      "pure_white": "#FFFFFF"
+    }
+  },
+  "typography": {
+    "heading_font": "Playfair Display / Cormorant Garamond / Cabinet Grotesk (serif/expressive for culture & luxury headers)",
+    "body_font": "Plus Jakarta Sans / DM Sans / Inter (clean legibility for products, tables, and micro-copy)",
+    "mono_font": "JetBrains Mono (for SKU, badges, and code snippets in design system)",
+    "hierarchy": {
+      "h1_hero": "text-4xl sm:text-5xl lg:text-6xl font-serif font-bold tracking-tight leading-tight",
+      "h2_section": "text-2xl sm:text-3xl lg:text-4xl font-serif font-semibold tracking-tight",
+      "h3_subsection": "text-xl sm:text-2xl font-sans font-semibold",
+      "h4_card": "text-lg sm:text-xl font-sans font-medium",
+      "body_lg": "text-lg font-sans leading-relaxed",
+      "body_base": "text-base font-sans leading-normal",
+      "caption_sm": "text-xs uppercase tracking-widest font-semibold text-amber-700"
+    }
+  },
+  "layout_and_spacing": {
+    "spacing_scale": "p-2, p-4, p-6, p-8, p-12, p-16, p-24, p-32",
+    "bento_grid_hero": "grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8",
+    "card_padding": "p-6 md:p-8",
+    "container_max_width": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "border_radius": "rounded-xl for cards/modals, rounded-full for badges/pills, rounded-md for inputs"
+  },
+  "navigation_and_shell": {
+    "header": {
+      "position": "sticky top-0 z-50",
+      "style": "backdrop-blur-xl bg-white/85 dark:bg-[#0F0D0B]/85 border-b border-[#E6DFD3] dark:border-[#363028]",
+      "brand_logo": "AfroVending wordmark with terracotta 'Afro' + amber 'Vending' & subtle geometric pattern emblem",
+      "nav_links": [
+        { "label": "Shop", "path": "/shop", "status": "coming_soon" },
+        { "label": "Categories", "path": "/categories", "status": "coming_soon" },
+        { "label": "Vendors", "path": "/vendors", "status": "coming_soon" },
+        { "label": "Become a Vendor", "path": "/become-vendor", "status": "coming_soon", "highlight": true },
+        { "label": "Help", "path": "/help", "status": "coming_soon" }
+      ],
+      "actions": [
+        { "icon": "Search", "label": "Search Marketplace", "testId": "header-search-button" },
+        { "icon": "User", "label": "Account (Coming Soon)", "testId": "header-account-button" },
+        { "icon": "ShoppingBag", "label": "Cart (0) (Coming Soon)", "testId": "header-cart-button" },
+        { "label": "Design System", "path": "/design-system", "isInternal": true, "testId": "header-design-system-link" }
+      ]
+    },
+    "footer": {
+      "style": "bg-[#1E2A38] text-[#FAF7F2] py-16 px-6 sm:px-8 border-t border-[#2A394B]",
+      "columns": [
+        {
+          "title": "AfroVending Marketplace",
+          "content": "Connecting African, Caribbean, diaspora and global entrepreneurs with customers worldwide. From Culture to Commerce."
+        },
+        {
+          "title": "Shop & Discover",
+          "links": ["Artisan Fashion", "Handcrafted Decor", "Organic Spices & Teas", "Beauty & Oils", "Featured Vendors"]
+        },
+        {
+          "title": "For Entrepreneurs",
+          "links": ["Become a Vendor", "Vendor Portal", "Fulfillment & Logistics", "Vendor Handbook", "Success Stories"]
+        },
+        {
+          "title": "Platform & System",
+          "links": ["Design System Showcase", "Privacy Policy", "Terms of Service", "Trust & Safety", "Help Center"]
+        }
+      ],
+      "copyright": "© 2026 AfroVending Online Marketplace LLC. All rights reserved."
+    }
+  },
+  "pages_to_build_in_phase0": {
+    "home_page": {
+      "hero_section": {
+        "eyebrow": "WORLDWIDE AFRICAN & DIASPORA MARKETPLACE",
+        "headline": "From Culture to Commerce",
+        "subheadline": "Empowering African, Caribbean, and diaspora artisans and entrepreneurs to reach global conscious shoppers with authentic, premium goods.",
+        "primary_cta": { "text": "Explore Marketplace", "path": "/shop", "testId": "hero-explore-button" },
+        "secondary_cta": { "text": "Become a Vendor", "path": "/become-vendor", "testId": "hero-vendor-button" }
+      },
+      "category_teaser": {
+        "title": "Curated Cultural Collections",
+        "categories": [
+          { "name": "Artisan Fashion & Textiles", "count": "1,200+ Products", "tag": "Popular" },
+          { "name": "Handcrafted Home & Ceramics", "count": "850+ Items", "tag": "Artisan" },
+          { "name": "Organic Spices & Specialty Teas", "count": "430+ Blends", "tag": "Pure" },
+          { "name": "Natural Beauty & Skincare", "count": "620+ Botanicals", "tag": "Organic" }
+        ]
+      },
+      "how_it_works": {
+        "title": "How AfroVending Bridges Culture & Commerce",
+        "customer_steps": [
+          "Discover verified African & Diaspora creators",
+          "Transparent pricing with global secure checkout",
+          "Direct shipping from authentic artisan workshops"
+        ],
+        "vendor_steps": [
+          "Create your custom store in minutes",
+          "Access global marketplace analytics & logistics",
+          "Keep high margins & receive instant payout"
+        ]
+      },
+      "vendor_cta_banner": {
+        "headline": "Ready to showcase your craft to the world?",
+        "subtext": "Join thousands of diaspora and continental entrepreneurs scaling their businesses on AfroVending.",
+        "button": { "text": "Start Selling Today", "testId": "home-vendor-cta-button" }
+      }
+    },
+    "design_system_page": {
+      "path": "/design-system",
+      "sections": [
+        "Brand Identity & Mission",
+        "Color System (Terracotta, Gold, Indigo, Emerald, Neutrals)",
+        "Typography Hierarchy & Font Pairs",
+        "Button Variants (Primary Terracotta, Amber Gold, Outline, Ghost, Disabled)",
+        "Card Components (Product Card, Vendor Card, Feature Bento Card)",
+        "Form Controls (Input, Select, Checkbox, Search, Toggle)",
+        "Alerts & Badges (Info, Success, Warning, Error, Verified Pill)",
+        "Data Tables (Vendor List Table, Order Status Table)",
+        "Modal Dialog (Interactive Modal Demo)",
+        "Spacing & Spacing Grid Visualizer"
+      ]
+    },
+    "placeholder_coming_soon_page": {
+      "title": "Feature Coming Soon",
+      "description": "We are crafting this module for the upcoming Phase rollout. Check back shortly as we expand AfroVending!",
+      "testId": "coming-soon-container"
+    },
+    "not_found_404_page": {
+      "title": "404 - Cultural Route Not Found",
+      "description": "The page you are looking for has taken a detour through the artisan market.",
+      "button": { "text": "Return to Marketplace Home", "testId": "404-home-button" }
+    }
+  },
+  "image_urls": {
+    "hero_banner": "https://images.unsplash.com/photo-1709809081557-78f803ce93a0?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "artisan_weaving": "https://images.pexels.com/photos/33225150/pexels-photo-33225150.jpeg?auto=compress&cs=tinysrgb&w=940",
+    "pottery_maker": "https://images.pexels.com/photos/20362433/pexels-photo-20362433.jpeg?auto=compress&cs=tinysrgb&w=940",
+    "colorful_baskets": "https://images.unsplash.com/photo-1751725154557-b10ab73f1564?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "bags_fashion": "https://images.unsplash.com/photo-1692689383138-c2df3476072c?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "textiles_display": "https://images.unsplash.com/photo-1768212566108-4ce4f329e4d2?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "vendor_portrait_woman": "https://images.pexels.com/photos/33251084/pexels-photo-33251084.jpeg?auto=compress&cs=tinysrgb&w=940",
+    "vendor_portrait_man": "https://images.unsplash.com/photo-1513872900980-460ea4c87668?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "spices_hand": "https://images.pexels.com/photos/37087456/pexels-photo-37087456.jpeg?auto=compress&cs=tinysrgb&w=940",
+    "woven_decor": "https://images.pexels.com/photos/37294469/pexels-photo-37294469.jpeg?auto=compress&cs=tinysrgb&w=940"
+  },
+  "testing_and_accessibility": {
+    "mandatory_data_testid_rule": "ALL interactive and key informational elements MUST have kebab-case data-testid attributes.",
+    "required_test_ids": [
+      "header-brand-logo",
+      "header-nav-shop",
+      "header-nav-categories",
+      "header-nav-vendors",
+      "header-nav-become-vendor",
+      "header-nav-help",
+      "header-search-button",
+      "header-account-button",
+      "header-cart-button",
+      "header-design-system-link",
+      "hero-explore-button",
+      "hero-vendor-button",
+      "home-vendor-cta-button",
+      "coming-soon-container",
+      "404-home-button",
+      "ds-button-primary",
+      "ds-button-secondary",
+      "ds-modal-trigger",
+      "ds-modal-close"
+    ],
+    "accessibility_rules": "Ensure all buttons have focus-visible outline rings, clear 4.5:1 text contrast over terracottas and indigos, and aria labels for icon-only buttons."
+  },
+  "instructions_to_main_agent": [
+    "1. Read and adhere strictly to this design_guidelines.json file.",
+    "2. Maintain permanent AfroVending design system consistency across all routes and future phase builds.",
+    "3. Implement the shared Header, Footer, Home Page, Design System Showcase (/design-system), 404 Page, and Coming Soon routes.",
+    "4. Ensure all interactive buttons, inputs, links, and cards include explicit data-testid attributes.",
+    "5. Use Lucide icons (Search, User, ShoppingBag, ArrowRight, ShieldCheck, Sparkles, Check, ChevronRight, Menu, X, ExternalLink).",
+    "6. Do not use plain white or default generic Tailwind styles. Use AfroVending warm neutral backgrounds (#FAF7F2), Terracotta (#C85A32), Warm Gold (#D9822B), and Deep Indigo (#1E2A38).",
+    "7. Clean up any emergent stock splash components from App.js."
+  ]
+}
