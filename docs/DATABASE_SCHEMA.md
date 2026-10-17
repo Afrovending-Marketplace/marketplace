@@ -48,7 +48,9 @@
 | ProductVariants | `product_variants` | 04 | E | vendor_id (via product) |
 | ProductImages | `product_images` | 04 | E | vendor_id (via product) |
 | Inventory | `inventory` | 04 | E | vendor_id |
-| VendorStores | `vendor_stores` | 05 | D | vendor_id |
+| VendorStores | `vendor_stores` | 03 | D | vendor_id |
+| Files | `files` | 03 | N | owner_user_id; private docs readable by marketplace_admin/super_admin only |
+| VendorPolicyAcceptances | `vendor_policy_acceptances` | 03 | C | user_id |
 | Carts | `carts` | 06 | G | user_id or guest_token |
 | CartItems | `cart_items` | 06 | G | cart owner |
 | Orders | `orders` | 06 | G | customer_id |
@@ -244,7 +246,7 @@ Stock per variant: quantity_on_hand, quantity_reserved.
 - **Index** `variant_id_1` (unique)
 - **Index** `vendor_id_1`
 
-## VendorStores (`vendor_stores`) — Phase 05
+## VendorStores (`vendor_stores`) — Phase 03
 
 Public storefront profile (branding, policies) for a vendor.
 
@@ -254,6 +256,26 @@ Public storefront profile (branding, policies) for a vendor.
 - **Index** `vendor_id_1` (unique)
 - **Index** `slug_1` (unique)
 - **Index** `status_1`
+- **Index** `owner_user_id_1`
+
+## Files (`files`) — Phase 03
+
+Object-storage references. Public: logo/banner. Private: verification_doc (soft delete only).
+
+- **Owner:** owner_user_id; private docs readable by marketplace_admin/super_admin only
+- **Relations:** `owner_user_id -> users`, `application_id -> vendor_applications`
+- **Index** `owner_user_id_1_purpose_1`
+- **Index** `application_id_1`
+
+## VendorPolicyAcceptances (`vendor_policy_acceptances`) — Phase 03
+
+Append-only record of Vendor Agreement version accepted, with timestamp and IP.
+
+- **Owner:** user_id
+- **Append-only:** yes
+- **Relations:** `user_id -> users`, `application_id -> vendor_applications`
+- **Index** `user_id_1_accepted_at_-1`
+- **Index** `application_id_1`
 
 ## Carts (`carts`) — Phase 06
 

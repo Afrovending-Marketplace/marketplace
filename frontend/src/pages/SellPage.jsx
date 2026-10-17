@@ -18,12 +18,12 @@ export default function SellPage() {
   return (
     <div data-testid="sell-page">
       <PageHero eyebrow="Sell on AfroVending" title="Bring your craft to a global audience." crumbs={[{ label: "Home", to: "/" }, { label: "Sell" }]}
-        description="For continental, Caribbean and diaspora entrepreneurs. Vendor applications open soon.">
+        description="For continental, Caribbean and diaspora entrepreneurs. Applications are open.">
         <div className="flex flex-wrap gap-3 pt-2">
-          <Button size="lg" disabled data-testid="sell-apply-button" aria-describedby="sell-apply-note">Apply to sell</Button>
+          <Button asChild size="lg" data-testid="sell-apply-button"><Link to="/vendor/apply">Apply to sell</Link></Button>
           <Button asChild size="lg" variant="outline" data-testid="sell-contact-button"><Link to="/contact">Ask a question</Link></Button>
         </div>
-        <p id="sell-apply-note" className="text-xs text-av-muted">Applications open in Phase 03 (vendor onboarding & verification).</p>
+        <p id="sell-apply-note" className="text-xs text-av-muted">Create an account, verify your email, then submit your business details for review.</p>
       </PageHero>
       <section className="av-container py-16 lg:py-24">
         <h2 className="text-3xl sm:text-4xl font-semibold text-av-ink">What you'll get</h2>

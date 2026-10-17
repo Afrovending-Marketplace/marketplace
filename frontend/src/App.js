@@ -23,7 +23,11 @@ import AccountOverview from "@/pages/account/AccountOverview";
 import ProfilePage from "@/pages/account/ProfilePage";
 import AddressesPage from "@/pages/account/AddressesPage";
 import PrivacySettingsPage from "@/pages/account/PrivacySettingsPage";
-import { AdminConsolePage, VendorDashboardPage, ForbiddenPage } from "@/pages/RolePages";
+import { AdminConsolePage, ForbiddenPage } from "@/pages/RolePages";
+import VendorDashboardPage from "@/pages/vendor/VendorDashboardPage";
+import VendorApplyPage from "@/pages/vendor/VendorApplyPage";
+import PublicStorePage from "@/pages/vendor/PublicStorePage";
+import AdminVendorsPage from "@/pages/admin/AdminVendorsPage";
 import DesignSystemPage from "@/pages/DesignSystemPage";
 import ComingSoonPage from "@/pages/ComingSoonPage";
 import NotFoundPage from "@/pages/NotFoundPage";
@@ -65,10 +69,15 @@ function App() {
                 <Route path="addresses" element={<AddressesPage />} />
                 <Route path="privacy" element={<PrivacySettingsPage />} />
               </Route>
+              <Route path="vendor/apply" element={<VendorApplyPage />} />
             </Route>
             <Route element={<ProtectedRoute roles={ADMIN_ROLES} />}>
               <Route path="admin" element={<AdminConsolePage />} />
             </Route>
+            <Route element={<ProtectedRoute roles={["marketplace_admin", "super_admin"]} />}>
+              <Route path="admin/vendors" element={<AdminVendorsPage />} />
+            </Route>
+            <Route path="store/:slug" element={<PublicStorePage />} />
             <Route element={<ProtectedRoute roles={["vendor"]} />}>
               <Route path="vendor/dashboard" element={<VendorDashboardPage />} />
             </Route>

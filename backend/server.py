@@ -10,6 +10,9 @@ from afrovending.core.errors import register_error_handlers
 from afrovending.core.logging import configure_logging, register_request_logging
 from afrovending.migrations.runner import run_migrations
 from afrovending.migrations.seed import seed_admin
+import logging
+from starlette.concurrency import run_in_threadpool
+from afrovending.core.storage import init_storage
 from fastapi import Request
 from afrovending.core.errors import error_response
 
@@ -20,6 +23,10 @@ configure_logging(settings.log_level)
 async def lifespan(_: FastAPI):
     await run_migrations(db)
     await seed_admin(db)
+    try:
+        await run_in_threadpool(init_storage)
+    except Exception as exc:
+        logging.getLogger("afrovending.storage").error("Storage init failed: %s", exc)
     yield
     client.close()
 

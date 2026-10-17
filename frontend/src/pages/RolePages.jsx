@@ -12,13 +12,11 @@ const Panel = ({ icon: Icon, title, text, testId }) => (
 );
 
 export const AdminConsolePage = () => (
-  <Panel testId="admin-console-page" icon={LayoutDashboard} title="Admin console"
-    text="You're signed in with an administrator role. The administration dashboard is built in Phase 10; admin APIs for staff, privacy requests and audit logs are already protected server-side." />
-);
-
-export const VendorDashboardPage = () => (
-  <Panel testId="vendor-dashboard-page" icon={LayoutDashboard} title="Vendor dashboard"
-    text="Approved vendors will manage their store here. Vendor onboarding opens in Phase 03." />
+  <div>
+    <Panel testId="admin-console-page" icon={LayoutDashboard} title="Admin console"
+      text="The full administration dashboard is built in Phase 10. Vendor review is available now." />
+    <div className="-mt-16 pb-16 text-center"><Button asChild data-testid="admin-vendors-link"><Link to="/admin/vendors">Vendor applications & vendors</Link></Button></div>
+  </div>
 );
 
 export const ForbiddenPage = () => (

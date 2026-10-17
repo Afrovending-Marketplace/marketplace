@@ -1,5 +1,5 @@
 export const COLORS = [
-  { group: "Terracotta Clay · primary", swatches: [["av-clay", "#B24B25"], ["av-clay-hover", "#963A17"], ["av-clay-active", "#7E2F12"], ["av-clay-bright", "#C85A32"], ["av-clay-light", "#FBEBE4"]] },
+  { group: "Terracotta Clay · primary", swatches: [["av-clay", "#D40000"], ["av-clay-hover", "#B00000"], ["av-clay-active", "#8C0000"], ["av-clay-bright", "#E60000"], ["av-clay-light", "#FDECEC"]] },
   { group: "Royal Gold · accent", swatches: [["av-gold", "#D9822B"], ["av-gold-hover", "#C0701F"], ["av-gold-deep", "#9A5412"], ["av-gold-light", "#FEF3E2"]] },
   { group: "Deep Indigo · structure", swatches: [["av-indigo", "#1E2A38"], ["av-indigo-hover", "#141C27"], ["av-indigo-line", "#2A394B"], ["av-indigo-light", "#EAEFF5"]] },
   { group: "Savanna Emerald · success", swatches: [["av-emerald", "#2D5A44"], ["av-emerald-hover", "#214433"], ["av-emerald-light", "#E9F2ED"]] },

@@ -164,6 +164,12 @@ def security_notice_email(name: str, event: str) -> tuple[str, str]:
     return "AfroVending account security notice", _layout("Security notice", body)
 
 
+def vendor_notice_email(name: str, headline: str, text: str) -> tuple[str, str]:
+    url = f"{settings.frontend_url}/vendor/apply"
+    body = f"<p>Hi {escape(name)},</p><p>{escape(text)}</p>{_button(url, 'View my vendor status')}"
+    return f"AfroVending: {headline}", _layout(headline, body)
+
+
 def contact_inbox_email(name: str, email: str, subject: str, message: str) -> tuple[str, str]:
     body = (f"<p><strong>From:</strong> {escape(name)} &lt;{escape(email)}&gt;</p><p><strong>Subject:</strong> {escape(subject)}</p>"
             f"<p style=\"white-space:pre-wrap;background:#F3EDE4;padding:16px;border-radius:8px\">{escape(message)}</p>"

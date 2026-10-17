@@ -59,7 +59,8 @@ def decode_token(token: str, kind: str) -> dict:
 
 
 def new_opaque_token() -> tuple[str, str]:
-    raw = secrets.token_urlsafe(32)
+    # Hex only: random urlsafe text could accidentally contain phrases the email safety gate blocks (e.g. "cvv").
+    raw = secrets.token_hex(32)
     return raw, hash_token(raw)
 
 

@@ -23,7 +23,7 @@ module.exports = {
       colors: {
         av: {
           brand: '#D40000',
-          clay: { DEFAULT: '#B24B25', hover: '#963A17', active: '#7E2F12', light: '#FBEBE4', bright: '#C85A32' },
+          clay: { DEFAULT: '#D40000', hover: '#B00000', active: '#8C0000', light: '#FDECEC', bright: '#E60000' },
           gold: { DEFAULT: '#D9822B', hover: '#C0701F', light: '#FEF3E2', deep: '#9A5412' },
           indigo: { DEFAULT: '#1E2A38', hover: '#141C27', light: '#EAEFF5', line: '#2A394B' },
           emerald: { DEFAULT: '#2D5A44', hover: '#214433', light: '#E9F2ED' },

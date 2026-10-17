@@ -30,9 +30,14 @@ async def m0002_phase02_identity(db) -> None:
                                                                           "created_at": utcnow()}}, upsert=True)
 
 
+async def m0003_phase03_vendors(db) -> None:
+    await ensure_indexes(db, phase=3)
+
+
 MIGRATIONS = (
     ("0001", "phase00_foundation", m0001_phase00_foundation),
     ("0002", "phase02_identity", m0002_phase02_identity),
+    ("0003", "phase03_vendor_onboarding", m0003_phase03_vendors),
 )
 
 
