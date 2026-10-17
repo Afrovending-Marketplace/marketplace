@@ -9,6 +9,9 @@ from afrovending.core.db import client, db
 from afrovending.core.errors import register_error_handlers
 from afrovending.core.logging import configure_logging, register_request_logging
 from afrovending.migrations.runner import run_migrations
+from afrovending.migrations.seed import seed_admin
+from fastapi import Request
+from afrovending.core.errors import error_response
 
 configure_logging(settings.log_level)
 
@@ -16,6 +19,7 @@ configure_logging(settings.log_level)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await run_migrations(db)
+    await seed_admin(db)
     yield
     client.close()
 
@@ -23,6 +27,17 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title=APP_NAME, version=APP_VERSION, lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
 
 register_error_handlers(app)
+
+
+@app.middleware("http")
+async def _origin_guard(request: Request, call_next):
+    origin = request.headers.get("origin")
+    if (request.method in ("POST", "PUT", "PATCH", "DELETE") and origin and request.url.path.startswith("/api/")
+            and origin.rstrip("/") not in settings.cors_origins):
+        return error_response(request, 403, "forbidden", "Request origin not allowed.")
+    return await call_next(request)
+
+
 register_request_logging(app)
 app.add_middleware(
     CORSMiddleware,

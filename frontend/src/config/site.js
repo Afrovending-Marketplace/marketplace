@@ -4,11 +4,13 @@ export const BRAND = {
   name: "AfroVending",
   legalName: "AfroVending Online Marketplace LLC",
   tagline: "From Culture to Commerce",
+  email: "info@afrovending.com",
+  website: "https://www.afrovending.com",
+  location: "Massachusetts, United States",
 };
 
 // Routes reserved for future phases. Each renders the Coming Soon page until its phase ships.
 export const FUTURE_ROUTES = [
-  { path: "/account", title: "Your Account", phase: "02", module: "Customer authentication & accounts" },
   { path: "/cart", title: "Your Cart", phase: "06", module: "Multi-vendor cart & checkout" },
   { path: "/trust-safety", title: "Trust & Safety", phase: "13", module: "Security & monitoring" },
 ];
@@ -52,8 +54,11 @@ export const FOOTER_COLUMNS = [
     title: "Legal",
     links: [
       { label: "Privacy Policy", path: "/privacy" },
-      { label: "Terms of Service", path: "/terms" },
-      { label: "Trust & Safety", path: "/trust-safety" },
+      { label: "Terms & Conditions", path: "/terms" },
+      { label: "Vendor Agreement", path: "/vendor-agreement" },
+      { label: "Shipping & Delivery", path: "/shipping-policy" },
+      { label: "Returns & Refunds", path: "/returns-policy" },
+      { label: "Prohibited Products", path: "/prohibited-products" },
     ],
   },
 ];

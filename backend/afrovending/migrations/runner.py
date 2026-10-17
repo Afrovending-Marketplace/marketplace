@@ -3,6 +3,7 @@ import logging
 
 from afrovending.core.config import BACKEND_DIR
 from afrovending.core.models import AuditLog, PlatformSetting, utcnow
+from afrovending.core.roles import ROLE_DESCRIPTIONS
 from afrovending.schema.entities import active_entities
 
 logger = logging.getLogger("afrovending.migrations")
@@ -22,8 +23,16 @@ async def m0001_phase00_foundation(db) -> None:
         await db.platform_settings.update_one({"key": setting["key"]}, {"$setOnInsert": setting}, upsert=True)
 
 
+async def m0002_phase02_identity(db) -> None:
+    await ensure_indexes(db, phase=2)
+    for role, description in ROLE_DESCRIPTIONS.items():
+        await db.roles.update_one({"key": role.value}, {"$setOnInsert": {"key": role.value, "description": description,
+                                                                          "created_at": utcnow()}}, upsert=True)
+
+
 MIGRATIONS = (
     ("0001", "phase00_foundation", m0001_phase00_foundation),
+    ("0002", "phase02_identity", m0002_phase02_identity),
 )
 
 

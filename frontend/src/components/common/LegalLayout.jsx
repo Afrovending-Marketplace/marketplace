@@ -13,8 +13,8 @@ export const LegalLayout = ({ title, sections, testId }) => (
         </ul>
       </nav>
       <article className="max-w-3xl space-y-10">
-        <StatusAlert tone="warning" title="Draft layout — not a legal document" testId="legal-draft-alert">
-          Final text must be written and reviewed by qualified legal counsel before launch.
+        <StatusAlert tone="warning" title="Draft — requires founder and legal review" testId="legal-draft-alert">
+          This page is a draft and is not a legally approved policy. Final text must be reviewed by the founder and qualified legal counsel before launch.
         </StatusAlert>
         <p className="text-sm text-av-muted">Last updated: [date] · {`AfroVending Online Marketplace LLC`}</p>
         {sections.map((s, i) => (

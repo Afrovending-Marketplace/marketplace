@@ -31,6 +31,9 @@ class BaseDocument(BaseModel):
 
     def to_mongo(self) -> dict:
         data = self.model_dump(exclude={"id"})
+        for k, v in data.items():
+            if k.endswith("_id") and isinstance(v, str) and ObjectId.is_valid(v):
+                data[k] = ObjectId(v)
         if self.id:
             data["_id"] = ObjectId(self.id)
         return data
@@ -51,3 +54,45 @@ class AuditLog(BaseDocument):
     entity_id: Optional[str] = None
     request_id: Optional[str] = None
     metadata: dict = Field(default_factory=dict)
+
+
+class User(BaseDocument):
+    email: str
+    name: str
+    phone: Optional[str] = None
+    password_hash: Optional[str] = None
+    roles: list[str] = Field(default_factory=lambda: ["customer"])
+    status: str = "pending_verification"
+    email_verified_at: Optional[datetime] = None
+    auth_providers: list[dict] = Field(default_factory=list)
+    last_login_at: Optional[datetime] = None
+    deactivated_at: Optional[datetime] = None
+
+    def public(self) -> dict:
+        return {
+            "id": self.id, "email": self.email, "name": self.name, "phone": self.phone,
+            "roles": self.roles, "status": self.status, "email_verified": self.email_verified_at is not None,
+            "created_at": self.created_at,
+        }
+
+
+class Address(BaseDocument):
+    user_id: PyObjectId
+    label: str = ""
+    full_name: str
+    line1: str
+    line2: str = ""
+    city: str
+    region: str = ""
+    postal_code: str = ""
+    country: str
+    phone: str = ""
+    is_default: bool = False
+
+
+class PrivacyRequest(BaseDocument):
+    user_id: PyObjectId
+    request_type: str
+    details: str = ""
+    status: str = "submitted"
+    resolution_note: str = ""

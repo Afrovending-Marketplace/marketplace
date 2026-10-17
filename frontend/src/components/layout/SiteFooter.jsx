@@ -19,6 +19,10 @@ export const SiteFooter = () => (
           culturally relevant marketplace.
         </p>
         <p className="font-serif italic text-av-gold text-lg">{BRAND.tagline}.</p>
+        <address className="not-italic text-sm text-av-linen/80 space-y-1">
+          <a href={`mailto:${BRAND.email}`} data-testid="footer-support-email" className="block hover:text-av-linen underline-offset-4 hover:underline">{BRAND.email}</a>
+          <span className="block">{BRAND.location}</span>
+        </address>
       </div>
       <div className="md:col-span-8 grid grid-cols-2 gap-8 sm:grid-cols-4">
         {FOOTER_COLUMNS.map((col) => (

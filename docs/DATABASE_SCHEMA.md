@@ -34,6 +34,12 @@
 | SchemaMigrations | `schema_migrations` | 00 | N | system |
 | Users | `users` | 02 | B | self (user_id = _id) |
 | Roles | `roles` | 02 | B | system (super_admin writes) |
+| Addresses | `addresses` | 02 | B | user_id |
+| Sessions | `sessions` | 02 | B | user_id |
+| AuthTokens | `auth_tokens` | 02 | B | user_id |
+| RateLimits | `rate_limits` | 02 | N | system |
+| PrivacyRequests | `privacy_requests` | 02 | B | user_id; marketplace_admin/super_admin resolve |
+| ContactMessages | `contact_messages` | 02 | L | system |
 | VendorApplications | `vendor_applications` | 03 | C | applicant user_id; admins review |
 | Vendors | `vendors` | 03 | C | owner_user_id; admins manage status |
 | VendorVerification | `vendor_verifications` | 03 | C | vendor_id (read); admins write |
@@ -103,6 +109,60 @@ Role catalog with permission sets; keys match afrovending.core.roles.Role.
 
 - **Owner:** system (super_admin writes)
 - **Index** `key_1` (unique)
+
+## Addresses (`addresses`) — Phase 02
+
+Customer address book (max 10, one default).
+
+- **Owner:** user_id
+- **Relations:** `user_id -> users`
+- **Index** `user_id_1_is_default_-1_created_at_1`
+
+## Sessions (`sessions`) — Phase 02
+
+Server-side login sessions referenced by JWT `sid`; revocable.
+
+- **Owner:** user_id
+- **States (`status`):** `active` → `revoked`
+- **Relations:** `user_id -> users`
+- **Index** `user_id_1_status_1`
+- **Index** `expires_at_1` expireAfterSeconds=0
+
+## AuthTokens (`auth_tokens`) — Phase 02
+
+Single-use hashed tokens for email verification and password reset.
+
+- **Owner:** user_id
+- **Relations:** `user_id -> users`
+- **Index** `token_hash_1` (unique)
+- **Index** `user_id_1_purpose_1`
+- **Index** `expires_at_1` expireAfterSeconds=0
+
+## RateLimits (`rate_limits`) — Phase 02
+
+Fixed-window counters for login, registration, recovery and contact limits.
+
+- **Owner:** system
+- **Index** `key_1` (unique)
+- **Index** `expires_at_1` expireAfterSeconds=0
+
+## PrivacyRequests (`privacy_requests`) — Phase 02
+
+Data export / deletion / correction requests.
+
+- **Owner:** user_id; marketplace_admin/super_admin resolve
+- **States (`status`):** `submitted` → `in_review` → `completed` → `rejected`
+- **Relations:** `user_id -> users`
+- **Index** `user_id_1_created_at_-1`
+- **Index** `status_1_created_at_-1`
+
+## ContactMessages (`contact_messages`) — Phase 02
+
+Log of contact form submissions and delivery result.
+
+- **Owner:** system
+- **States (`status`):** `sent` → `failed`
+- **Index** `created_at_-1`
 
 ## VendorApplications (`vendor_applications`) — Phase 03
 
