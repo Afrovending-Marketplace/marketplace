@@ -41,7 +41,7 @@ export const ProductForm = ({ product, categories, onSubmit, isNew, disabled, er
       </div>
       <Field id="pf-tags" label="Tags (comma separated)" value={f.tags} onChange={set("tags")} disabled={disabled} testId="product-tags-input" />
       <Field id="pf-sku" label="Product SKU" value={f.sku} onChange={set("sku")} disabled={disabled} required testId="product-sku-input" />
-      <Field id="pf-price" label="Base price (USD)" inputMode="decimal" value={f.price} onChange={set("price")} disabled={disabled} required testId="product-price-input" />
+      <Field id="pf-price" label={isNew || !product?.option_names?.length ? "Price (USD)" : "Default price for new variants (USD)"} inputMode="decimal" value={f.price} onChange={set("price")} disabled={disabled} required testId="product-price-input" />
       <Field id="pf-low" label="Low-stock alert at" type="number" min="0" value={f.low_stock_threshold} onChange={set("low_stock_threshold")} disabled={disabled} testId="product-low-stock-input" />
       {isNew && <Field id="pf-stock" label="Opening stock" type="number" min="0" value={f.initial_stock} onChange={set("initial_stock")} testId="product-initial-stock-input" />}
       <Button type="submit" className="sm:col-span-2" disabled={disabled} data-testid="product-save-button">{isNew ? "Create draft" : "Save details"}</Button>

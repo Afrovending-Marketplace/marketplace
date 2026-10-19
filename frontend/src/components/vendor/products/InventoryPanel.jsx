@@ -26,9 +26,9 @@ const AdjustRow = ({ v, onDone, disabled }) => {
     }
   };
   return (
-    <tr className="border-t border-av-line align-top" data-testid={`inventory-row-${v.sku}`}>
-      <td className="p-3"><p className="font-medium">{v.label}</p><p className="text-xs text-av-muted">{v.sku}</p></td>
-      <td className="p-3"><span data-testid={`inventory-qty-${v.sku}`} className="font-semibold">{v.quantity_on_hand}</span>
+    <tr className="flex flex-col border-t border-av-line align-top sm:table-row" data-testid={`inventory-row-${v.sku}`}>
+      <td className="p-3 pb-0 sm:pb-3"><p className="font-medium">{v.label}</p><p className="text-xs text-av-muted">{v.sku}</p></td>
+      <td className="px-3 sm:p-3"><span data-testid={`inventory-qty-${v.sku}`} className="font-semibold">{v.quantity_on_hand}</span>
         {v.low_stock && <StatusBadge tone="danger" className="ml-2" testId={`inventory-low-${v.sku}`}>Low</StatusBadge>}</td>
       <td className="p-2">
         <div className="flex flex-wrap gap-2">
@@ -57,9 +57,9 @@ export const InventoryPanel = ({ productId, variants, threshold, onChanged, disa
   return (
     <div className="space-y-8" data-testid="inventory-panel">
       <p className="text-sm text-av-muted">You'll get an email and a dashboard alert when a variant drops to {threshold} or fewer.</p>
-      <div className="overflow-x-auto rounded-xl border border-av-line bg-white">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead className="bg-av-sand text-left text-xs uppercase tracking-wider text-av-muted"><tr><th className="p-3">Variant</th><th className="p-3">On hand</th><th className="p-3">Adjust</th></tr></thead>
+      <div className="rounded-xl border border-av-line bg-white sm:overflow-x-auto">
+        <table className="w-full text-sm sm:min-w-[640px]">
+          <thead className="hidden bg-av-sand text-left text-xs uppercase tracking-wider text-av-muted sm:table-header-group"><tr><th className="p-3">Variant</th><th className="p-3">On hand</th><th className="p-3">Adjust</th></tr></thead>
           <tbody>{variants.filter((v) => v.status === "active").map((v) => <AdjustRow key={v.id} v={v} onDone={done} disabled={disabled} />)}</tbody>
         </table>
       </div>

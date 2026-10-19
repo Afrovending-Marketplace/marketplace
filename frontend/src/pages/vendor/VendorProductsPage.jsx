@@ -40,10 +40,10 @@ export default function VendorProductsPage() {
     <div data-testid="vendor-products-page" className="av-container max-w-5xl space-y-6 py-12">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="av-eyebrow"><Link to="/vendor/dashboard" className="hover:underline">Vendor dashboard</Link></p><h1 className="mt-2 text-4xl font-bold tracking-tight text-av-ink">Products</h1></div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" disabled={suspended} data-testid="vendor-import-link"><Link to="/vendor/products/import"><FileUp /> Import CSV</Link></Button>
-          <Button asChild disabled={suspended} data-testid="vendor-new-product-link"><Link to="/vendor/products/new"><Plus /> New product</Link></Button>
-        </div>
+        {!suspended && <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" data-testid="vendor-import-link"><Link to="/vendor/products/import"><FileUp /> Import CSV</Link></Button>
+          <Button asChild data-testid="vendor-new-product-link"><Link to="/vendor/products/new"><Plus /> New product</Link></Button>
+        </div>}
       </div>
       {suspended && <StatusAlert tone="error" title="Vendor account suspended" testId="vendor-products-suspended">Catalog changes are disabled and your products are hidden from the storefront.</StatusAlert>}
       {data.low_stock.length > 0 && (

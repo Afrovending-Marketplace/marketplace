@@ -26,4 +26,6 @@ def optimize(data: bytes) -> dict:
         buf = BytesIO()
         copy.save(buf, "WEBP", quality=quality, method=4)
         out[name] = buf.getvalue()
+        if name == "main":
+            out["width"], out["height"] = copy.size
     return out

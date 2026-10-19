@@ -81,7 +81,7 @@ def test_create_validate_variants_images_and_moderation():
     r = c.post(f"/vendor/products/{pid}/images", files={"file": ("big.jpg", jpeg(), "image/jpeg")})
     assert r.status_code == 201, r.text
     img = r.json()["images"][0]
-    assert max(img["width"], img["height"]) == 2400 and img["size"] > 0
+    assert max(img["width"], img["height"]) == 1600 and img["size"] > 0
     served = httpx.get(BASE.replace("/api/v1", "") + img["url"])
     assert served.status_code == 200 and Image.open(io.BytesIO(served.content)).size[0] <= 1600
     assert c.post(f"/vendor/products/{pid}/submit").json()["product"]["status"] == "pending_review"

@@ -1,0 +1,49 @@
+{
+  "summary": "Phase 04 (catalog and inventory) tested end to end in the UI on desktop (1920) and mobile (390), plus API checks for permissions and gaps. One critical bug was found and fixed: the Variants tab could not save at all. With that fixed, all requested flows pass: create draft, Details save, image upload (WebP, reorder, delete), variant generation and save, inventory add/remove/set with history and Low badge, submit blocked then allowed, admin reject (note required) and approve, storefront pages (/shop, /categories/fashion, /products/<slug> variant price switch, /store/<slug>), dev-data notice hidden only while a live product exists, title edit requeues review, price-only change stays active, archive/restore, Delete only for never-live products, CSV import (template, preview counts, error table, commit as drafts), low-stock banner, status tabs with counts, admin categories (create sub, rename/sort, hide/show, delete empty, hide/delete blocked for fashion), permissions, suspended vendor. No horizontal overflow at 390px on any vendor or admin page. test_phase04_catalog.py: 5/5 pass. Several minor UX/logic issues remain (below).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/v1/vendor/products/{id}", "issue": "price_minor ('Base price' in Details) is saved on the product but never reaches the variants or price_min/max_minor. The storefront and listing prices ignore it. Repro: active product with variants $36/$40, set Base price to 99.00, save. PDP still shows $36.00 and the editor shows 99.00, which misleads the vendor."},
+      {"endpoint": "core/images.py optimize()", "issue": "The stored width/height are the original upload's dimensions, not the optimized 1600px rendition. The UI shows '2000×1500' right next to text saying images are resized to max 1600px."},
+      {"endpoint": "POST /api/v1/vendor/products/import/preview", "issue": "After a price error the row is skipped with `continue`, so its other errors (e.g. stock 'x') are not reported. Vendors fix one error per round."},
+      {"endpoint": "PUT /api/v1/vendor/products/{id}/images/order", "issue": "Missing the _editable() check: images of an archived product can still be reordered. Every other write blocks archived products."},
+      {"endpoint": "PATCH /api/v1/vendor/products/{id} (option_names change)", "issue": "Changing option names resets options to {} and the label to 'Default' on ALL variants, including inactive ones. The product then has option_names whose variants have no option values until the Variants tab is saved. Not reproduced via the UI; based on code review only."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProductEditorPage -> VariantsEditor", "issue": "FIXED BY TESTER. productFields(p) drops `id`, so VariantsEditor called PUT /vendor/products/undefined/variants and got 404 'Not found.' Variants could not be saved from the UI. Fix: pass product={{ ...productFields(p), id: p.id }}.", "selector": "[data-testid='variants-save-button']", "priority": "CRITICAL (fixed)"},
+      {"component": "ProductEditorPage run() error toast", "issue": "Error toast shows the details twice: getErrorMessage() already joins details.message for the title, and the description joins them again. Seen with 'Submit for review' when no image and the description is too short.", "selector": "[data-sonner-toast]", "priority": "LOW"},
+      {"component": "VendorProductsPage / ProductEditorPage (suspended vendor)", "issue": "Suspended vendor still sees 'New product' and 'Import CSV' links, and /vendor/products/new shows an enabled form. The backend correctly returns 403 on submit. Hide or disable these when vendor_status != active.", "selector": "[data-testid='vendor-new-product-link'], [data-testid='vendor-import-link']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global preview banner", "issues": ["The top banner still says 'Products and vendors shown are sample data' when real live products are shown. The 'Development data' notice itself correctly disappears."]},
+      {"screen": "Inventory tab @390px", "issues": ["The table has min-w-640 and scrolls horizontally inside its card, so the Quantity/Reason/Apply controls are off-screen. Consider a stacked card layout on mobile."]},
+      {"screen": "Shop product card", "issues": ["Products with multiple variants show only the min price ($35.50). Consider 'From $35.50' or a range, as the vendor/admin lists do."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase04_catalog.py", "/app/backend/tests/ui_seed_phase04.py", "/app/test_reports/pytest/pytest_phase04.xml"],
+  "action_items": [
+    "Review the tester's one-line fix in ProductEditorPage.jsx (VariantsEditor needs product.id)",
+    "Decide what Details 'Base price' means after creation: sync it to the single default variant, or remove/hide it once variants exist",
+    "Store the optimized image dimensions (or both) so the UI matches the 1600px claim",
+    "CSV preview: collect every per-row error instead of stopping at the price error",
+    "Add the _editable() check to the images/order endpoint",
+    "Remove the duplicated details in the editor error toast",
+    "Hide New product / Import CSV for suspended vendors",
+    "Optional: update the global preview banner text when live products exist"
+  ],
+  "critical_code_review_comments": [
+    "products.py update_product: option_names change wipes options on inactive variants too, leaving inconsistent data until variants are saved",
+    "Hiding a category leaves draft products in it un-editable (active_category fails on PATCH) with no hint to the vendor to change category",
+    "Admin moderate 'approve' does not re-check the submit prerequisites (image, description, active variant); acceptable but worth a guard",
+    "ui_seed_phase04.py seeds users with prefix TEST4_; note that running test_phase04_catalog.py deletes ALL TEST4_ users, including any UI-seeded data"
+  ],
+  "updated_files": ["/app/frontend/src/pages/vendor/ProductEditorPage.jsx", "/app/backend/tests/ui_seed_phase04.py"],
+  "success_rate": {"backend": "100% (5/5 phase04 pytest + 15 ad-hoc permission/validation checks)", "frontend": "~95% (all requested flows pass after the variants fix; minor UX issues remain)"},
+  "seed_data_creation": "Created TEST4_VendorA/B/C and TEST4_Customer, products, imports and a 'TEST Wax Prints' category during testing. All of it is deleted (users, vendors, stores, products, variants, images, inventory, stock_adjustments, product_imports, files, applications, TEST categories); verified 0 remaining.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Seed vendors with `cd /app/backend && python -m tests.ui_seed_phase04` (writes /tmp/p4seed.json; password TestPass12345). Product editor testids: product-tab-*, variant-option-names-input, variant-values-input, variant-generate-button, variant-{i}-price/stock, variants-save-button, inventory-{mode|qty-input|reason|apply|qty|low}-{SKU}, product-image-input, product-image-{i}-left/right/delete. Admin: admin-product-review-{SKU}, admin-product-note, admin-product-approve/reject/takedown, admin-category-*-{slug}. After vendor reactivation the store stays 'paused' until the vendor republishes (known from iteration 4)."
+}

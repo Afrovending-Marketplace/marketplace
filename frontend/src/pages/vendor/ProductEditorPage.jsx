@@ -34,7 +34,7 @@ const Actions = ({ d, run }) => {
   );
 };
 
-const NewProduct = ({ categories }) => {
+const NewProduct = ({ categories, disabled }) => {
   const nav = useNavigate();
   const [error, setError] = useState("");
   const create = async ({ initial_stock, ...body }) => {
@@ -49,7 +49,7 @@ const NewProduct = ({ categories }) => {
   };
   return (
     <div className="rounded-2xl border border-av-line bg-white p-6 md:p-8">
-      {categories.length > 0 && <ProductForm isNew categories={categories} onSubmit={create} error={error} />}
+      {categories.length > 0 && <ProductForm isNew categories={categories} onSubmit={create} error={error} disabled={disabled} />}
     </div>
   );
 };
@@ -94,7 +94,7 @@ export default function ProductEditorPage() {
       setD((await api.post(`/vendor/products/${id}/${action}`)).data);
       toast.success({ submit: "Submitted for review", archive: "Archived", unarchive: "Restored to draft" }[action]);
     } catch (err) {
-      toast.error(getErrorMessage(err), { description: err.response?.data?.error?.details?.map((x) => x.message).join(" ") });
+      toast.error(getErrorMessage(err));
     }
   };
   const header = (title, badge) => (
@@ -104,7 +104,9 @@ export default function ProductEditorPage() {
       {badge}
     </div>
   );
-  if (id === "new") return <div data-testid="product-editor-page" className="av-container max-w-4xl space-y-6 py-12">{header("New product")}<NewProduct categories={categories} /></div>;
+  if (id === "new") return <div data-testid="product-editor-page" className="av-container max-w-4xl space-y-6 py-12">{header("New product")}
+    {suspended && <StatusAlert tone="error" title="Vendor account suspended" testId="product-suspended-note">Creating products is disabled.</StatusAlert>}
+    <NewProduct categories={categories} disabled={suspended} /></div>;
   if (d === false) return <div className="av-container py-24 text-center" data-testid="product-not-found">Product not found.</div>;
   if (!d || !categories.length) return null;
   const p = d.product;
@@ -125,7 +127,7 @@ export default function ProductEditorPage() {
         <div className="mt-6 rounded-2xl border border-av-line bg-white p-6 md:p-8">
           <TabsContent value="details"><ProductForm key={p.updated_at} product={productFields(p)} categories={categories} onSubmit={saveDetails} disabled={locked} error={error} /></TabsContent>
           <TabsContent value="images"><ImagesManager productId={p.id} images={d.images} onChange={setD} disabled={locked} /></TabsContent>
-          <TabsContent value="variants"><VariantsEditor key={p.updated_at} product={productFields({ ...p })} variants={d.variants} onSaved={setD} disabled={locked} /></TabsContent>
+          <TabsContent value="variants"><VariantsEditor key={p.updated_at} product={{ ...productFields(p), id: p.id }} variants={d.variants} onSaved={setD} disabled={locked} /></TabsContent>
           <TabsContent value="inventory"><InventoryPanel productId={p.id} variants={d.variants} threshold={p.low_stock_threshold} onChanged={load} disabled={locked} /></TabsContent>
         </div>
       </Tabs>

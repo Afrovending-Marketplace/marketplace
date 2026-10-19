@@ -18,7 +18,7 @@ export const ProductCard = ({ product }) => {
         <h3 className="font-sans text-base font-semibold leading-snug text-av-ink">
           <Link to={`/products/${product.slug}`} className="hover:underline underline-offset-4">{product.title}</Link>
         </h3>
-        <p data-testid={`product-card-price-${product.slug}`} className="text-sm font-semibold text-av-ink">{formatPrice(product.price_minor, product.currency)}</p>
+        <p data-testid={`product-card-price-${product.slug}`} className="text-sm font-semibold text-av-ink">{product.price_max_minor > product.price_minor ? "From " : ""}{formatPrice(product.price_minor, product.currency)}</p>
       </div>
     </article>
   );

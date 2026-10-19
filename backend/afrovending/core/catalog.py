@@ -98,7 +98,7 @@ async def adjust_stock(*, inv: dict, product: dict, actor_id, delta: Optional[in
     before = inv["quantity_on_hand"]
     delta = (set_to - before) if set_to is not None else delta
     if not delta:
-        return inv
+        return {"quantity_on_hand": before, "quantity_reserved": inv.get("quantity_reserved", 0)}
     after = before + delta
     if after < 0:
         raise APIError(422, "validation_error", "Stock can't go below zero.")
@@ -115,7 +115,7 @@ async def adjust_stock(*, inv: dict, product: dict, actor_id, delta: Optional[in
     threshold = product.get("low_stock_threshold", 5)
     if before > threshold >= after and reason not in ("initial", "import"):
         await notify_low_stock(product, inv, after)
-    return updated
+    return {"quantity_on_hand": updated["quantity_on_hand"], "quantity_reserved": updated.get("quantity_reserved", 0)}
 
 
 async def notify_low_stock(product: dict, inv: dict, qty: int) -> None:

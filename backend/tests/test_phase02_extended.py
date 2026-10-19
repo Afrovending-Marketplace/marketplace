@@ -27,7 +27,7 @@ def _client(**kw):
 def cleanup():
     mongo.rate_limits.delete_many({})
     yield
-    ids = [u["_id"] for u in mongo.users.find({"name": {"$regex": "^TEST_"}})]
+    ids = [u["_id"] for u in mongo.users.find({"name": {"$regex": "^TEST2X_"}})]
     for coll in ("addresses", "sessions", "auth_tokens", "privacy_requests"):
         mongo[coll].delete_many({"user_id": {"$in": ids}})
     mongo.users.delete_many({"_id": {"$in": ids}})
@@ -36,7 +36,7 @@ def cleanup():
 
 def _register(c, email=None):
     mongo.rate_limits.delete_many({"key": {"$regex": "^register:"}})
-    r = c.post("/auth/register", json={"name": "TEST_Ext", "email": email or _email(), "password": PW})
+    r = c.post("/auth/register", json={"name": "TEST2X_Ext", "email": email or _email(), "password": PW})
     assert r.status_code == 201, r.text
     return r
 
@@ -91,10 +91,10 @@ class TestAccount:
     def test_profile_update_persists(self):
         with _client() as c:
             _register(c)
-            r = c.patch("/account/profile", json={"name": "TEST_Renamed", "phone": "+1 555 0100"})
+            r = c.patch("/account/profile", json={"name": "TEST2X_Renamed", "phone": "+1 555 0100"})
             assert r.status_code == 200
             me = c.get("/auth/me").json()["user"]
-            assert me["name"] == "TEST_Renamed" and me["phone"] == "+1 555 0100"
+            assert me["name"] == "TEST2X_Renamed" and me["phone"] == "+1 555 0100"
             assert c.patch("/account/profile", json={"name": ""}).status_code == 422
 
     def test_change_password_wrong_current(self):

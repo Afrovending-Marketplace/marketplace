@@ -82,14 +82,15 @@ async def parse(text: str, vendor: dict) -> tuple[list, list]:
             elif sku in taken:
                 _err(errors, n, "sku", f"SKU {sku} is already in use.")
             seen.add(sku)
+            price = None
             try:
                 price = _price(r.get("price", ""))
             except (InvalidOperation, ValueError):
                 _err(errors, n, "price", "Price must be a positive amount like 12.50.")
-                continue
             stock = r.get("stock") or "0"
             if not stock.isdigit():
                 _err(errors, n, "stock", "Stock must be a whole number of 0 or more.")
+            if price is None or not stock.isdigit():
                 continue
             try:
                 variants.append(VariantIn(sku=sku, price_minor=price, initial_stock=int(stock),

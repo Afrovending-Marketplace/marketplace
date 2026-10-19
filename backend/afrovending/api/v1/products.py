@@ -283,7 +283,11 @@ async def update_product(product_id: str, body: ProductIn, request: Request, use
         data["slug"] = await unique_product_slug(data["title"], product["_id"])
     await db.products.update_one({"_id": product["_id"]}, {"$set": {**data, "updated_at": utcnow()}})
     if data["option_names"] != product.get("option_names", []):
-        await db.product_variants.update_many({"product_id": product["_id"]}, {"$set": {"options": {}, "label": "Default"}})
+        await db.product_variants.update_many({"product_id": product["_id"], "status": "active"}, {"$set": {"options": {}, "label": "Default"}})
+    active = await db.product_variants.find({"product_id": product["_id"], "status": "active"}, {"_id": 1}).to_list(2)
+    if not data["option_names"] and len(active) == 1 and data["price_minor"] != product["price_minor"]:
+        await db.product_variants.update_one({"_id": active[0]["_id"]}, {"$set": {"price_minor": data["price_minor"]}})
+        await db.products.update_one({"_id": product["_id"]}, {"$set": {"price_min_minor": data["price_minor"], "price_max_minor": data["price_minor"]}})
     requeued = changed and await _requeue_if_live(product, user, "Edited: " + ", ".join(changed))
     await _log("product.updated", request, user, product, fields=changed)
     return {**await product_detail(await db.products.find_one({"_id": product["_id"]})), "requeued_for_review": bool(requeued)}
@@ -362,6 +366,7 @@ async def delete_image(product_id: str, image_id: str, request: Request, user: U
 async def order_images(product_id: str, body: OrderIn, request: Request, user: User = Depends(get_current_user)):
     vendor = await writable_vendor(user)
     product = await own_product(product_id, vendor)
+    _editable(product)
     current = {str(i["_id"]) for i in await db.product_images.find({"product_id": product["_id"]}, {"_id": 1}).to_list(MAX_IMAGES)}
     if set(body.image_ids) != current or len(body.image_ids) != len(current):
         raise APIError(422, "validation_error", "Send every image of this product exactly once.")

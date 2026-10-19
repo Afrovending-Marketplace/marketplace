@@ -14,6 +14,30 @@
 - **Auth (from Phase 01):** documented per endpoint as `Auth: public | customer | vendor | admin(<role>)`.
 - **Idempotency (from Phase 06/07):** mutating money endpoints require `Idempotency-Key` header.
 
+## Phase 04 endpoints (all under `/api/v1`)
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/catalog/categories` | public | Active category tree with live product counts |
+| GET | `/catalog/products?category&vendor&q&sort&page&limit&min_price&max_price` | public | Paginated live products `{data,page,limit,total}` |
+| GET | `/catalog/products/{slug}` | public | Live product with variants (in_stock/low_stock, no exact counts) |
+| GET | `/catalog/storefront` | public | Snapshot `{categories, products, vendors}` for the storefront shell |
+| GET/POST | `/vendor/products` | vendor | List (+counts, low_stock) / create draft (variants optional) |
+| GET/PATCH/DELETE | `/vendor/products/{id}` | owner vendor | Detail / edit (requeues live product on content change) / delete (never-live only) |
+| PUT | `/vendor/products/{id}/variants` | owner vendor | `{option_names?, variants[]}` upsert; omitted variants deactivated |
+| POST/DELETE | `/vendor/products/{id}/images[/{image_id}]` | owner vendor | Multipart upload → WebP main+thumb / delete |
+| PUT | `/vendor/products/{id}/images/order` | owner vendor | `{image_ids[]}` |
+| POST | `/vendor/products/{id}/submit\|archive\|unarchive` | owner vendor | State transitions |
+| POST | `/vendor/inventory/{variant_id}/adjust` | owner vendor | `{mode: delta\|set, quantity, reason, note}` |
+| GET | `/vendor/products/{id}/stock-history` | owner vendor | Append-only adjustments |
+| GET | `/vendor/products/import/template` | signed in | CSV template |
+| POST | `/vendor/products/import/preview` · `/{batch_id}/commit` | vendor | Validate CSV (row errors) · create valid products as drafts (one-time) |
+| GET | `/admin/products?status` · `/admin/products/{id}` | marketplace/super admin | Moderation queue / detail |
+| POST | `/admin/products/{id}/moderate` | marketplace/super admin | `{decision: approve\|reject\|take_down, note}` (note required unless approve) |
+| GET/POST/PATCH/DELETE | `/admin/categories[/{id}]` | marketplace/super admin | Category management (slug immutable; hide blocked with live products; delete only empty) |
+
+Other vendors' product ids return 404. Suspended vendors get 403 `vendor_suspended` on every write.
+
+
 ## Phase 03 endpoints (all under `/api/v1`)
 | Method | Path | Auth | Notes |
 |---|---|---|---|
