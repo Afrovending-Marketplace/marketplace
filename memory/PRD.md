@@ -28,4 +28,4 @@ Multi-vendor marketplace modules A–N; server-side RBAC; versioned migrations; 
 - P2: Phases 09–14; automated vendor-document cleanup job; CSV image import
 
 ## Next tasks
-Await owner approval for Phase 06. Open owner decisions: currencies (USD only today), commission rate, legal copy, supported markets, afrovending.com DNS for contact email.
+Await owner approval for Phase 06. Email: Emergent Managed Email now; branded sending from info@afrovending.com is a go-live task (DEPLOYMENT_RUNBOOK step 7, D-029) — needs owner's email-provider account, verified afrovending.com DNS (SPF/DKIM/DMARC) and sending key. Open owner decisions: currencies (USD only today), commission rate, legal copy, supported markets, afrovending.com DNS for contact email.
