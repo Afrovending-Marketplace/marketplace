@@ -1,8 +1,9 @@
 import { FlaskConical } from "lucide-react";
 import { PAGES } from "@/constants/testIds";
+import { isDevData } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
 
-export const DevDataNotice = ({ className }) => (
+export const DevDataNotice = ({ className }) => !isDevData() ? null : (
   <div data-testid={PAGES.devDataNotice} role="note"
     className={cn("flex items-start gap-2 rounded-xl border border-dashed border-av-gold/60 bg-av-gold-light px-4 py-3 text-sm text-av-gold-deep", className)}>
     <FlaskConical className="mt-0.5 h-4 w-4 shrink-0" />

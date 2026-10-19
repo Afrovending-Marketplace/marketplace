@@ -14,8 +14,12 @@ const Panel = ({ icon: Icon, title, text, testId }) => (
 export const AdminConsolePage = () => (
   <div>
     <Panel testId="admin-console-page" icon={LayoutDashboard} title="Admin console"
-      text="The full administration dashboard is built in Phase 10. Vendor review is available now." />
-    <div className="-mt-16 pb-16 text-center"><Button asChild data-testid="admin-vendors-link"><Link to="/admin/vendors">Vendor applications & vendors</Link></Button></div>
+      text="The full administration dashboard is built in Phase 10. Vendor review, product moderation and categories are available now." />
+    <div className="-mt-16 flex flex-wrap justify-center gap-3 pb-16">
+      <Button asChild data-testid="admin-vendors-link"><Link to="/admin/vendors">Vendor applications & vendors</Link></Button>
+      <Button asChild data-testid="admin-products-link"><Link to="/admin/products">Product moderation</Link></Button>
+      <Button asChild variant="outline" data-testid="admin-categories-link"><Link to="/admin/categories">Categories</Link></Button>
+    </div>
   </div>
 );
 

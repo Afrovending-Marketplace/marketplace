@@ -25,7 +25,7 @@ def _client():
 @pytest.fixture(scope="module", autouse=True)
 def cleanup():
     yield
-    ids = [u["_id"] for u in mongo.users.find({"name": {"$regex": "^TEST_"}})]
+    ids = [u["_id"] for u in mongo.users.find({"name": {"$regex": "^TEST2_"}})]
     for coll in ("addresses", "sessions", "auth_tokens", "privacy_requests"):
         mongo[coll].delete_many({"user_id": {"$in": ids}})
     mongo.users.delete_many({"_id": {"$in": ids}})
@@ -34,7 +34,7 @@ def cleanup():
 
 def _register(c, email=None, password="TestPass12345"):
     mongo.rate_limits.delete_many({"key": {"$regex": "^register:"}})
-    r = c.post("/auth/register", json={"name": "TEST_User", "email": email or _email(), "password": password})
+    r = c.post("/auth/register", json={"name": "TEST2_User", "email": email or _email(), "password": password})
     assert r.status_code == 201, r.text
     return r.json()
 
@@ -52,8 +52,8 @@ class TestAuthFlow:
         with _client() as c:
             email = _email()
             _register(c, email)
-            assert c.post("/auth/register", json={"name": "TEST_x", "email": email, "password": "TestPass12345"}).status_code == 409
-            assert c.post("/auth/register", json={"name": "TEST_x", "email": _email(), "password": "short"}).status_code == 422
+            assert c.post("/auth/register", json={"name": "TEST2_x", "email": email, "password": "TestPass12345"}).status_code == 409
+            assert c.post("/auth/register", json={"name": "TEST2_x", "email": _email(), "password": "short"}).status_code == 422
 
     def test_logout_revokes_session(self):
         with _client() as c:
@@ -106,7 +106,7 @@ class TestAuthorization:
         with _client() as c:
             _register(c)
             assert c.get("/admin/users").status_code == 403
-            assert c.post("/admin/staff", json={"name": "TEST_x", "email": _email(), "password": "Aa1!aaaaaaaaaaaa", "role": "super_admin"}).status_code == 403
+            assert c.post("/admin/staff", json={"name": "TEST2_x", "email": _email(), "password": "Aa1!aaaaaaaaaaaa", "role": "super_admin"}).status_code == 403
 
     def test_anonymous_blocked(self):
         assert httpx.get(f"{BASE}/account/addresses").status_code == 401
@@ -119,7 +119,7 @@ class TestAuthorization:
             assert c.get("/admin/audit-logs").status_code == 200
 
     def test_addresses_are_owner_scoped(self):
-        addr = {"full_name": "TEST_A", "line1": "1 Main St", "city": "Boston", "country": "us"}
+        addr = {"full_name": "TEST2_A", "line1": "1 Main St", "city": "Boston", "country": "us"}
         with _client() as a, _client() as b:
             _register(a)
             _register(b)

@@ -7,9 +7,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BACKEND_DIR / ".env")
 
 APP_NAME = "AfroVending Online Marketplace"
-APP_VERSION = "0.3.0-phase03"
+APP_VERSION = "0.4.0-phase04"
 API_VERSION = "v1"
-CURRENT_PHASE = 3
+CURRENT_PHASE = 4
 
 
 class Settings:

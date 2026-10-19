@@ -1,17 +1,49 @@
-// Catalog read layer. Phase 01 reads development data; Phase 04+ swaps these for /api/v1 calls.
-import { CATEGORIES, VENDORS, PRODUCTS } from "@/data/dev/catalog";
+// Catalog read layer. Uses the live /api/v1/catalog snapshot once approved products exist; otherwise the labelled development data.
+import { CATEGORIES as DEV_CATEGORIES, VENDORS as DEV_VENDORS, PRODUCTS as DEV_PRODUCTS } from "@/data/dev/catalog";
 
+let CATEGORIES = DEV_CATEGORIES;
+let VENDORS = DEV_VENDORS;
+let PRODUCTS = DEV_PRODUCTS;
+let LIVE = false;
+
+const FALLBACK_IMAGE = "/images/weaving.jpg";
+const DEV_IMAGES = Object.fromEntries(DEV_CATEGORIES.map((c) => [c.slug, c.image]));
+export const absUrl = (u) => (u && u.startsWith("/api/") ? `${process.env.REACT_APP_BACKEND_URL}${u}` : u);
+
+export const normalizeProduct = (p) => ({ ...p, images: p.images?.length ? p.images.map(absUrl) : [FALLBACK_IMAGE] });
+
+export const setCatalog = ({ categories, products, vendors }) => {
+  if (categories?.length) CATEGORIES = categories.map((c) => ({ ...c, image: c.image || DEV_IMAGES[c.slug] || FALLBACK_IMAGE }));
+  if (products?.length) {
+    LIVE = true;
+    PRODUCTS = products.map(normalizeProduct);
+    VENDORS = vendors.map((v) => ({ ...v, logo: absUrl(v.logo) || "/logo-mark.png", banner: absUrl(v.banner) || FALLBACK_IMAGE }));
+  }
+};
+
+export const isDevData = () => !LIVE;
 export const IS_DEV_DATA = true;
 
+const childSlugs = (slug) => [slug, ...((CATEGORIES.find((c) => c.slug === slug)?.children || []).map((k) => k.slug))];
+
 export const getCategories = () => CATEGORIES;
-export const getCategory = (slug) => CATEGORIES.find((c) => c.slug === slug);
+export const getCategory = (slug) => {
+  const top = CATEGORIES.find((c) => c.slug === slug);
+  if (top) return top;
+  const parent = CATEGORIES.find((c) => c.children?.some((k) => k.slug === slug));
+  const child = parent?.children.find((k) => k.slug === slug);
+  return child ? { ...child, image: parent.image, blurb: parent.blurb, subcategories: [] } : undefined;
+};
 export const getVendors = () => VENDORS;
 export const getVendor = (slug) => VENDORS.find((v) => v.slug === slug);
 export const getProducts = () => PRODUCTS;
 export const getProduct = (slug) => PRODUCTS.find((p) => p.slug === slug);
-export const getProductsByCategory = (slug) => PRODUCTS.filter((p) => p.category_slug === slug);
+export const getProductsByCategory = (slug) => {
+  const slugs = childSlugs(slug);
+  return PRODUCTS.filter((p) => slugs.includes(p.category_slug));
+};
 export const getProductsByVendor = (slug) => PRODUCTS.filter((p) => p.vendor_slug === slug);
-export const getFeaturedProducts = () => PRODUCTS.filter((p) => p.is_featured);
+export const getFeaturedProducts = () => (LIVE ? PRODUCTS.slice(0, 8) : PRODUCTS.filter((p) => p.is_featured));
 export const getFeaturedVendors = () => VENDORS.slice(0, 4);
 
 export const getNewArrivals = (n = 4) =>
@@ -25,7 +57,7 @@ export const getRelatedProducts = (product, n = 4) =>
 export const searchProducts = (q) => {
   const term = q.trim().toLowerCase();
   if (!term) return [];
-  return PRODUCTS.filter((p) => `${p.title} ${p.category_slug} ${getVendor(p.vendor_slug)?.name}`.toLowerCase().includes(term));
+  return PRODUCTS.filter((p) => `${p.title} ${p.category_slug} ${(p.tags || []).join(" ")} ${getVendor(p.vendor_slug)?.name}`.toLowerCase().includes(term));
 };
 
 export const SORTS = [

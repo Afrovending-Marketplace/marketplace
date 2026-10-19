@@ -1,0 +1,11 @@
+[
+  {"slug": "fashion", "name": "Fashion", "image": "/images/dev/cat-fashion.jpg", "blurb": "Ankara, kente, adire and contemporary diaspora design.", "children": ["Dresses", "Shirts", "Headwraps", "Accessories"]},
+  {"slug": "beauty", "name": "Beauty", "image": "/images/dev/cat-beauty.jpg", "blurb": "Shea, black soap, botanical oils and natural care.", "children": ["Skin care", "Hair care", "Body", "Fragrance"]},
+  {"slug": "food-groceries", "name": "Food & Groceries", "image": "/images/dev/cat-food.jpg", "blurb": "Spices, grains, teas and pantry staples from home.", "children": ["Spices", "Grains & flours", "Teas", "Snacks"]},
+  {"slug": "home-living", "name": "Home & Living", "image": "/images/dev/cat-home.jpg", "blurb": "Baskets, textiles and ceramics for warm, storied homes.", "children": ["Baskets", "Textiles", "Ceramics", "Wall decor"]},
+  {"slug": "arts-crafts", "name": "Arts & Crafts", "image": "/images/dev/cat-arts.jpg", "blurb": "Carvings, paintings and handmade pieces by working artists.", "children": ["Carvings", "Masks", "Paintings", "Prints"]},
+  {"slug": "jewelry", "name": "Jewelry", "image": "/images/dev/cat-jewelry.jpg", "blurb": "Beadwork, brass and statement pieces.", "children": ["Necklaces", "Bracelets", "Earrings", "Rings"]},
+  {"slug": "electronics", "name": "Electronics", "image": "/images/dev/cat-electronics.jpg", "blurb": "Gadgets and accessories from diaspora-owned brands.", "children": ["Audio", "Phone accessories", "Chargers"]},
+  {"slug": "books", "name": "Books", "image": "/images/dev/cat-books.jpg", "blurb": "African and Caribbean authors, history and children's titles.", "children": ["Fiction", "History", "Children", "Cookbooks"]},
+  {"slug": "cultural-products", "name": "Cultural Products", "image": "/images/dev/cat-cultural.jpg", "blurb": "Instruments, heritage and ceremonial items.", "children": ["Instruments", "Ceremonial", "Heritage gifts"]}
+]

@@ -48,6 +48,8 @@
 | ProductVariants | `product_variants` | 04 | E | vendor_id (via product) |
 | ProductImages | `product_images` | 04 | E | vendor_id (via product) |
 | Inventory | `inventory` | 04 | E | vendor_id |
+| StockAdjustments | `stock_adjustments` | 04 | E | vendor_id (read own); system writes |
+| ProductImports | `product_imports` | 04 | E | vendor_id |
 | VendorStores | `vendor_stores` | 03 | D | vendor_id |
 | Files | `files` | 03 | N | owner_user_id; private docs readable by marketplace_admin/super_admin only |
 | VendorPolicyAcceptances | `vendor_policy_acceptances` | 03 | C | user_id |
@@ -199,24 +201,29 @@ Identity / business / payout-eligibility checks per vendor.
 
 ## Categories (`categories`) — Phase 04
 
-Hierarchical catalog taxonomy (parent_id).
+Two-level catalog taxonomy (parent_id). Slug is immutable; hide instead of delete when in use.
 
 - **Owner:** system (marketplace_admin writes)
 - **States (`status`):** `active` → `hidden`
 - **Relations:** `parent_id -> categories`
 - **Index** `slug_1` (unique)
 - **Index** `parent_id_1_sort_order_1`
+- **Index** `status_1`
 
 ## Products (`products`) — Phase 04
 
-Sellable listing owned by one vendor.
+Sellable listing owned by one vendor. Public only when active + vendor active + store published. Content edits to an active product return it to pending_review; products that were ever active can only be archived.
 
 - **Owner:** vendor_id
-- **States (`status`):** `draft` → `pending_review` → `active` → `inactive` → `rejected` → `archived`
-- **Relations:** `vendor_id -> vendors`, `category_id -> categories`
+- **States (`status`):** `draft` → `pending_review` → `active` → `rejected` → `archived`
+- **Relations:** `vendor_id -> vendors`, `owner_user_id -> users`, `category_id -> categories`
 - **Index** `slug_1` (unique)
 - **Index** `vendor_id_1_status_1`
+- **Index** `vendor_id_1_sku_1` (unique)
 - **Index** `category_id_1_status_1`
+- **Index** `category_slug_1_status_1`
+- **Index** `status_1_submitted_at_1`
+- **Index** `status_1_price_min_minor_1`
 - **Index** `title_text_description_text_tags_text`
 
 ## ProductVariants (`product_variants`) — Phase 04
@@ -245,6 +252,28 @@ Stock per variant: quantity_on_hand, quantity_reserved.
 - **Relations:** `variant_id -> product_variants`, `vendor_id -> vendors`
 - **Index** `variant_id_1` (unique)
 - **Index** `vendor_id_1`
+- **Index** `product_id_1`
+
+## StockAdjustments (`stock_adjustments`) — Phase 04
+
+Append-only stock movement log: delta, before, after, reason, actor.
+
+- **Owner:** vendor_id (read own); system writes
+- **Append-only:** yes
+- **Relations:** `variant_id -> product_variants`, `product_id -> products`, `vendor_id -> vendors`, `actor_id -> users`
+- **Index** `product_id_1_created_at_-1`
+- **Index** `variant_id_1_created_at_-1`
+- **Index** `vendor_id_1_created_at_-1`
+
+## ProductImports (`product_imports`) — Phase 04
+
+CSV import batch: validated preview, row errors, commit result. Expires after 24h.
+
+- **Owner:** vendor_id
+- **States (`status`):** `previewed` → `committing` → `committed`
+- **Relations:** `vendor_id -> vendors`, `user_id -> users`
+- **Index** `vendor_id_1_created_at_-1`
+- **Index** `expires_at_1` expireAfterSeconds=0
 
 ## VendorStores (`vendor_stores`) — Phase 03
 

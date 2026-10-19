@@ -19,7 +19,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 100
 def cleanup():
     mongo.rate_limits.delete_many({})
     yield
-    ids = [u["_id"] for u in mongo.users.find({"name": {"$regex": "^TEST_"}})]
+    ids = [u["_id"] for u in mongo.users.find({"email": {"$in": CREATED}})]  # only this worker's users (xdist-safe)
     vendor_ids = [v["_id"] for v in mongo.vendors.find({"owner_user_id": {"$in": ids}})]
     mongo.vendor_stores.delete_many({"vendor_id": {"$in": vendor_ids}})
     mongo.vendors.delete_many({"_id": {"$in": vendor_ids}})
@@ -27,7 +27,10 @@ def cleanup():
                         ("sessions", "user_id"), ("auth_tokens", "user_id")):
         mongo[coll].delete_many({field: {"$in": ids}})
     mongo.users.delete_many({"_id": {"$in": ids}})
-    mongo.rate_limits.delete_many({})
+    CREATED.clear()
+
+
+CREATED: list = []
 
 
 def verified_client():
@@ -36,6 +39,7 @@ def verified_client():
     email = f"delivered+v{uuid.uuid4().hex[:8]}@resend.dev"
     r = c.post("/auth/register", json={"name": "TEST_Vendor", "email": email, "password": "TestPass12345"})
     assert r.status_code == 201, r.text
+    CREATED.append(email)
     mongo.users.update_one({"email": email}, {"$set": {"email_verified_at": mongo.users.find_one({"email": email})["created_at"], "status": "active"}})
     return c
 

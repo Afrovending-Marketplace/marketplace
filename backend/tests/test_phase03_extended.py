@@ -4,7 +4,7 @@ import uuid
 import httpx
 from bson import ObjectId
 
-from tests.test_phase03_vendors import BASE, PNG, admin_client, application, cleanup, mongo, submit, verified_client  # noqa: F401
+from tests.test_phase03_vendors import BASE, CREATED, PNG, admin_client, application, cleanup, mongo, submit, verified_client  # noqa: F401
 
 
 def _approve(adm, app_id):
@@ -16,6 +16,7 @@ def test_unverified_user_cannot_apply():
     c = httpx.Client(base_url=BASE, timeout=60)
     mongo.rate_limits.delete_many({"key": {"$regex": "^register:"}})
     email = f"delivered+u{uuid.uuid4().hex[:8]}@resend.dev"
+    CREATED.append(email)
     assert c.post("/auth/register", json={"name": "TEST_Unv", "email": email, "password": "TestPass12345"}).status_code == 201
     r = c.put("/vendor/application", json=application(f"test-{uuid.uuid4().hex[:6]}"))
     assert r.status_code == 403 and r.json()["error"]["code"] == "email_unverified" if "error" in r.json() else r.status_code == 403

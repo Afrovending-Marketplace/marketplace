@@ -28,6 +28,12 @@ import VendorDashboardPage from "@/pages/vendor/VendorDashboardPage";
 import VendorApplyPage from "@/pages/vendor/VendorApplyPage";
 import PublicStorePage from "@/pages/vendor/PublicStorePage";
 import AdminVendorsPage from "@/pages/admin/AdminVendorsPage";
+import AdminProductsPage from "@/pages/admin/AdminProductsPage";
+import AdminCategoriesPage from "@/pages/admin/AdminCategoriesPage";
+import VendorProductsPage from "@/pages/vendor/VendorProductsPage";
+import ProductEditorPage from "@/pages/vendor/ProductEditorPage";
+import ProductImportPage from "@/pages/vendor/ProductImportPage";
+import { CatalogProvider } from "@/context/CatalogContext";
 import DesignSystemPage from "@/pages/DesignSystemPage";
 import ComingSoonPage from "@/pages/ComingSoonPage";
 import NotFoundPage from "@/pages/NotFoundPage";
@@ -38,6 +44,7 @@ const ADMIN_ROLES = ["support_admin", "marketplace_admin", "super_admin"];
 function App() {
   return (
     <AuthProvider>
+      <CatalogProvider>
       <BrowserRouter>
         <Routes>
           <Route element={<AppShell />}>
@@ -76,10 +83,15 @@ function App() {
             </Route>
             <Route element={<ProtectedRoute roles={["marketplace_admin", "super_admin"]} />}>
               <Route path="admin/vendors" element={<AdminVendorsPage />} />
+              <Route path="admin/products" element={<AdminProductsPage />} />
+              <Route path="admin/categories" element={<AdminCategoriesPage />} />
             </Route>
             <Route path="store/:slug" element={<PublicStorePage />} />
             <Route element={<ProtectedRoute roles={["vendor"]} />}>
               <Route path="vendor/dashboard" element={<VendorDashboardPage />} />
+              <Route path="vendor/products" element={<VendorProductsPage />} />
+              <Route path="vendor/products/import" element={<ProductImportPage />} />
+              <Route path="vendor/products/:id" element={<ProductEditorPage />} />
             </Route>
             <Route path="design-system" element={<DesignSystemPage />} />
             {FUTURE_ROUTES.map((r) => <Route key={r.path} path={r.path} element={<ComingSoonPage />} />)}
@@ -87,6 +99,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </CatalogProvider>
     </AuthProvider>
   );
 }

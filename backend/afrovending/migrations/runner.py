@@ -34,10 +34,26 @@ async def m0003_phase03_vendors(db) -> None:
     await ensure_indexes(db, phase=3)
 
 
+async def m0004_phase04_catalog(db) -> None:
+    await ensure_indexes(db, phase=4)
+    fixtures = json.loads((BACKEND_DIR / "fixtures" / "categories.json").read_text())
+    for i, item in enumerate(fixtures):
+        now = utcnow()
+        base = {"blurb": item["blurb"], "image": item["image"], "status": "active", "created_at": now, "updated_at": now}
+        await db.categories.update_one({"slug": item["slug"]}, {"$setOnInsert": {**base, "slug": item["slug"], "name": item["name"],
+                                                                             "parent_id": None, "sort_order": i * 10}}, upsert=True)
+        parent = await db.categories.find_one({"slug": item["slug"]})
+        for j, name in enumerate(item["children"]):
+            slug = item["slug"] + "-" + "".join(c if c.isalnum() else "-" for c in name.lower()).replace("--", "-").strip("-")
+            await db.categories.update_one({"slug": slug}, {"$setOnInsert": {**base, "slug": slug, "name": name, "blurb": "", "image": None,
+                                                                          "parent_id": parent["_id"], "sort_order": j * 10}}, upsert=True)
+
+
 MIGRATIONS = (
     ("0001", "phase00_foundation", m0001_phase00_foundation),
     ("0002", "phase02_identity", m0002_phase02_identity),
     ("0003", "phase03_vendor_onboarding", m0003_phase03_vendors),
+    ("0004", "phase04_catalog_inventory", m0004_phase04_catalog),
 )
 
 
