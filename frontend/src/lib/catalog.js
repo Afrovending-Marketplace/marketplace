@@ -62,6 +62,8 @@ const score = (p, ws) => ws.reduce((s, w) => s + (p.title.toLowerCase().includes
 
 // Development-data mirror of GET /api/v1/catalog/search (same params and response shape).
 export const localSearch = ({ q = "", category = "", vendor = "", min = "", max = "", in_stock = false, sort = "relevance", page = 1, limit = 24 }) => {
+  if (min !== "" && max !== "" && Number(min) > Number(max)) throw new Error("Minimum price is higher than maximum price.");
+  if (category && !getCategory(category)) throw new Error("Category not found.");
   const ws = words(q);
   const base = PRODUCTS.filter((p) => ws.every((w) => hay(p).includes(w)));
   const cats = category ? childSlugs(category) : null;
@@ -84,12 +86,13 @@ export const localSearch = ({ q = "", category = "", vendor = "", min = "", max 
 
 export const localSuggest = (q) => {
   const t = q.trim().toLowerCase();
-  const kws = [...new Set(PRODUCTS.flatMap((p) => p.tags || p.details || []).map((x) => x.toLowerCase()).filter((x) => x.includes(t) && x.length < 30))].slice(0, 5);
+  const starts = (s) => s.toLowerCase().split(/[^a-z0-9]+/).some((w) => w.startsWith(t)) || s.toLowerCase().startsWith(t);
+  const kws = [...new Set(PRODUCTS.flatMap((p) => p.tags || p.details || []).filter((x) => x.length < 30 && starts(x)).map((x) => x.toLowerCase()))].slice(0, 5);
   return {
     query: q, keywords: kws,
-    products: PRODUCTS.filter((p) => p.title.toLowerCase().includes(t)).slice(0, 5).map((p) => ({ title: p.title, slug: p.slug, price_minor: p.price_minor, currency: p.currency })),
-    categories: CATEGORIES.filter((c) => c.name.toLowerCase().includes(t)).slice(0, 4).map((c) => ({ slug: c.slug, name: c.name })),
-    vendors: VENDORS.filter((v) => v.name.toLowerCase().includes(t)).slice(0, 3).map((v) => ({ slug: v.slug, name: v.name })),
+    products: PRODUCTS.filter((p) => starts(p.title)).slice(0, 5).map((p) => ({ title: p.title, slug: p.slug, price_minor: p.price_minor, currency: p.currency })),
+    categories: CATEGORIES.filter((c) => starts(c.name)).slice(0, 4).map((c) => ({ slug: c.slug, name: c.name })),
+    vendors: VENDORS.filter((v) => starts(v.name)).slice(0, 3).map((v) => ({ slug: v.slug, name: v.name })),
   };
 };
 
@@ -106,7 +109,7 @@ export const sortProducts = (list, sort) => {
   const out = [...list];
   if (sort === "newest") out.sort((a, b) => b.created_at.localeCompare(a.created_at));
   if (sort === "price-asc") out.sort((a, b) => a.price_minor - b.price_minor);
-  if (sort === "price-desc") out.sort((a, b) => b.price_minor - a.price_minor);
+  if (sort === "price-desc") out.sort((a, b) => (b.price_max_minor ?? b.price_minor) - (a.price_max_minor ?? a.price_minor));
   if (sort === "featured") out.sort((a, b) => Number(b.is_featured) - Number(a.is_featured));
   return out;
 };

@@ -6,8 +6,18 @@
 | 01 Public storefront | ✅ Complete | 2026-10-17 |
 | 02 Identity & customer accounts | ✅ Complete | 2026-10-17 |
 | 03 Vendor onboarding (+ brand red theme) | ✅ Complete | 2026-10-17 |
-| 04 Product catalog & inventory | ✅ Complete — awaiting owner approval | 2026-10-19 |
+| 04 Product catalog & inventory | ✅ Complete | 2026-10-19 |
+| 05 Search & product discovery (+ weekly low-stock digest) | ✅ Complete — awaiting owner approval | 2026-10-19 |
 | 05–14 | ⏸ Not started | — |
+
+## Phase 05 deliverables
+- `GET /api/v1/catalog/search`: MongoDB weighted text index (title 10, tags 5, description 1, English stemming) with relevance sort; automatic word-prefix fallback for partial words ("bask" → basket); filters category (+subcategories), vendor (multi), price min/max, in stock; sorts relevance/featured/newest/price; page+limit (max 120) with `has_more`; facets (category counts unscoped, vendor/price/stock scoped to category).
+- `GET /api/v1/catalog/suggest`: keywords (tags), products, categories, vendors by word prefix.
+- Storefront `/shop`, `/search`, `/categories/:slug` share one discovery layout: filters (sheet on mobile), chips, sort, Load more, empty and error states; all state in the URL (`q, category, vendor, min, max, in_stock, sort, page`).
+- Only active products of active vendors with published stores appear anywhere in search, suggestions or facets.
+- Search analytics (`search_queries`): normalized text, result count, filter names, time; no user/session/IP/device; emails & phone numbers redacted; DNT / Global Privacy Control honoured; logged once per distinct search per browser session; TTL 180 days; admin report hides queries seen < 2 times; purge = super admin only. Admin page `/admin/search-insights`.
+- Infrastructure: MongoDB indexes only (text, status+price, status+in_stock, tags). Tested at 1,500+ products: < 2 s per query end-to-end over the preview network; no external/paid search service.
+- Restock reminders: vendors choose instant per-item emails or a weekly summary (`PUT /vendor/preferences`); platform cron `.emergent/crons.yml` calls `POST /api/v1/cron/low-stock-digest` Mondays 09:00 UTC (Bearer secret, idempotent by run id, work runs in background).
 
 ## Phase 04 deliverables
 - Vendor products (`/vendor/products`, `/vendor/products/new`, `/vendor/products/:id`): title, description, category (2-level), tags, SKU, price (USD), up to 8 images, low-stock threshold.

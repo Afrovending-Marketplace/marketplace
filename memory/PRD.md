@@ -20,11 +20,12 @@ Multi-vendor marketplace modules A–N; server-side RBAC; versioned migrations; 
 - 2026-10-17 — Phase 02 Identity & accounts: JWT email/password auth with revocable sessions, verification & reset emails (Emergent Resend), profile, address book, privacy requests, deactivation, RBAC (admin APIs + route guards), rate limits, audit logs; owner content (About/Contact/FAQ/footer, 6 draft policies). Contact form → info@afrovending.com PENDING (domain DNS). Tests 42/42 backend + e2e.
 - 2026-10-17 — Brand red theme (#D40000). Phase 03 Vendor onboarding: application form with logo/banner/slug, policy acceptance record, admin review (approve/reject/request info + required docs), private verification documents (admin-only), vendor role on same account, store editor + publish, public /store/:slug, suspend/reactivate, email notices. Tests 52/52 backend + e2e.
 - 2026-10-19 — Phase 04 Product catalog & inventory: vendor product CRUD with deletion safeguards, variants (3 options, SKU/price/stock), optimized WebP images, draft/pending/active/rejected/archived states, inventory adjustments with append-only history + low-stock alerts, admin moderation, category management (seeded 9 + subcategories), CSV import with preview/errors, public /api/v1/catalog APIs feeding the storefront. Tests 57/57 backend + e2e (iteration_5). Next: Phase 05 storefronts & search (awaiting approval).
+- 2026-10-19 — Phase 05 Search & discovery: weighted full-text search + partial fallback, suggestions, category/subcategory/price/vendor/availability filters, relevance/newest/price sorts, load-more pagination, URL state, empty/error states, anonymous privacy-safe search analytics + admin insights, indexes tested at 1,500 products. Restock reminders: vendor choice of instant vs weekly digest via platform cron. Tests 69/69 + e2e (iteration_6).
 
 ## Prioritized backlog
-- P0: Phase 05 storefronts & search/discovery (awaiting approval)
+- P0: Phase 06 cart & checkout (awaiting approval)
 - P1: Phases 06–08 (cart/checkout → orders/shipping)
 - P2: Phases 09–14; automated vendor-document cleanup job; CSV image import
 
 ## Next tasks
-Await owner approval for Phase 05. Open owner decisions: currencies (USD only today), commission rate, legal copy, supported markets, afrovending.com DNS for contact email.
+Await owner approval for Phase 06. Open owner decisions: currencies (USD only today), commission rate, legal copy, supported markets, afrovending.com DNS for contact email.

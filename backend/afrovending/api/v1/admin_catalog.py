@@ -163,7 +163,7 @@ async def search_analytics(days: int = 30, _: User = Depends(MODERATOR)):
 
 
 @router.delete("/search-analytics")
-async def purge_search_analytics(request: Request, admin: User = Depends(MODERATOR)):
+async def purge_search_analytics(request: Request, admin: User = Depends(require_roles(Role.SUPER_ADMIN))):
     n = (await db.search_queries.delete_many({})).deleted_count
     await audit("admin.search_analytics_purged", "search_queries", request=request, actor=admin, deleted=n)
     return {"deleted": n}

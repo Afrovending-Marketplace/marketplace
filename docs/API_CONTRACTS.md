@@ -14,6 +14,16 @@
 - **Auth (from Phase 01):** documented per endpoint as `Auth: public | customer | vendor | admin(<role>)`.
 - **Idempotency (from Phase 06/07):** mutating money endpoints require `Idempotency-Key` header.
 
+## Phase 05 endpoints (all under `/api/v1`)
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/catalog/search?q&category&vendor&min&max&in_stock&sort&page&limit&log` | public | `{data, page, limit, total, has_more, mode: text\|partial\|browse, sort, query, facets}`; 422 bad price, 404 unknown category |
+| GET | `/catalog/suggest?q` | public | `{keywords, products, categories, vendors}` (q ≥ 2 chars) |
+| GET / DELETE | `/admin/search-analytics?days` | marketplace/super admin · DELETE super admin | Aggregated report with privacy block / purge (audited) |
+| PUT | `/vendor/preferences` | vendor | `{low_stock_alerts: instant\|weekly}` |
+| POST | `/cron/low-stock-digest` | Bearer `WEBHOOK_CRON_SECRET` | 202 accepted / duplicate; 401 bad auth; 400 bad envelope |
+
+
 ## Phase 04 endpoints (all under `/api/v1`)
 | Method | Path | Auth | Description |
 |---|---|---|---|

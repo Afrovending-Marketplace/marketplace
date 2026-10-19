@@ -23,8 +23,14 @@ const QueryTable = ({ title, rows, testId }) => (
 export default function AdminSearchInsightsPage() {
   const [days, setDays] = useState("30");
   const [d, setD] = useState(null);
+  const [error, setError] = useState("");
   const load = useCallback(async () => {
-    setD((await api.get("/admin/search-analytics", { params: { days } })).data);
+    setError("");
+    try {
+      setD((await api.get("/admin/search-analytics", { params: { days } })).data);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
   }, [days]);
   useEffect(() => {
     load();
@@ -39,7 +45,8 @@ export default function AdminSearchInsightsPage() {
       toast.error(getErrorMessage(err));
     }
   };
-  if (!d) return null;
+  if (error) return <div className="av-container max-w-3xl py-16"><StatusAlert tone="error" title={error} testId="search-insights-error" /><Button className="mt-4" variant="outline" onClick={load} data-testid="search-insights-retry">Try again</Button></div>;
+  if (!d) return <div className="av-container py-24 text-center text-sm text-av-muted" data-testid="search-insights-loading">Loading…</div>;
   return (
     <div data-testid="admin-search-insights-page" className="av-container max-w-5xl space-y-8 py-12">
       <div className="flex flex-wrap items-end justify-between gap-4">

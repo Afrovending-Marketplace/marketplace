@@ -33,7 +33,7 @@ def search_cleanup():
 
 def client():
     c = httpx.Client(base_url=BASE, timeout=90)
-    mongo.rate_limits.delete_many({"key": {"$regex": "^(register|login):"}})
+    mongo.rate_limits.delete_many({"key": {"$regex": "^register:"}})
     email = f"delivered+p5{uuid.uuid4().hex[:8]}@resend.dev"
     assert c.post("/auth/register", json={"name": f"{PREFIX}Vendor", "email": email, "password": "TestPass12345"}).status_code == 201
     u = mongo.users.find_one({"email": email})
@@ -150,10 +150,11 @@ def test_search_analytics_privacy(catalog):
     s(q=f"dnt {TAG}")  # DNT header -> not logged
     assert mongo.search_queries.count_documents({}) == before
     for _ in range(2):
-        httpx.get(f"{BASE}/catalog/search", params={"q": f"  KENTE   {TAG} "})
-    httpx.get(f"{BASE}/catalog/search", params={"q": f"nothing{TAG}"})
-    httpx.get(f"{BASE}/catalog/search", params={"q": "jane.doe@example.com"})
-    httpx.get(f"{BASE}/catalog/search", params={"q": f"kente {TAG}", "page": 2})  # later pages not logged
+        httpx.get(f"{BASE}/catalog/search", params={"q": f"  KENTE   {TAG} ", "log": "true"})
+    httpx.get(f"{BASE}/catalog/search", params={"q": f"nothing{TAG}", "log": "true"})
+    httpx.get(f"{BASE}/catalog/search", params={"q": "jane.doe@example.com", "log": "true"})
+    httpx.get(f"{BASE}/catalog/search", params={"q": f"kente {TAG}", "page": 2, "log": "true"})  # later pages not logged
+    httpx.get(f"{BASE}/catalog/search", params={"q": f"kente {TAG}"})  # refetch without log flag not logged
     doc = mongo.search_queries.find_one({"query": f"kente {TAG}"})
     assert doc and set(doc) <= {"_id", "query", "result_count", "mode", "filters", "day", "created_at", "expires_at"}
     assert doc["expires_at"] - doc["created_at"] == timedelta(days=180)

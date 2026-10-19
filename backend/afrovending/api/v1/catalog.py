@@ -12,7 +12,7 @@ from afrovending.core.models import utcnow
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 SortKey = Literal["relevance", "featured", "newest", "price-asc", "price-desc"]
 SORTS = {"featured": [("approved_at", -1)], "newest": [("created_at", -1)],
-         "price-asc": [("price_min_minor", 1)], "price-desc": [("price_min_minor", -1)]}
+         "price-asc": [("price_min_minor", 1)], "price-desc": [("price_max_minor", -1)]}
 SEARCH_RETENTION_DAYS = 180
 MIN_REPORT_COUNT = 2
 MAX_LIMIT = 120
@@ -144,13 +144,13 @@ async def categories():
 @router.get("/search")
 async def search(request: Request, q: str = Query(default="", max_length=200), category: Optional[str] = None, vendor: Optional[str] = None,
                  min: Optional[str] = None, max: Optional[str] = None, in_stock: bool = False, sort: SortKey = "relevance",
-                 page: int = Query(default=1, ge=1, le=500), limit: int = Query(default=24, ge=1, le=MAX_LIMIT)):
+                 page: int = Query(default=1, ge=1, le=500), limit: int = Query(default=24, ge=1, le=MAX_LIMIT), log: bool = False):
     lo, hi = _price(min), _price(max)
     if lo is not None and hi is not None and lo > hi:
         raise APIError(422, "validation_error", "Minimum price is higher than maximum price.")
     vendors = [v for v in (vendor or "").split(",") if v.strip()]
     result = await run_search(q=q, category=category, vendors=vendors, min_price=lo, max_price=hi, in_stock=in_stock, sort=sort, page=page, limit=limit)
-    if result["query"] and page == 1:
+    if log and result["query"] and page == 1:
         used = [k for k, v in (("category", category), ("vendor", vendors), ("price", lo is not None or hi is not None), ("in_stock", in_stock)) if v]
         await log_search(request, result["query"], result["total"], result["mode"], used)
     return result

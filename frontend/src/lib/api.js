@@ -30,5 +30,6 @@ export const getErrorMessage = (err) => {
   const e = err?.response?.data?.error;
   if (e?.details?.length && typeof e.details[0]?.message === "string") return e.details.map((d) => d.message).join(" ");
   if (typeof e?.message === "string") return e.message;
+  if (err instanceof Error && !err.isAxiosError && err.message) return err.message;
   return "Something went wrong. Please try again.";
 };
