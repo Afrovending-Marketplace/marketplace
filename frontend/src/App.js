@@ -30,6 +30,7 @@ import PublicStorePage from "@/pages/vendor/PublicStorePage";
 import AdminVendorsPage from "@/pages/admin/AdminVendorsPage";
 import AdminProductsPage from "@/pages/admin/AdminProductsPage";
 import AdminCategoriesPage from "@/pages/admin/AdminCategoriesPage";
+import AdminSearchInsightsPage from "@/pages/admin/AdminSearchInsightsPage";
 import VendorProductsPage from "@/pages/vendor/VendorProductsPage";
 import ProductEditorPage from "@/pages/vendor/ProductEditorPage";
 import ProductImportPage from "@/pages/vendor/ProductImportPage";
@@ -85,6 +86,7 @@ function App() {
               <Route path="admin/vendors" element={<AdminVendorsPage />} />
               <Route path="admin/products" element={<AdminProductsPage />} />
               <Route path="admin/categories" element={<AdminCategoriesPage />} />
+              <Route path="admin/search-insights" element={<AdminSearchInsightsPage />} />
             </Route>
             <Route path="store/:slug" element={<PublicStorePage />} />
             <Route element={<ProtectedRoute roles={["vendor"]} />}>

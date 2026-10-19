@@ -54,11 +54,46 @@ export const getRelatedProducts = (product, n = 4) =>
     .concat(PRODUCTS.filter((p) => p.vendor_slug === product.vendor_slug && p.category_slug !== product.category_slug))
     .slice(0, n);
 
-export const searchProducts = (q) => {
-  const term = q.trim().toLowerCase();
-  if (!term) return [];
-  return PRODUCTS.filter((p) => `${p.title} ${p.category_slug} ${(p.tags || []).join(" ")} ${getVendor(p.vendor_slug)?.name}`.toLowerCase().includes(term));
+export const searchProducts = (q) => localSearch({ q, limit: 500 }).data;
+
+const hay = (p) => `${p.title} ${(p.tags || p.details || []).join(" ")} ${p.category_slug} ${p.description || ""}`.toLowerCase();
+const words = (q) => (q || "").toLowerCase().split(/\s+/).filter((w) => w.length > 1);
+const score = (p, ws) => ws.reduce((s, w) => s + (p.title.toLowerCase().includes(w) ? 10 : 0) + ((p.tags || p.details || []).join(" ").toLowerCase().includes(w) ? 5 : 0) + 1, 0);
+
+// Development-data mirror of GET /api/v1/catalog/search (same params and response shape).
+export const localSearch = ({ q = "", category = "", vendor = "", min = "", max = "", in_stock = false, sort = "relevance", page = 1, limit = 24 }) => {
+  const ws = words(q);
+  const base = PRODUCTS.filter((p) => ws.every((w) => hay(p).includes(w)));
+  const cats = category ? childSlugs(category) : null;
+  const vendors = vendor ? vendor.split(",") : null;
+  let list = base.filter((p) => (!cats || cats.includes(p.category_slug)) && (!vendors || vendors.includes(p.vendor_slug))
+    && (min === "" || p.price_minor >= Number(min) * 100) && (max === "" || p.price_minor <= Number(max) * 100) && (!in_stock || p.in_stock !== false));
+  const effective = sort === "relevance" && !ws.length ? "featured" : sort;
+  list = effective === "relevance" ? [...list].sort((a, b) => score(b, ws) - score(a, ws)) : sortProducts(list, effective);
+  const count = (slugs) => base.filter((p) => slugs.includes(p.category_slug)).length;
+  const scoped = cats ? base.filter((p) => cats.includes(p.category_slug)) : base;
+  const vendorCounts = VENDORS.map((v) => ({ slug: v.slug, name: v.name, count: scoped.filter((p) => p.vendor_slug === v.slug).length })).filter((v) => v.count);
+  const prices = scoped.map((p) => p.price_minor);
+  const facets = {
+    categories: CATEGORIES.map((c) => ({ ...c, product_count: count(childSlugs(c.slug)), children: (c.children || []).map((k) => ({ ...k, product_count: count([k.slug]) })) })).filter((c) => c.product_count),
+    vendors: vendorCounts.sort((a, b) => b.count - a.count), price: { min: prices.length ? Math.min(...prices) : null, max: prices.length ? Math.max(...prices) : null },
+    in_stock: scoped.filter((p) => p.in_stock !== false).length,
+  };
+  return { data: list.slice((page - 1) * limit, page * limit), total: list.length, has_more: page * limit < list.length, page, limit, mode: ws.length ? "text" : "browse", sort: effective, facets };
 };
+
+export const localSuggest = (q) => {
+  const t = q.trim().toLowerCase();
+  const kws = [...new Set(PRODUCTS.flatMap((p) => p.tags || p.details || []).map((x) => x.toLowerCase()).filter((x) => x.includes(t) && x.length < 30))].slice(0, 5);
+  return {
+    query: q, keywords: kws,
+    products: PRODUCTS.filter((p) => p.title.toLowerCase().includes(t)).slice(0, 5).map((p) => ({ title: p.title, slug: p.slug, price_minor: p.price_minor, currency: p.currency })),
+    categories: CATEGORIES.filter((c) => c.name.toLowerCase().includes(t)).slice(0, 4).map((c) => ({ slug: c.slug, name: c.name })),
+    vendors: VENDORS.filter((v) => v.name.toLowerCase().includes(t)).slice(0, 3).map((v) => ({ slug: v.slug, name: v.name })),
+  };
+};
+
+export const RELEVANCE = ["relevance", "Best match"];
 
 export const SORTS = [
   ["featured", "Featured"],

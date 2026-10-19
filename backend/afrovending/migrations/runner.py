@@ -34,6 +34,16 @@ async def m0003_phase03_vendors(db) -> None:
     await ensure_indexes(db, phase=3)
 
 
+async def m0005_phase05_search(db) -> None:
+    for idx in await db.products.list_indexes().to_list(50):
+        if "textIndexVersion" in idx and "weights" in idx and idx["weights"].get("title") != 10:
+            await db.products.drop_index(idx["name"])
+    await ensure_indexes(db, phase=5)
+    from afrovending.core.catalog import refresh_stock_flag
+    async for p in db.products.find({"in_stock": {"$exists": False}}, {"_id": 1}):
+        await refresh_stock_flag(p["_id"])
+
+
 async def m0004_phase04_catalog(db) -> None:
     await ensure_indexes(db, phase=4)
     fixtures = json.loads((BACKEND_DIR / "fixtures" / "categories.json").read_text())
@@ -54,6 +64,7 @@ MIGRATIONS = (
     ("0002", "phase02_identity", m0002_phase02_identity),
     ("0003", "phase03_vendor_onboarding", m0003_phase03_vendors),
     ("0004", "phase04_catalog_inventory", m0004_phase04_catalog),
+    ("0005", "phase05_search_discovery", m0005_phase05_search),
 )
 
 

@@ -1,3 +1,4 @@
+import asyncio
 import re
 from typing import Optional
 
@@ -112,13 +113,50 @@ async def adjust_stock(*, inv: dict, product: dict, actor_id, delta: Optional[in
     await db.stock_adjustments.insert_one({"variant_id": inv["variant_id"], "product_id": inv["product_id"], "vendor_id": inv["vendor_id"],
                                            "delta": delta, "before": before, "after": after, "reason": reason, "note": note[:500],
                                            "actor_id": ObjectId(actor_id) if actor_id else None, "created_at": utcnow()})
+    await refresh_stock_flag(inv["product_id"])
     threshold = product.get("low_stock_threshold", 5)
     if before > threshold >= after and reason not in ("initial", "import"):
         await notify_low_stock(product, inv, after)
     return {"quantity_on_hand": updated["quantity_on_hand"], "quantity_reserved": updated.get("quantity_reserved", 0)}
 
 
+async def refresh_stock_flag(product_id) -> None:
+    """Denormalized `in_stock` used by the availability filter."""
+    vids = [v["_id"] async for v in db.product_variants.find({"product_id": product_id, "status": "active"}, {"_id": 1})]
+    n = await db.inventory.count_documents({"variant_id": {"$in": vids}, "$expr": {"$gt": [{"$subtract": ["$quantity_on_hand", "$quantity_reserved"]}, 0]}})
+    await db.products.update_one({"_id": product_id}, {"$set": {"in_stock": n > 0}})
+
+
+async def low_stock_items(vendor_id) -> list[dict]:
+    products = await db.products.find({"vendor_id": vendor_id, "status": {"$ne": "archived"}}).to_list(2000)
+    variants, _, stock = await load_parts([p["_id"] for p in products])
+    return [{"title": p["title"], "label": v["label"], "sku": v["sku"], "available": available(stock.get(v["_id"]))}
+            for p in products for v in variants.get(p["_id"], [])
+            if v["status"] == "active" and available(stock.get(v["_id"])) <= p.get("low_stock_threshold", 5)]
+
+
+async def send_low_stock_digests() -> dict:
+    sent = empty = failed = 0
+    async for vendor in db.vendors.find({"status": "active", "low_stock_alerts": "weekly"}):
+        items = await low_stock_items(vendor["_id"])
+        owner = await db.users.find_one({"_id": vendor["owner_user_id"]})
+        if not items or not owner:
+            empty += 1
+            continue
+        subject, html = mail.low_stock_digest_email(owner["name"], items)
+        if await mail.try_send(to=owner["email"], subject=subject, html=html):
+            sent += 1
+            await db.vendors.update_one({"_id": vendor["_id"]}, {"$set": {"last_low_stock_digest_at": utcnow()}})
+        else:
+            failed += 1
+        await asyncio.sleep(0.6)
+    return {"sent": sent, "nothing_low": empty, "failed": failed}
+
+
 async def notify_low_stock(product: dict, inv: dict, qty: int) -> None:
+    vendor = await db.vendors.find_one({"_id": product["vendor_id"]}, {"low_stock_alerts": 1})
+    if (vendor or {}).get("low_stock_alerts", "instant") != "instant":
+        return
     owner = await db.users.find_one({"_id": product["owner_user_id"]})
     variant = await db.product_variants.find_one({"_id": inv["variant_id"]})
     if owner and variant:

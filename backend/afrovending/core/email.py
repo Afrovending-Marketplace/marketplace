@@ -170,6 +170,19 @@ def vendor_notice_email(name: str, headline: str, text: str) -> tuple[str, str]:
     return f"AfroVending: {headline}", _layout(headline, body)
 
 
+def low_stock_digest_email(name: str, items: list[dict]) -> tuple[str, str]:
+    rows = "".join(f"<tr><td style=\"padding:6px 0;border-bottom:1px solid #E6DFD3\">{escape(i['title'])} ({escape(i['label'])})"
+                   f"<br><span style=\"font-size:12px;color:#6E675F\">{escape(i['sku'])}</span></td>"
+                   f"<td align=\"right\" style=\"padding:6px 0;border-bottom:1px solid #E6DFD3;font-weight:bold\">{i['available']} left</td></tr>"
+                   for i in items[:50])
+    more = f"<p style=\"font-size:13px;color:#6E675F\">…and {len(items) - 50} more.</p>" if len(items) > 50 else ""
+    body = (f"<p>Hi {escape(name)},</p><p>Here is your weekly summary of {len(items)} low-stock item{'s' if len(items) != 1 else ''}.</p>"
+            f"<table role=\"presentation\" width=\"100%\" style=\"font-size:14px\">{rows}</table>{more}"
+            f"{_button(settings.frontend_url + '/vendor/products', 'Restock in my dashboard')}"
+            "<p style=\"font-size:13px;color:#6E675F\">You chose weekly low-stock summaries. Change this on your Products page.</p>")
+    return "AfroVending: weekly low-stock summary", _layout("Weekly low-stock summary", body)
+
+
 def contact_inbox_email(name: str, email: str, subject: str, message: str) -> tuple[str, str]:
     body = (f"<p><strong>From:</strong> {escape(name)} &lt;{escape(email)}&gt;</p><p><strong>Subject:</strong> {escape(subject)}</p>"
             f"<p style=\"white-space:pre-wrap;background:#F3EDE4;padding:16px;border-radius:8px\">{escape(message)}</p>"

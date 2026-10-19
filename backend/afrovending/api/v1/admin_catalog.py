@@ -1,9 +1,11 @@
+from datetime import timedelta
 from typing import Literal, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
+from afrovending.api.v1.catalog import MIN_REPORT_COUNT, SEARCH_RETENTION_DAYS
 from afrovending.api.v1.products import _summary, product_detail
 from afrovending.api.v1.vendors import ser
 from afrovending.core import email as mail
@@ -136,3 +138,32 @@ async def delete_category(category_id: str, request: Request, admin: User = Depe
     await db.categories.delete_one({"_id": cat["_id"]})
     await audit("admin.category_deleted", "categories", request=request, actor=admin, entity_id=category_id, slug=cat["slug"])
     return {"status": "deleted"}
+
+
+async def _top(match: dict, limit: int = 20) -> tuple[list, int]:
+    rows = await db.search_queries.aggregate([{"$match": match}, {"$group": {"_id": "$query", "n": {"$sum": 1}, "avg": {"$avg": "$result_count"}}},
+                                               {"$sort": {"n": -1, "_id": 1}}]).to_list(5000)
+    shown = [{"query": r["_id"], "count": r["n"], "avg_results": round(r["avg"], 1)} for r in rows if r["n"] >= MIN_REPORT_COUNT and r["_id"] != "[redacted]"]
+    return shown[:limit], len(rows) - len(shown)
+
+
+@router.get("/search-analytics")
+async def search_analytics(days: int = 30, _: User = Depends(MODERATOR)):
+    days = min(max(days, 1), SEARCH_RETENTION_DAYS)
+    match = {"created_at": {"$gte": utcnow() - timedelta(days=days)}}
+    total = await db.search_queries.count_documents(match)
+    zero = await db.search_queries.count_documents({**match, "result_count": 0})
+    top, hidden = await _top(match)
+    zero_top, _ = await _top({**match, "result_count": 0})
+    daily = await db.search_queries.aggregate([{"$match": match}, {"$group": {"_id": "$day", "n": {"$sum": 1}}}, {"$sort": {"_id": 1}}]).to_list(200)
+    return {"days": days, "total_searches": total, "zero_result_searches": zero, "zero_result_rate": round(zero / total, 3) if total else 0,
+            "top_queries": top, "zero_result_queries": zero_top, "hidden_rare_queries": hidden, "daily": [{"day": d["_id"], "count": d["n"]} for d in daily],
+            "privacy": {"min_count": MIN_REPORT_COUNT, "retention_days": SEARCH_RETENTION_DAYS,
+                        "stored": "Normalized search text, result count, filter names and time. No account, session, IP address or device. Emails and phone numbers are redacted; Do-Not-Track / Global Privacy Control is honoured."}}
+
+
+@router.delete("/search-analytics")
+async def purge_search_analytics(request: Request, admin: User = Depends(MODERATOR)):
+    n = (await db.search_queries.delete_many({})).deleted_count
+    await audit("admin.search_analytics_purged", "search_queries", request=request, actor=admin, deleted=n)
+    return {"deleted": n}

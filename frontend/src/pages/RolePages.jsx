@@ -19,6 +19,7 @@ export const AdminConsolePage = () => (
       <Button asChild data-testid="admin-vendors-link"><Link to="/admin/vendors">Vendor applications & vendors</Link></Button>
       <Button asChild data-testid="admin-products-link"><Link to="/admin/products">Product moderation</Link></Button>
       <Button asChild variant="outline" data-testid="admin-categories-link"><Link to="/admin/categories">Categories</Link></Button>
+      <Button asChild variant="outline" data-testid="admin-search-insights-link"><Link to="/admin/search-insights">Search insights</Link></Button>
     </div>
   </div>
 );

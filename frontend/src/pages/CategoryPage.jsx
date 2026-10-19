@@ -1,17 +1,8 @@
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Breadcrumbs } from "@/components/common/Breadcrumbs";
-import { ListingLayout } from "@/components/commerce/ListingLayout";
-import { Button } from "@/components/ui/button";
-import { getCategory, getProductsByCategory } from "@/lib/catalog";
+import { DiscoveryLayout } from "@/components/discovery/DiscoveryLayout";
+import { getCategory } from "@/lib/catalog";
 import NotFoundPage from "@/pages/NotFoundPage";
-
-const Empty = () => (
-  <div data-testid="category-empty" className="rounded-2xl border border-dashed border-av-line p-10 text-center">
-    <p className="font-serif text-2xl text-av-ink">No products here yet</p>
-    <p className="mt-2 text-sm text-av-muted">Vendors will list items in this category once onboarding opens.</p>
-    <Button asChild variant="outline" className="mt-6"><Link to="/shop">Browse all products</Link></Button>
-  </div>
-);
 
 export default function CategoryPage() {
   const { slug } = useParams();
@@ -28,7 +19,7 @@ export default function CategoryPage() {
           <p className="max-w-xl text-lg text-av-linen/80">{category.blurb}</p>
         </div>
       </section>
-      <ListingLayout products={getProductsByCategory(slug)} activeSlug={slug} subcategories={category.subcategories} empty={<Empty />} />
+      <DiscoveryLayout key={slug} baseCategory={slug} empty="Vendors will list items in this category soon." />
     </div>
   );
 }

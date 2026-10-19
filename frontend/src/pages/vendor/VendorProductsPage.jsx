@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FileUp, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 import { StatusAlert } from "@/components/common/StatusAlert";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { fileUrl } from "@/components/vendor/FileUpload";
 import { STATUS_LABEL, STATUS_TONE, priceRange } from "@/components/vendor/products/productUtils";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const FILTERS = ["", "draft", "pending_review", "active", "rejected", "archived"];
@@ -23,6 +25,31 @@ const Row = ({ p }) => (
     <StatusBadge tone={STATUS_TONE[p.status]} testId={`vendor-product-status-${p.sku}`}>{STATUS_LABEL[p.status]}</StatusBadge>
   </li>
 );
+
+const AlertPreference = ({ value, onSaved }) => {
+  const save = async (v) => {
+    try {
+      await api.put("/vendor/preferences", { low_stock_alerts: v });
+      onSaved(v);
+      toast.success(v === "weekly" ? "You'll get one low-stock summary every Monday" : "You'll get an email as soon as an item runs low");
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-av-line bg-white p-4 text-sm" data-testid="low-stock-preference">
+      <span className="font-medium text-av-ink">Low-stock emails</span>
+      <Select value={value} onValueChange={save}>
+        <SelectTrigger className="h-9 w-64 bg-white" data-testid="low-stock-preference-select"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="instant" data-testid="low-stock-preference-instant">One email per item, right away</SelectItem>
+          <SelectItem value="weekly" data-testid="low-stock-preference-weekly">Weekly summary (Mondays)</SelectItem>
+        </SelectContent>
+      </Select>
+      <span className="text-xs text-av-muted">The alert banner above always shows current low stock.</span>
+    </div>
+  );
+};
 
 export default function VendorProductsPage() {
   const [filter, setFilter] = useState("");
@@ -51,6 +78,7 @@ export default function VendorProductsPage() {
           {data.low_stock.map((p) => `${p.title} (${p.low_stock_variants.join(", ")})`).join(" · ")}
         </StatusAlert>
       )}
+      {!suspended && <AlertPreference value={data.low_stock_alerts} onSaved={(v) => setData({ ...data, low_stock_alerts: v })} />}
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter by status">
         {FILTERS.map((s) => (
           <button key={s || "all"} type="button" role="tab" aria-selected={filter === s} onClick={() => setFilter(s)} data-testid={`vendor-products-filter-${s || "all"}`}

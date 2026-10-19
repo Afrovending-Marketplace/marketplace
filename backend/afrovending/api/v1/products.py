@@ -10,7 +10,8 @@ from afrovending.api.v1.vendors import my_vendor, ser
 from afrovending.core import rate_limit
 from afrovending.core.audit import audit
 from afrovending.core.catalog import (CURRENCIES, MAX_IMAGES, MAX_OPTIONS, MAX_VARIANTS, REVIEW_FIELDS, SKU_RE, STOCK_REASONS,
-                                      active_category, adjust_stock, available, file_url, load_parts, oid, unique_product_slug)
+                                      active_category, adjust_stock, available, file_url, load_parts, oid, refresh_stock_flag,
+                                      unique_product_slug)
 from afrovending.core.db import db
 from afrovending.core.deps import get_current_user
 from afrovending.core.errors import APIError
@@ -97,6 +98,10 @@ class AdjustIn(BaseModel):
     note: str = Field(default="", max_length=500)
 
 
+class PreferencesIn(BaseModel):
+    low_stock_alerts: Literal["instant", "weekly"]
+
+
 class OrderIn(BaseModel):
     image_ids: list[str] = Field(max_length=MAX_IMAGES)
 
@@ -176,6 +181,7 @@ async def save_variants(product: dict, variants: list[VariantIn], actor_id: str,
         raise APIError(422, "validation_error", "Keep at least one active variant.")
     prices = [v["price_minor"] for v in active]
     await db.products.update_one({"_id": product["_id"]}, {"$set": {"price_min_minor": min(prices), "price_max_minor": max(prices), "updated_at": now}})
+    await refresh_stock_flag(product["_id"])
     return before != {(v["sku"], v["label"]) for v in active}
 
 
@@ -251,7 +257,16 @@ async def list_products(status: Optional[str] = None, vendor: dict = Depends(rea
     counts = {r["_id"]: r["n"] async for r in db.products.aggregate([{"$match": {"vendor_id": vendor["_id"]}}, {"$group": {"_id": "$status", "n": {"$sum": 1}}}])}
     rows = [_summary(d, variants.get(d["_id"], []), images.get(d["_id"], []), stock) for d in docs]
     low = [r for r in rows if r["low_stock_variants"] and r["status"] != "archived"]
-    return {"data": rows, "counts": counts, "low_stock": low, "vendor_status": vendor["status"]}
+    return {"data": rows, "counts": counts, "low_stock": low, "vendor_status": vendor["status"],
+            "low_stock_alerts": vendor.get("low_stock_alerts", "instant")}
+
+
+@router.put("/preferences")
+async def set_preferences(body: PreferencesIn, request: Request, user: User = Depends(get_current_user)):
+    vendor = await my_vendor(user)
+    await db.vendors.update_one({"_id": vendor["_id"]}, {"$set": {"low_stock_alerts": body.low_stock_alerts, "updated_at": utcnow()}})
+    await audit("vendor.preferences_updated", "vendors", request=request, actor=user, entity_id=str(vendor["_id"]), low_stock_alerts=body.low_stock_alerts)
+    return {"low_stock_alerts": body.low_stock_alerts}
 
 
 @router.post("/products", status_code=201)

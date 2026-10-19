@@ -48,6 +48,8 @@
 | ProductVariants | `product_variants` | 04 | E | vendor_id (via product) |
 | ProductImages | `product_images` | 04 | E | vendor_id (via product) |
 | Inventory | `inventory` | 04 | E | vendor_id |
+| SearchQueries | `search_queries` | 05 | E | system (admin aggregate read) |
+| CronRuns | `cron_runs` | 05 | E | system |
 | StockAdjustments | `stock_adjustments` | 04 | E | vendor_id (read own); system writes |
 | ProductImports | `product_imports` | 04 | E | vendor_id |
 | VendorStores | `vendor_stores` | 03 | D | vendor_id |
@@ -224,7 +226,9 @@ Sellable listing owned by one vendor. Public only when active + vendor active + 
 - **Index** `category_slug_1_status_1`
 - **Index** `status_1_submitted_at_1`
 - **Index** `status_1_price_min_minor_1`
-- **Index** `title_text_description_text_tags_text`
+- **Index** `status_1_in_stock_1`
+- **Index** `tags_1`
+- **Index** `title_text_tags_text_description_text` weights={'title': 10, 'tags': 5, 'description': 1}, default_language=english
 
 ## ProductVariants (`product_variants`) — Phase 04
 
@@ -253,6 +257,25 @@ Stock per variant: quantity_on_hand, quantity_reserved.
 - **Index** `variant_id_1` (unique)
 - **Index** `vendor_id_1`
 - **Index** `product_id_1`
+
+## SearchQueries (`search_queries`) — Phase 05
+
+Anonymous search log: normalized query, result_count, filter names, day. No user/session/IP. TTL 180 days.
+
+- **Owner:** system (admin aggregate read)
+- **Append-only:** yes
+- **Index** `created_at_1`
+- **Index** `query_1_created_at_1`
+- **Index** `expires_at_1` expireAfterSeconds=0
+
+## CronRuns (`cron_runs`) — Phase 05
+
+Scheduled job deliveries (idempotency by run_id). TTL 30 days.
+
+- **Owner:** system
+- **States (`status`):** `queued` → `done` → `failed`
+- **Index** `run_id_1` (unique)
+- **Index** `expires_at_1` expireAfterSeconds=0
 
 ## StockAdjustments (`stock_adjustments`) — Phase 04
 

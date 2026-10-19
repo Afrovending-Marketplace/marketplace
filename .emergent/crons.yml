@@ -1,0 +1,8 @@
+crons:
+  - name: low-stock-digest
+    description: "Emails vendors who chose the weekly option a summary of all their low-stock items (Mondays 9am UTC)"
+    cron: "0 9 * * 1"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/v1/cron/low-stock-digest"
+    method: POST
+    enabled: true
