@@ -90,7 +90,25 @@ async def view(cart: Optional[dict], user: Optional[User], token: Optional[str] 
                            "tax_estimate_minor": None, "tax_status": "not_calculated", "tax_rate_label": None, "estimated_total_minor": 0, "final": False}}
     out = await evaluate(cart, await address_for(cart, user))
     return {"id": str(cart["_id"]), "address_id": str(cart["address_id"]) if cart.get("address_id") and user else None,
-            **out, **({"cart_token": token} if token else {})}
+            **out, "saved": await _saved_view(cart), **({"cart_token": token} if token else {})}
+
+
+async def _saved_view(cart: dict) -> list[dict]:
+    saved = cart.get("saved", [])
+    if not saved:
+        return []
+    variants = {v["_id"]: v async for v in db.product_variants.find({"_id": {"$in": [s["variant_id"] for s in saved]}})}
+    products = {p["_id"]: p async for p in db.products.find({"_id": {"$in": [s["product_id"] for s in saved]}})}
+    stock = {s["variant_id"]: s async for s in db.inventory.find({"variant_id": {"$in": list(variants)}})}
+    visible = set(await visible_vendor_ids())
+    out = []
+    for s in saved:
+        v, p = variants.get(s["variant_id"]), products.get(s["product_id"])
+        ok = bool(v and p and v["status"] == "active" and p["status"] == "active" and p["vendor_id"] in visible)
+        out.append({"variant_id": str(s["variant_id"]), "title": p["title"] if p else s["title"], "label": v["label"] if v else "",
+                    "slug": p["slug"] if p else None, "unit_price_minor": v["price_minor"] if v else None, "quantity": s["quantity"],
+                    "status": "ok" if ok and available(stock.get(v["_id"])) > 0 else "unavailable" if not ok else "out_of_stock"})
+    return out
 
 
 async def _save(cart: dict, **sets) -> None:
@@ -155,6 +173,53 @@ async def set_quantity(variant_id: str, body: QtyIn, request: Request):
 @router.delete("/items/{variant_id}")
 async def remove_item(variant_id: str, request: Request):
     return await set_quantity(variant_id, QtyIn(quantity=0), request)
+
+
+@router.post("/items/{variant_id}/save-for-later")
+async def save_for_later(variant_id: str, request: Request):
+    cart, user, _ = await resolve(request)
+    line = next((i for i in (cart or {}).get("items", []) if str(i["variant_id"]) == variant_id), None)
+    if not line:
+        raise APIError(404, "not_found", "That item isn't in your cart.")
+    saved = [s for s in cart.get("saved", []) if str(s["variant_id"]) != variant_id]
+    if len(saved) >= MAX_LINES:
+        raise APIError(422, "validation_error", f"You can save up to {MAX_LINES} items for later.")
+    cart["items"].remove(line)
+    saved.insert(0, {"variant_id": line["variant_id"], "product_id": line["product_id"], "title": line.get("title", "Item"),
+                     "quantity": line["quantity"], "saved_at": utcnow()})
+    await _save(cart, items=cart["items"], saved=saved)
+    return await view(await db.carts.find_one({"_id": cart["_id"]}), user)
+
+
+@router.post("/saved/{variant_id}/move-to-cart")
+async def move_to_cart(variant_id: str, request: Request):
+    cart, user, _ = await resolve(request)
+    s = next((x for x in (cart or {}).get("saved", []) if str(x["variant_id"]) == variant_id), None)
+    if not s:
+        raise APIError(404, "not_found", "That item isn't in your saved list.")
+    line = next((i for i in cart["items"] if i["variant_id"] == s["variant_id"]), None)
+    qty = min(MAX_QTY_PER_LINE, (line["quantity"] if line else 0) + s["quantity"])
+    found = await _purchasable(variant_id, qty)
+    if line:
+        line["quantity"] = qty
+    elif len(cart["items"]) >= MAX_LINES:
+        raise APIError(422, "validation_error", f"A cart can hold up to {MAX_LINES} different items.")
+    else:
+        cart["items"].append({"variant_id": found["variant"]["_id"], "product_id": found["product"]["_id"], "vendor_id": found["product"]["vendor_id"],
+                              "quantity": qty, "added_price_minor": found["variant"]["price_minor"], "title": found["product"]["title"], "added_at": utcnow()})
+    cart["saved"].remove(s)
+    await _save(cart, items=cart["items"], saved=cart["saved"])
+    return await view(await db.carts.find_one({"_id": cart["_id"]}), user)
+
+
+@router.delete("/saved/{variant_id}")
+async def remove_saved(variant_id: str, request: Request):
+    cart, user, _ = await resolve(request)
+    saved = [x for x in (cart or {}).get("saved", []) if str(x["variant_id"]) != variant_id]
+    if not cart or len(saved) == len(cart.get("saved", [])):
+        raise APIError(404, "not_found", "That item isn't in your saved list.")
+    await _save(cart, saved=saved)
+    return await view(await db.carts.find_one({"_id": cart["_id"]}), user)
 
 
 @router.post("/accept-prices")
@@ -229,5 +294,9 @@ async def merge(request: Request, x_cart_token: str = Header(default="")):
                 line["quantity"] = min(MAX_QTY_PER_LINE, line["quantity"] + g["quantity"])
             elif len(items) < MAX_LINES:
                 items.append(g)
-        await _save(cart, items=items, coupon_code=cart.get("coupon_code") or guest.get("coupon_code"))
+        saved = cart.get("saved", [])
+        for s in guest.get("saved", []):
+            if all(x["variant_id"] != s["variant_id"] for x in saved) and len(saved) < MAX_LINES:
+                saved.append(s)
+        await _save(cart, items=items, saved=saved, coupon_code=cart.get("coupon_code") or guest.get("coupon_code"))
     return {**await view(await db.carts.find_one({"_id": cart["_id"]}), user), "merged": bool(guest)}

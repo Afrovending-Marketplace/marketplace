@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Header, Request
 from pymongo.errors import DuplicateKeyError
 
 from afrovending.core.catalog import send_low_stock_digests
+from afrovending.core.payments import release_all
 from afrovending.core.db import db
 from afrovending.core.errors import APIError
 from afrovending.core.models import utcnow
@@ -17,9 +18,9 @@ SECRET = os.environ["WEBHOOK_CRON_SECRET"]
 log = logging.getLogger("afrovending.cron")
 
 
-async def _run_digest(run_id: str) -> None:
+async def _run(run_id: str, job) -> None:
     try:
-        result = await send_low_stock_digests()
+        result = await job()
         await db.cron_runs.update_one({"run_id": run_id}, {"$set": {"status": "done", "result": result, "finished_at": utcnow()}})
     except Exception:
         log.exception("low-stock digest failed run_id=%s", run_id)
@@ -28,6 +29,15 @@ async def _run_digest(run_id: str) -> None:
 
 @router.post("/low-stock-digest", status_code=202)
 async def low_stock_digest(request: Request, background: BackgroundTasks, authorization: str = Header(default="")):
+    return await _accept(request, background, authorization, "low-stock-digest", send_low_stock_digests)
+
+
+@router.post("/payout-release", status_code=202)
+async def payout_release(request: Request, background: BackgroundTasks, authorization: str = Header(default="")):
+    return await _accept(request, background, authorization, "payout-release", release_all)
+
+
+async def _accept(request: Request, background: BackgroundTasks, authorization: str, schedule: str, job):
     # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
     scheme, _, token = authorization.partition(" ")
     if scheme != "Bearer" or not hmac.compare_digest(token.encode(), SECRET.encode()):
@@ -44,9 +54,9 @@ async def low_stock_digest(request: Request, background: BackgroundTasks, author
         raise APIError(400, "bad_request", "Missing run id.")
     now = utcnow()
     try:
-        await db.cron_runs.insert_one({"run_id": str(run_id)[:100], "schedule": "low-stock-digest", "status": "queued",
+        await db.cron_runs.insert_one({"run_id": str(run_id)[:100], "schedule": schedule, "status": "queued",
                                        "created_at": now, "expires_at": now + timedelta(days=30)})
     except DuplicateKeyError:
         return {"status": "duplicate"}
-    background.add_task(_run_digest, str(run_id)[:100])
+    background.add_task(_run, str(run_id)[:100], job)
     return {"status": "accepted"}

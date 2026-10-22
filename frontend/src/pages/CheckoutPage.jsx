@@ -81,7 +81,7 @@ export default function CheckoutPage() {
         <TotalsCard totals={cart.totals}>
           {blocking.length > 0 && <ul className="space-y-1 text-xs text-red-700" data-testid="checkout-blocking">{blocking.map((b) => <li key={b}>{b}</li>)}</ul>}
           <Button className="w-full" onClick={start} disabled={busy || blocking.length > 0} data-testid="checkout-start-button">Continue — create order draft</Button>
-          <p className="text-xs text-av-muted">Payment opens in Phase 07. No card is charged.</p>
+          <p className="text-xs text-av-muted">You'll review the draft, then pay securely with Stripe (test mode — no real money).</p>
         </TotalsCard>
       </div>
     </div>

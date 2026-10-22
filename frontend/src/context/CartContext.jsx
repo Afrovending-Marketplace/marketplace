@@ -37,6 +37,9 @@ export const CartProvider = ({ children }) => {
     removeCoupon: () => call("delete", "/cart/coupon"),
     chooseShipping: (vendor_id, method_id) => call("put", "/cart/shipping", { vendor_id, method_id }),
     chooseAddress: (address_id) => call("put", "/cart/address", { address_id }),
+    saveForLater: (variant_id) => call("post", `/cart/items/${variant_id}/save-for-later`),
+    moveToCart: (variant_id) => call("post", `/cart/saved/${variant_id}/move-to-cart`),
+    removeSaved: (variant_id) => call("delete", `/cart/saved/${variant_id}`),
   };
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };

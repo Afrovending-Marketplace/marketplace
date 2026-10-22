@@ -188,3 +188,19 @@ def contact_inbox_email(name: str, email: str, subject: str, message: str) -> tu
             f"<p style=\"white-space:pre-wrap;background:#F3EDE4;padding:16px;border-radius:8px\">{escape(message)}</p>"
             "<p style=\"font-size:13px;color:#6E675F\">Submitted via the AfroVending contact form. Reply directly to the sender's address above.</p>")
     return "New AfroVending contact form inquiry", _layout("Contact form inquiry", body)
+
+
+
+def payment_notice_email(name: str, headline: str, text: str, path: str) -> tuple[str, str]:
+    body = f"<p>Hi {escape(name)},</p><p>{escape(text)}</p>{_button(settings.frontend_url + path, 'View details')}"
+    return f"AfroVending: {headline}", _layout(headline, body)
+
+
+def receipt_email(name: str, order: dict, payment: dict) -> tuple[str, str]:
+    rows = "".join(f"<tr><td style=\"padding:6px 0;border-bottom:1px solid #E6DFD3\">Sold by {escape(g['vendor_name'])}</td>"
+                   f"<td align=\"right\" style=\"padding:6px 0;border-bottom:1px solid #E6DFD3\">${g['charged_minor'] / 100:.2f}</td></tr>"
+                   for g in payment["plan"])
+    body = (f"<p>Hi {escape(name)},</p><p>Thank you for your order <b>{escape(order['order_number'])}</b>. Your payment of "
+            f"<b>${payment['amount_minor'] / 100:.2f} USD</b> was received (test mode).</p><table width=\"100%\" style=\"font-size:14px\">{rows}</table>"
+            f"{_button(settings.frontend_url + '/account/orders/' + str(order['_id']), 'View receipt')}")
+    return f"AfroVending receipt for order {order['order_number']}", _layout("Payment received", body)

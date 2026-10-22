@@ -6,3 +6,10 @@ crons:
     endpoint: "{{BASE_URL}}/api/v1/cron/low-stock-digest"
     method: POST
     enabled: true
+  - name: payout-release
+    description: "Daily: records Stripe fees and releases vendor earnings that passed the hold period (test mode; simulated accounts until Connect is enabled)"
+    cron: "0 10 * * *"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/v1/cron/payout-release"
+    method: POST
+    enabled: true

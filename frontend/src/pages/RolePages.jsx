@@ -21,6 +21,7 @@ export const AdminConsolePage = () => (
       <Button asChild variant="outline" data-testid="admin-categories-link"><Link to="/admin/categories">Categories</Link></Button>
       <Button asChild variant="outline" data-testid="admin-search-insights-link"><Link to="/admin/search-insights">Search insights</Link></Button>
       <Button asChild variant="outline" data-testid="admin-commerce-link"><Link to="/admin/commerce">Checkout settings</Link></Button>
+      <Button asChild variant="outline" data-testid="admin-payments-link"><Link to="/admin/payments">Payments & commission</Link></Button>
     </div>
   </div>
 );

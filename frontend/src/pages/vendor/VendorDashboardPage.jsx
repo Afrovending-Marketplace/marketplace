@@ -52,6 +52,7 @@ export default function VendorDashboardPage() {
         <Button onClick={toggle} disabled={suspended} variant={data.store.status === "published" ? "outline" : "default"} data-testid="vendor-publish-toggle">{data.store.status === "published" ? "Unpublish store" : "Publish store"}</Button>
         {data.store.status === "published" && <Button asChild variant="outline" data-testid="vendor-view-store"><Link to={`/store/${data.store.slug}`}>View live store</Link></Button>}
         <Button asChild variant="outline" data-testid="vendor-manage-products"><Link to="/vendor/products">Manage products</Link></Button>
+        <Button asChild variant="outline" data-testid="vendor-earnings-link"><Link to="/vendor/earnings">Earnings & payouts</Link></Button>
       </div>
       <form onSubmit={save} className="grid gap-5 rounded-2xl border border-av-line bg-white p-6 md:p-8 sm:grid-cols-2" data-testid="vendor-store-form">
         <div className="sm:col-span-2"><FormError message={error} testId="vendor-store-error" /></div>
@@ -64,7 +65,7 @@ export default function VendorDashboardPage() {
         <ImageUpload label="Banner" purpose="banner" fileId={form.banner_file_id} onChange={(f) => setForm({ ...form, banner_file_id: f.id })} testId="store-banner-upload" />
         <Button type="submit" className="sm:col-span-2" disabled={suspended} data-testid="store-save-button">Save store</Button>
       </form>
-      <p className="text-xs text-av-muted">Orders and payouts arrive in later phases.</p>
+      <p className="text-xs text-av-muted">Order fulfilment and shipping arrive in Phase 08.</p>
     </div>
   );
 }

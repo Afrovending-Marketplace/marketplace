@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from afrovending.api.v1 import router as v1_router
+from afrovending.api.v1.payments import webhook_router
 from afrovending.core.config import APP_NAME, APP_VERSION, settings
 from afrovending.core.db import client, db
 from afrovending.core.errors import register_error_handlers
@@ -62,3 +63,4 @@ async def api_root():
 
 
 app.include_router(v1_router)
+app.include_router(webhook_router)

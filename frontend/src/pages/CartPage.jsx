@@ -33,6 +33,20 @@ const Coupon = ({ cart, c }) => {
   );
 };
 
+const Saved = ({ cart, c, run }) => !cart.saved?.length ? null : (
+  <section className="rounded-2xl border border-av-line bg-white p-5" data-testid="cart-saved-section">
+    <h2 className="border-b border-av-line pb-3 font-semibold">Saved for later ({cart.saved.length})</h2>
+    <ul className="divide-y divide-av-line">{cart.saved.map((s) => (
+      <li key={s.variant_id} className="flex flex-wrap items-center gap-3 py-3 text-sm" data-testid={`cart-saved-${s.variant_id}`}>
+        <span className="min-w-0 flex-1">{s.slug ? <Link to={`/products/${s.slug}`} className="font-semibold hover:underline">{s.title}</Link> : <b>{s.title}</b>}
+          {s.label && s.label !== "Default" && ` · ${s.label}`} · Qty {s.quantity}{s.unit_price_minor != null && ` · ${formatPrice(s.unit_price_minor)}`}
+          {s.status !== "ok" && <span className="ml-2 text-xs text-red-700">{s.status === "out_of_stock" ? "Out of stock" : "Unavailable"}</span>}</span>
+        <Button size="sm" variant="outline" disabled={s.status !== "ok"} onClick={() => run(() => c.moveToCart(s.variant_id))} data-testid={`cart-saved-move-${s.variant_id}`}>Move to cart</Button>
+        <Button size="sm" variant="ghost" onClick={() => run(() => c.removeSaved(s.variant_id))} data-testid={`cart-saved-remove-${s.variant_id}`}>Remove</Button>
+      </li>))}</ul>
+  </section>
+);
+
 export default function CartPage() {
   const c = useCart();
   const cart = c.cart;
@@ -44,6 +58,7 @@ export default function CartPage() {
         <h1 className="text-4xl font-bold tracking-tight text-av-ink">Your cart is empty</h1>
         <p className="mt-3 text-av-muted">Find something made with culture and care.</p>
         <Button asChild className="mt-8"><Link to="/shop" data-testid="cart-empty-shop">Start shopping</Link></Button>
+        <div className="mt-10 text-left"><Saved cart={cart} c={c} run={run} /></div>
       </div>
     );
   }
@@ -62,10 +77,11 @@ export default function CartPage() {
                 <span className="text-sm text-av-muted" data-testid={`cart-group-subtotal-${g.vendor_slug || "unavailable"}`}>{formatPrice(g.subtotal_minor)}</span>
               </div>
               <ul className="divide-y divide-av-line">
-                {g.items.map((l) => <CartLine key={l.variant_id} line={l} onQty={(q) => run(() => c.setQty(l.variant_id, q))} onRemove={() => run(() => c.remove(l.variant_id))} />)}
+                {g.items.map((l) => <CartLine key={l.variant_id} line={l} onQty={(q) => run(() => c.setQty(l.variant_id, q))} onRemove={() => run(() => c.remove(l.variant_id))} onSave={() => run(() => c.saveForLater(l.variant_id))} />)}
               </ul>
             </section>
           ))}
+          <Saved cart={cart} c={c} run={run} />
         </div>
         <TotalsCard totals={cart.totals}>
           <Coupon cart={cart} c={c} />

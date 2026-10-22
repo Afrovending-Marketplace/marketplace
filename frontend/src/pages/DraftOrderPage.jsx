@@ -1,10 +1,32 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { StatusAlert } from "@/components/common/StatusAlert";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { TotalsCard } from "@/components/cart/CartParts";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
+
+const PayButton = ({ order }) => {
+  const [busy, setBusy] = useState(false);
+  const nav = useNavigate();
+  if (["paid", "partially_refunded", "refunded"].includes(order.status)) {
+    return <Button className="w-full" onClick={() => nav(`/account/orders/${order.id}`)} data-testid="draft-view-receipt">View receipt</Button>;
+  }
+  const pay = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post(`/payments/orders/${order.id}/checkout`, { origin_url: window.location.origin });
+      window.location.assign(r.data.checkout_url);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+      setBusy(false);
+    }
+  };
+  return <Button className="w-full" onClick={pay} disabled={busy || !["draft", "pending_payment"].includes(order.status)} data-testid="draft-pay-button">
+    {busy ? "Opening secure payment…" : `Pay ${formatPrice(order.totals.estimated_total_minor)} securely`}</Button>;
+};
 
 export default function DraftOrderPage() {
   const { id } = useParams();
@@ -21,8 +43,9 @@ export default function DraftOrderPage() {
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-av-ink">Order draft <span data-testid="draft-order-number">{order.order_number}</span></h1>
         <StatusBadge tone={order.status === "draft" ? "gold" : "neutral"} testId="draft-order-status">{order.status}</StatusBadge>
       </div>
-      <StatusAlert tone="info" title="Payment isn't available yet" className="mt-6" testId="draft-payment-note">
-        Your order is saved as a draft with these server-checked prices. Payment opens in Phase 07; you have not been charged. Drafts expire after 24 hours.
+      <StatusAlert tone="info" title="Test mode payments" className="mt-6" testId="draft-payment-note">
+        Prices were checked by our server. Payment is taken by Stripe in TEST MODE: use card 4242 4242 4242 4242, any future date and any CVC. No real money moves.
+        Tax shows as an estimate from configured rates; if no rate is configured, no tax is collected. Drafts expire after 24 hours.
       </StatusAlert>
       <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_340px]">
         <div className="space-y-6">
@@ -37,7 +60,7 @@ export default function DraftOrderPage() {
             </section>
           ))}
         </div>
-        <TotalsCard totals={order.totals}><Link to="/shop" className="block text-center text-sm underline" data-testid="draft-continue-shopping">Continue shopping</Link></TotalsCard>
+        <TotalsCard totals={order.totals}><PayButton order={order} /><Link to="/shop" className="block text-center text-sm underline" data-testid="draft-continue-shopping">Continue shopping</Link></TotalsCard>
       </div>
     </div>
   );

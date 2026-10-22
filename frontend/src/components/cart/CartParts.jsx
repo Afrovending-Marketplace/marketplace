@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
-import { Minus, Plus, Trash2 } from "lucide-react";
+import { Bookmark, Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { absUrl, formatPrice } from "@/lib/catalog";
 
 const ISSUE = { unavailable: "No longer available", out_of_stock: "Out of stock", insufficient_stock: "Not enough stock" };
 
-export const CartLine = ({ line, onQty, onRemove, readOnly }) => (
+export const CartLine = ({ line, onQty, onRemove, onSave, readOnly }) => (
   <li className="flex gap-4 py-4" data-testid={`cart-line-${line.sku || line.variant_id}`}>
     <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-av-sand">{line.image && <img src={absUrl(line.image)} alt="" className="h-full w-full object-cover" />}</div>
     <div className="min-w-0 flex-1 space-y-1">
@@ -22,6 +22,7 @@ export const CartLine = ({ line, onQty, onRemove, readOnly }) => (
             <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Increase quantity" onClick={() => onQty(line.quantity + 1)} disabled={line.status !== "ok"} data-testid={`cart-qty-inc-${line.variant_id}`}><Plus /></Button>
           </div>
           <Button size="sm" variant="ghost" onClick={onRemove} data-testid={`cart-remove-${line.variant_id}`}><Trash2 /> Remove</Button>
+          {onSave && <Button size="sm" variant="ghost" onClick={onSave} data-testid={`cart-save-later-${line.variant_id}`}><Bookmark /> Save for later</Button>}
         </div>
       )}
       {readOnly && <p className="text-xs text-av-muted">Qty {line.quantity}</p>}
@@ -43,7 +44,7 @@ export const TotalsCard = ({ totals, children }) => (
     <Row label="Tax (estimated)" value={totals.tax_estimate_minor == null ? "Not yet calculated" : formatPrice(totals.tax_estimate_minor)} testId="totals-tax"
       note={totals.tax_estimate_minor == null ? "Calculated before payment" : totals.tax_rate_label} />
     <div className="flex justify-between border-t border-av-line pt-3 font-semibold"><span>Estimated total</span><span data-testid="totals-estimated-total">{formatPrice(totals.estimated_total_minor)}</span></div>
-    <p className="text-xs text-av-muted" data-testid="totals-not-final">Not final. Shipping and tax are confirmed before payment; you won't be charged at this step.</p>
+    <p className="text-xs text-av-muted" data-testid="totals-not-final">{totals.final ? "Final amounts charged." : "Not final. Shipping and tax are confirmed before payment; you won't be charged at this step."}</p>
     {children}
   </div>
 );
