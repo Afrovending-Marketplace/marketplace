@@ -27,7 +27,7 @@ def catalog_cleanup():
 
 def verified_client():
     c = httpx.Client(base_url=BASE, timeout=90)
-    mongo.rate_limits.delete_many({"key": {"$regex": "^(register|login):"}})
+    mongo.rate_limits.delete_many({"key": {"$regex": "^register:"}})
     email = f"delivered+p4{uuid.uuid4().hex[:8]}@resend.dev"
     r = c.post("/auth/register", json={"name": f"{PREFIX}Vendor", "email": email, "password": "TestPass12345"})
     assert r.status_code == 201, r.text

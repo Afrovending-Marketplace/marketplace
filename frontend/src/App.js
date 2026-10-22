@@ -31,6 +31,11 @@ import AdminVendorsPage from "@/pages/admin/AdminVendorsPage";
 import AdminProductsPage from "@/pages/admin/AdminProductsPage";
 import AdminCategoriesPage from "@/pages/admin/AdminCategoriesPage";
 import AdminSearchInsightsPage from "@/pages/admin/AdminSearchInsightsPage";
+import AdminCommercePage from "@/pages/admin/AdminCommercePage";
+import CartPage from "@/pages/CartPage";
+import CheckoutPage from "@/pages/CheckoutPage";
+import DraftOrderPage from "@/pages/DraftOrderPage";
+import { CartProvider } from "@/context/CartContext";
 import VendorProductsPage from "@/pages/vendor/VendorProductsPage";
 import ProductEditorPage from "@/pages/vendor/ProductEditorPage";
 import ProductImportPage from "@/pages/vendor/ProductImportPage";
@@ -46,6 +51,7 @@ function App() {
   return (
     <AuthProvider>
       <CatalogProvider>
+      <CartProvider>
       <BrowserRouter>
         <Routes>
           <Route element={<AppShell />}>
@@ -71,6 +77,8 @@ function App() {
             <Route path="verify-email" element={<VerifyEmailPage />} />
             <Route path="forbidden" element={<ForbiddenPage />} />
             <Route element={<ProtectedRoute />}>
+              <Route path="checkout" element={<CheckoutPage />} />
+              <Route path="checkout/draft/:id" element={<DraftOrderPage />} />
               <Route path="account" element={<AccountLayout />}>
                 <Route index element={<AccountOverview />} />
                 <Route path="profile" element={<ProfilePage />} />
@@ -87,6 +95,7 @@ function App() {
               <Route path="admin/products" element={<AdminProductsPage />} />
               <Route path="admin/categories" element={<AdminCategoriesPage />} />
               <Route path="admin/search-insights" element={<AdminSearchInsightsPage />} />
+              <Route path="admin/commerce" element={<AdminCommercePage />} />
             </Route>
             <Route path="store/:slug" element={<PublicStorePage />} />
             <Route element={<ProtectedRoute roles={["vendor"]} />}>
@@ -96,11 +105,13 @@ function App() {
               <Route path="vendor/products/:id" element={<ProductEditorPage />} />
             </Route>
             <Route path="design-system" element={<DesignSystemPage />} />
+            <Route path="cart" element={<CartPage />} />
             {FUTURE_ROUTES.map((r) => <Route key={r.path} path={r.path} element={<ComingSoonPage />} />)}
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
+      </CartProvider>
       </CatalogProvider>
     </AuthProvider>
   );

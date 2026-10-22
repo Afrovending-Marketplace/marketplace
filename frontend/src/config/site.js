@@ -11,7 +11,6 @@ export const BRAND = {
 
 // Routes reserved for future phases. Each renders the Coming Soon page until its phase ships.
 export const FUTURE_ROUTES = [
-  { path: "/cart", title: "Your Cart", phase: "06", module: "Multi-vendor cart & checkout" },
   { path: "/trust-safety", title: "Trust & Safety", phase: "13", module: "Security & monitoring" },
 ];
 

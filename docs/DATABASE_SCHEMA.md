@@ -55,22 +55,22 @@
 | VendorStores | `vendor_stores` | 03 | D | vendor_id |
 | Files | `files` | 03 | N | owner_user_id; private docs readable by marketplace_admin/super_admin only |
 | VendorPolicyAcceptances | `vendor_policy_acceptances` | 03 | C | user_id |
-| Carts | `carts` | 06 | G | user_id or guest_token |
-| CartItems | `cart_items` | 06 | G | cart owner |
+| Carts | `carts` | 06 | G | user_id or guest token (sha256 stored) |
 | Orders | `orders` | 06 | G | customer_id |
-| VendorOrders | `vendor_orders` | 06 | I | vendor_id (fulfils); customer_id (reads) |
-| OrderItems | `order_items` | 06 | G | customer_id; vendor_id |
+| TaxRates | `tax_rates` | 06 | G | marketplace admin |
+| VendorOrders | `vendor_orders` | 07 | I | vendor_id (fulfils); customer_id (reads) |
+| OrderItems | `order_items` | 07 | G | customer_id; vendor_id |
 | Payments | `payments` | 07 | H | system; customer reads own |
 | Refunds | `refunds` | 07 | H | admins write; customer reads own |
 | CommissionLedger | `commission_ledger` | 07 | H | system; vendor reads own |
 | Payouts | `payouts` | 07 | H | vendor reads own; super_admin approves |
-| ShippingMethods | `shipping_methods` | 08 | I | vendor_id (null = platform-wide) |
+| ShippingMethods | `shipping_methods` | 06 | I | vendor_id (null = platform-wide) |
 | Shipments | `shipments` | 08 | I | vendor_id; customer reads own |
 | Returns | `returns` | 08 | I | customer_id requests; vendor_id/admins resolve |
 | Reviews | `reviews` | 11 | L | customer_id; admins moderate |
 | Notifications | `notifications` | 11 | L | user_id |
 | SupportTickets | `support_tickets` | 11 | L | requester_id; support_admin handles |
-| Coupons | `coupons` | 12 | M | vendor_id (null = platform coupon) |
+| Coupons | `coupons` | 06 | M | vendor_id (null = platform coupon) |
 
 ## PlatformSettings (`platform_settings`) — Phase 00
 
@@ -331,35 +331,36 @@ Append-only record of Vendor Agreement version accepted, with timestamp and IP.
 
 ## Carts (`carts`) — Phase 06
 
-One active cart per customer or guest session; spans multiple vendors.
+One active cart per customer or guest; spans vendors. Items embedded: {variant_id, product_id, vendor_id, quantity, added_price_minor}. Guest carts expire after 30 days; merged into the customer cart on sign-in.
 
-- **Owner:** user_id or guest_token
-- **States (`status`):** `active` → `converted` → `abandoned` → `expired`
+- **Owner:** user_id or guest token (sha256 stored)
+- **States (`status`):** `active` → `merged` → `converted` → `abandoned`
 - **Relations:** `user_id -> users`
 - **Index** `user_id_1_status_1`
-- **Index** `guest_token_1`
+- **Index** `token_hash_1` sparse=True
 - **Index** `expires_at_1` expireAfterSeconds=0
-
-## CartItems (`cart_items`) — Phase 06
-
-Line in a cart; price is re-validated at checkout.
-
-- **Owner:** cart owner
-- **Relations:** `cart_id -> carts`, `variant_id -> product_variants`, `vendor_id -> vendors`
-- **Index** `cart_id_1_variant_id_1` (unique)
 
 ## Orders (`orders`) — Phase 06
 
-Customer-facing order; split into VendorOrders per vendor.
+Customer-facing order. Phase 06 creates idempotent drafts with an immutable server-priced snapshot (vendor_groups, totals, amounts_final=false); payment (Phase 07) moves it to pending_payment/paid and creates VendorOrders/OrderItems.
 
 - **Owner:** customer_id
-- **States (`status`):** `pending_payment` → `paid` → `partially_fulfilled` → `fulfilled` → `completed` → `cancelled` → `partially_refunded` → `refunded`
-- **Relations:** `customer_id -> users`
+- **States (`status`):** `draft` → `abandoned` → `expired` → `pending_payment` → `paid` → `partially_fulfilled` → `fulfilled` → `completed` → `cancelled` → `partially_refunded` → `refunded`
+- **Relations:** `customer_id -> users`, `cart_id -> carts`
 - **Index** `order_number_1` (unique)
 - **Index** `customer_id_1_created_at_-1`
 - **Index** `status_1_created_at_-1`
+- **Index** `customer_id_1_idempotency_key_1` (unique)
 
-## VendorOrders (`vendor_orders`) — Phase 06
+## TaxRates (`tax_rates`) — Phase 06
+
+Admin-entered estimated tax rates by country/region (basis points). None are seeded: without a rate, tax shows as not calculated.
+
+- **Owner:** marketplace admin
+- **States (`status`):** `active` → `inactive`
+- **Index** `country_1_region_1` (unique)
+
+## VendorOrders (`vendor_orders`) — Phase 07
 
 The slice of an order a single vendor must fulfil.
 
@@ -369,7 +370,7 @@ The slice of an order a single vendor must fulfil.
 - **Index** `order_id_1`
 - **Index** `vendor_id_1_status_1_created_at_-1`
 
-## OrderItems (`order_items`) — Phase 06
+## OrderItems (`order_items`) — Phase 07
 
 Immutable price/qty snapshot of a purchased variant.
 
@@ -421,9 +422,9 @@ Transfer of vendor balance to connected account.
 - **Index** `vendor_id_1_created_at_-1`
 - **Index** `status_1`
 
-## ShippingMethods (`shipping_methods`) — Phase 08
+## ShippingMethods (`shipping_methods`) — Phase 06
 
-Rate rules a vendor offers.
+Admin-defined shipping options (flat amount, optional free-over threshold). None seeded: checkout shows 'rate to be confirmed'.
 
 - **Owner:** vendor_id (null = platform-wide)
 - **States (`status`):** `active` → `inactive`
@@ -479,9 +480,9 @@ Customer or vendor help request.
 - **Index** `requester_id_1_created_at_-1`
 - **Index** `status_1_updated_at_-1`
 
-## Coupons (`coupons`) — Phase 12
+## Coupons (`coupons`) — Phase 06
 
-Discount codes with usage limits.
+Discount codes (percent in bps or fixed cents), window, min subtotal, usage limit. Redemptions are counted at payment (Phase 07).
 
 - **Owner:** vendor_id (null = platform coupon)
 - **States (`status`):** `draft` → `active` → `paused` → `expired`

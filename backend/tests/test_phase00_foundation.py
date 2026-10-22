@@ -10,7 +10,7 @@ BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8001")
 
 REQUIRED_ENTITIES = {
     "Users", "Roles", "Vendors", "VendorApplications", "VendorVerification", "VendorStores", "Categories",
-    "Products", "ProductVariants", "ProductImages", "Inventory", "Carts", "CartItems", "Orders", "OrderItems",
+    "Products", "ProductVariants", "ProductImages", "Inventory", "Carts", "Orders", "OrderItems",
     "VendorOrders", "Payments", "Refunds", "CommissionLedger", "Payouts", "ShippingMethods", "Shipments",
     "Returns", "Coupons", "Reviews", "Notifications", "SupportTickets", "AuditLogs", "PlatformSettings",
 }

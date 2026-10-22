@@ -6,6 +6,7 @@ import { SearchEntry } from "@/components/layout/SearchEntry";
 import { CategoryNav } from "@/components/layout/CategoryNav";
 import { SHELL } from "@/constants/testIds";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
 
 const iconCls = "relative inline-flex h-10 w-10 items-center justify-center rounded-full text-av-ink hover:bg-av-sand transition-colors";
@@ -14,6 +15,7 @@ const textCls = ({ isActive }) =>
 
 export const SiteHeader = () => {
   const { user } = useAuth();
+  const { count } = useCart();
   return (
   <header className="sticky top-0 z-50 border-b border-av-line bg-av-linen/90 backdrop-blur-xl">
     <div className="av-container flex h-16 items-center gap-2 sm:gap-4 lg:h-[72px]">
@@ -30,9 +32,9 @@ export const SiteHeader = () => {
         <Link to={user ? "/account" : "/login"} aria-label={user ? `Your account (${user.name})` : "Sign in"} data-testid={SHELL.accountButton} className={iconCls}>
           {user ? <span data-testid="header-account-initial" className="grid h-8 w-8 place-items-center rounded-full bg-av-indigo text-sm font-semibold text-av-linen">{user.name[0]?.toUpperCase()}</span> : <User className="h-5 w-5" />}
         </Link>
-        <Link to="/cart" aria-label="Cart, 0 items" data-testid={SHELL.cartButton} className={iconCls}>
+        <Link to="/cart" aria-label={`Cart, ${count} items`} data-testid={SHELL.cartButton} className={iconCls}>
           <ShoppingBag className="h-5 w-5" />
-          <span data-testid={SHELL.cartCount} className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-av-clay px-1 text-[10px] font-bold text-av-linen">0</span>
+          <span data-testid={SHELL.cartCount} className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-av-clay px-1 text-[10px] font-bold text-av-linen">{count}</span>
         </Link>
       </div>
     </div>

@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, ShieldCheck, Truck } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { useCart } from "@/context/CartContext";
+import { getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +16,21 @@ export const PurchasePanel = ({ product, vendor }) => {
   const options = product.variants.map(toOption);
   const [variant, setVariant] = useState(options.find((o) => o.in_stock) || options[0]);
   const [qty, setQty] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const cart = useCart();
+  const nav = useNavigate();
+  const canBuy = !product.is_dev_data && variant?.in_stock;
+  const add = async () => {
+    setBusy(true);
+    try {
+      await cart.add(variant.id, qty);
+      toast.success(`Added to cart`, { action: { label: "View cart", onClick: () => nav("/cart") } });
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
   const price = variant?.price_minor ?? product.price_minor;
   const showOptions = options.length > 1 || (options[0] && options[0].label !== "Default");
   return (
@@ -44,9 +62,9 @@ export const PurchasePanel = ({ product, vendor }) => {
           <span data-testid="pdp-qty-value" aria-live="polite" className="w-8 text-center text-sm font-semibold">{qty}</span>
           <Button variant="ghost" size="icon" aria-label="Increase quantity" data-testid="pdp-qty-increase" onClick={() => setQty((q) => Math.min(10, q + 1))}><Plus /></Button>
         </div>
-        <Button size="lg" disabled data-testid="pdp-add-to-cart" aria-describedby="pdp-cart-note" className="flex-1 min-w-[200px]">Add to cart</Button>
+        <Button size="lg" disabled={!canBuy || busy} onClick={add} data-testid="pdp-add-to-cart" aria-describedby="pdp-cart-note" className="flex-1 min-w-[200px]">{variant?.in_stock || product.is_dev_data ? "Add to cart" : "Out of stock"}</Button>
       </div>
-      <p id="pdp-cart-note" data-testid="pdp-cart-note" className="text-xs text-av-muted">Cart and checkout open in Phase 06.</p>
+      <p id="pdp-cart-note" data-testid="pdp-cart-note" className="text-xs text-av-muted">{product.is_dev_data ? "Sample listings can't be added to the cart." : "Prices are checked again at checkout. Payment opens in Phase 07."}</p>
       <ul className="space-y-3 rounded-2xl border border-av-line bg-white p-5 text-sm">
         <li className="flex gap-3"><Truck className="h-5 w-5 shrink-0 text-av-emerald" /> Ships from the vendor. Rates and delivery times are shown at checkout (planned).</li>
         <li className="flex gap-3"><ShieldCheck className="h-5 w-5 shrink-0 text-av-emerald" /> Purchase protection and returns policy: [to be confirmed].</li>
