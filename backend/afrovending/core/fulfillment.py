@@ -1,18 +1,24 @@
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Optional
 
 from bson import ObjectId
 from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from afrovending.core import email as mail
 from afrovending.core.audit import audit
+from afrovending.core.business_days import add_business_days
 from afrovending.core.catalog import refresh_stock_flag
 from afrovending.core.db import db
 from afrovending.core.errors import APIError
 from afrovending.core.models import utcnow
 
-DEFAULT_CONFIG = {"return_window_days": 14, "response_hours": 48, "escalate_to_admin": True}
+DEFAULT_CONFIG = {"return_window_days": 14, "response_hours": 48, "escalate_to_admin": True,
+                  "default_handling_days": 3, "min_handling_days": 1, "max_handling_days": 10, "non_business_days": [],
+                  "reminder_hours_before": 24, "admin_escalation_hours": 48, "vendor_reminder": True,
+                  "customer_overdue_email": True, "vendor_overdue_email": True, "escalate_overdue_to_admin": True}
+HANDLING_ACTIVE = ("accepted", "processing")
 TRANSITIONS = {
     "pending": {"accepted", "cancelled"},
     "accepted": {"processing", "partially_shipped", "shipped", "ready_for_pickup", "cancelled"},
@@ -152,6 +158,72 @@ async def move_request(req: dict, frm: tuple, to: str, role: str, actor_id, note
                                                                                     "note": note, "at": now}}}, return_document=ReturnDocument.AFTER)
 
 
+def handling_snapshot(vo: dict, cfg: dict, now: datetime) -> dict:
+    """Frozen on acceptance so later setting changes never move an existing order's deadline."""
+    days = (vo.get("shipping_method") or {}).get("handling_days")
+    days = int(cfg["default_handling_days"] if days is None else days)
+    deadline = add_business_days(now, days, set(cfg["non_business_days"]))
+    return {"days": days, "kind": "pickup" if vo.get("fulfillment_type") == "pickup" else "ship", "started_at": now,
+            "deadline_at": deadline, "original_deadline_at": deadline, "non_business_days": list(cfg["non_business_days"]),
+            "overdue": False, "extensions": []}
+
+
+async def _once(key: str, vo: dict, kind: str) -> bool:
+    try:
+        await db.notification_log.insert_one({"key": key, "kind": kind, "vendor_order_id": vo["_id"], "vendor_id": vo["vendor_id"], "sent_at": utcnow()})
+        return True
+    except DuplicateKeyError:
+        return False
+
+
+def _day(d: datetime) -> str:
+    return d.strftime("%a %b %d, %Y")
+
+
+async def notify_admins(headline: str, text: str, path: str) -> None:
+    async for admin in db.users.find({"roles": {"$in": ["marketplace_admin", "super_admin"]}, "status": "active"}):
+        await notify_user(admin["_id"], headline, text, path)
+
+
+async def handling_alerts() -> dict:
+    """Hourly. Every email is guarded by a unique notification_log key tied to the current deadline, so it sends once."""
+    cfg = await get_config()
+    now = utcnow()
+    out = {"reminders": 0, "overdue": 0, "escalations": 0}
+    async for vo in db.vendor_orders.find({"status": {"$in": list(HANDLING_ACTIVE)}, "handling.deadline_at": {"$ne": None}}):
+        h = vo["handling"]
+        dl, pickup, vid = h["deadline_at"], h["kind"] == "pickup", str(vo["_id"])
+        tag, task = dl.isoformat(), ("get it ready for pickup" if h["kind"] == "pickup" else "ship it")
+        if now < dl:
+            if cfg["vendor_reminder"] and dl - now <= timedelta(hours=cfg["reminder_hours_before"]) and await _once(f"{vid}:reminder:{tag}", vo, "reminder"):
+                await notify_vendor(vo["vendor_id"], "Handling deadline approaching",
+                                    f"Order {vo['order_number']} must be {'ready for pickup' if pickup else 'shipped'} by {_day(dl)}. Please {task} or update its status.")
+                out["reminders"] += 1
+            continue
+        if not h.get("overdue"):
+            await db.vendor_orders.update_one({"_id": vo["_id"], "handling.deadline_at": dl}, {"$set": {"handling.overdue": True, "handling.overdue_since": now}})
+            await event(vo, "handling_overdue", "Pickup preparation is taking longer than expected" if pickup else "Shipping is taking longer than expected", "system")
+            out["overdue"] += 1
+        status = vo["status"].replace("_", " ")
+        if cfg["customer_overdue_email"] and await _once(f"{vid}:overdue_customer:{tag}", vo, "overdue_customer"):
+            if pickup:
+                text = (f"We're sorry — your pickup order {vo['order_number']} from {vo['vendor_name']} isn't ready yet. It was expected to be ready by "
+                        f"{_day(dl)}. Current status: {status}. We've asked the seller to prepare it right away; we'll email you when it's ready to collect.")
+            else:
+                text = (f"We're sorry — {vo['vendor_name']} hasn't shipped your items from order {vo['order_number']} yet. They were expected to ship by "
+                        f"{_day(dl)}. Current status: {status}. We've asked the seller to ship right away or send you an update. You can track the order here.")
+            await notify_user(vo["customer_id"], "Pickup delayed" if pickup else "Your order is delayed", text, f"/account/orders/{vo['order_id']}")
+        if cfg["vendor_overdue_email"] and await _once(f"{vid}:overdue_vendor:{tag}", vo, "overdue_vendor"):
+            await notify_vendor(vo["vendor_id"], "Order overdue", f"Order {vo['order_number']} passed its handling deadline ({_day(dl)}). The customer has been told. "
+                                f"Please {task} now or update the order status.")
+        if cfg["escalate_overdue_to_admin"] and now - dl >= timedelta(hours=cfg["admin_escalation_hours"]) \
+                and await _once(f"{vid}:overdue_admin:{tag}", vo, "overdue_admin"):
+            await notify_admins("Overdue order escalation", f"Order {vo['order_number']} from {vo['vendor_name']} has been overdue for more than "
+                                f"{cfg['admin_escalation_hours']} hours ({'pickup preparation' if pickup else 'shipment'}).", "/admin/fulfillment")
+            out["escalations"] += 1
+    return out
+
+
 async def escalate_overdue() -> dict:
     cfg = await get_config()
     if not cfg["escalate_to_admin"]:
@@ -161,6 +233,5 @@ async def escalate_overdue() -> dict:
         await db.order_requests.update_one({"_id": r["_id"]}, {"$set": {"escalated": True, "escalated_at": utcnow()}})
         n += 1
     if n:
-        async for admin in db.users.find({"roles": {"$in": ["marketplace_admin", "super_admin"]}, "status": "active"}):
-            await notify_user(admin["_id"], "Requests need attention", f"{n} cancellation/return request(s) passed the vendor response deadline.", "/admin/fulfillment")
+        await notify_admins("Requests need attention", f"{n} cancellation/return request(s) passed the vendor response deadline.", "/admin/fulfillment")
     return {"escalated": n}

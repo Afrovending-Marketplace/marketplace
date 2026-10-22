@@ -27,7 +27,7 @@ def cleanup7():
     vos = [v["_id"] for v in mongo.vendor_orders.find({"customer_id": {"$in": buyers}})]
     mongo.commission_ledger.delete_many({"$or": [{"payment_id": {"$in": pays}}, {"vendor_order_id": {"$in": vos}}]})
     for coll, field in (("payouts", "vendor_order_id"), ("order_items", "vendor_order_id"), ("shipments", "vendor_order_id"),
-                        ("order_requests", "vendor_order_id"), ("order_events", "vendor_order_id")):
+                        ("order_requests", "vendor_order_id"), ("order_events", "vendor_order_id"), ("notification_log", "vendor_order_id")):
         mongo[coll].delete_many({field: {"$in": vos}})
     for coll in ("refunds", "disputes"):
         mongo[coll].delete_many({"payment_id": {"$in": pays}})

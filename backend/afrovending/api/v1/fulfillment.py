@@ -2,7 +2,8 @@ from typing import Literal, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Header, Request
-from pydantic import BaseModel, Field
+from fastapi.responses import Response
+from pydantic import BaseModel, Field, model_validator
 
 from afrovending.api.v1.vendors import my_vendor, ser
 from afrovending.core import fulfillment as ff
@@ -11,7 +12,9 @@ from afrovending.core.catalog import adjust_stock, oid
 from afrovending.core.db import db
 from afrovending.core.deps import get_current_user, require_roles
 from afrovending.core.errors import APIError
+from afrovending.core.business_days import add_business_days
 from afrovending.core.models import User, utcnow
+from afrovending.core.packing_slip import build_slip
 from afrovending.core.payments import create_refund
 from afrovending.core.roles import Role
 
@@ -65,6 +68,7 @@ class MethodIn(BaseModel):
     eta: str = Field(default="", max_length=80)
     free_over_minor: Optional[int] = Field(default=None, ge=0)
     pickup_address: str = Field(default="", max_length=200)
+    handling_days: Optional[int] = Field(default=None, ge=0, le=60)
     status: Literal["active", "inactive"] = "active"
 
 
@@ -76,7 +80,31 @@ class ConfigIn(BaseModel):
     return_window_days: int = Field(ge=0, le=365)
     response_hours: int = Field(ge=1, le=720)
     escalate_to_admin: bool = True
+    default_handling_days: int = Field(default=3, ge=0, le=60)
+    min_handling_days: int = Field(default=1, ge=0, le=60)
+    max_handling_days: int = Field(default=10, ge=0, le=60)
+    non_business_days: list[str] = Field(default_factory=list, max_length=200)
+    reminder_hours_before: int = Field(default=24, ge=1, le=168)
+    admin_escalation_hours: int = Field(default=48, ge=1, le=720)
+    vendor_reminder: bool = True
+    customer_overdue_email: bool = True
+    vendor_overdue_email: bool = True
+    escalate_overdue_to_admin: bool = True
 
+    @model_validator(mode="after")
+    def _limits(self):
+        if not self.min_handling_days <= self.default_handling_days <= self.max_handling_days:
+            raise ValueError("Default handling time must sit between the minimum and maximum.")
+        import re
+        if any(not re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) for d in self.non_business_days):
+            raise ValueError("Non-business days must look like 2026-12-25.")
+        self.non_business_days = sorted(set(self.non_business_days))
+        return self
+
+
+class ExtendIn(BaseModel):
+    business_days: int = Field(ge=1, le=30)
+    reason: str = Field(min_length=5, max_length=300)
 
 async def _detail(vo: dict, customer: bool) -> dict:
     items = await db.order_items.find({"vendor_order_id": vo["_id"]}).to_list(100)
@@ -86,7 +114,7 @@ async def _detail(vo: dict, customer: bool) -> dict:
     q = {"vendor_order_id": vo["_id"], **({"customer_visible": True} if customer else {})}
     events = await db.order_events.find(q).sort("at", 1).to_list(200)
     keys = ("order_number", "vendor_name", "vendor_slug", "status", "fulfillment_type", "shipping_method", "shipping_address", "items_net_minor",
-            "shipping_minor", "tax_minor", "charged_minor", "refunded_minor", "created_at", "delivered_at", "cancelled_at", "order_id")
+            "shipping_minor", "tax_minor", "charged_minor", "refunded_minor", "created_at", "delivered_at", "cancelled_at", "order_id", "handling")
     return {"id": str(vo["_id"]), **ser({k: vo.get(k) for k in keys}),
             "items": [ser({k: i.get(k) for k in ("_id", "title", "label", "sku", "quantity", "unit_price_minor", "line_total_minor", "shipped_qty",
                                                   "cancelled_qty", "returned_qty", "refunded_qty", "product_id")}) for i in items],
@@ -206,7 +234,8 @@ async def vendor_status(vo_id: str, body: StatusIn, user: User = Depends(get_cur
             if left > 0 and body.to == "ready_for_pickup":
                 await ff.fulfil(it["variant_id"], left, vo["order_number"])
                 await db.order_items.update_one({"_id": it["_id"]}, {"$inc": {"shipped_qty": left}})
-    vo = await ff.transition(vo, body.to, "vendor", user.id, body.note)
+    sets = {"handling": ff.handling_snapshot(vo, await ff.get_config(), utcnow())} if body.to == "accepted" else {}
+    vo = await ff.transition(vo, body.to, "vendor", user.id, body.note, **sets)
     msgs = {"accepted": "was accepted by", "processing": "is being prepared by", "ready_for_pickup": "is ready for pickup from", "delivered": "was picked up from"}
     await ff.notify_user(vo["customer_id"], "Order update", f"Your order {vo['order_number']} {msgs[body.to]} {vo['vendor_name']}.", f"/account/orders/{vo['order_id']}")
     return {"vendor_order": await _detail(vo, False)}
@@ -224,6 +253,8 @@ async def create_shipment(vo_id: str, body: ShipmentIn, user: User = Depends(get
         if not it or ln.quantity > it["quantity"] - it["shipped_qty"] - it["cancelled_qty"]:
             raise APIError(422, "validation_error", "Ship quantity is more than what's left to ship.")
         lines.append((it, ln.quantity))
+    if len({ln.order_item_id for ln in body.lines}) != len(body.lines):
+        raise APIError(422, "validation_error", "List each item once per shipment.")
     if await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "status": vo["status"], "shipping_lock": {"$ne": True}}, {"$set": {"shipping_lock": True}}) is None:
         raise APIError(409, "conflict", "This order changed at the same time. Refresh and try again.")
     try:
@@ -333,6 +364,35 @@ async def vendor_receive(req_id: str, body: ReceiveIn, user: User = Depends(get_
     return {"request": ser(await _receive(await _vendor_req(req_id, user), body.restock, "vendor", user.id))}
 
 
+@router.get("/vendor/orders/{vo_id}/packing-slip")
+async def packing_slip(vo_id: str, shipment_id: Optional[str] = None, user: User = Depends(get_current_user)):
+    _, vo = await _own_vo(vo_id, user)
+    items = {i["_id"]: i for i in await db.order_items.find({"vendor_order_id": vo["_id"]}).to_list(100)}
+    shipment = None
+    if shipment_id:
+        shipment = await db.shipments.find_one({"_id": oid(shipment_id), "vendor_order_id": vo["_id"]})
+        if not shipment:
+            raise APIError(404, "not_found", "Shipment not found.")
+        lines = [(items[ln["order_item_id"]], ln["quantity"]) for ln in shipment["lines"] if ln["order_item_id"] in items]
+    else:
+        lines = [(i, i["quantity"] - i["shipped_qty"] - i["cancelled_qty"]) for i in items.values()]
+        if not any(q > 0 for _, q in lines):
+            lines = [(i, i["quantity"] - i["cancelled_qty"]) for i in items.values()]
+    lines = [(i, q) for i, q in lines if q > 0]
+    if not lines:
+        raise APIError(409, "nothing_to_pack", "There are no items to pack for this order.")
+    name = f"packing-slip-{vo['order_number']}{'-' + shipment['tracking_number'] if shipment else ''}.pdf".replace(" ", "")
+    return Response(build_slip(vo, lines, shipment), media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{name}"'})
+
+
+async def _check_handling(days: Optional[int]) -> int:
+    cfg = await ff.get_config()
+    days = cfg["default_handling_days"] if days is None else days
+    if not cfg["min_handling_days"] <= days <= cfg["max_handling_days"]:
+        raise APIError(422, "validation_error", f"Handling time must be between {cfg['min_handling_days']} and {cfg['max_handling_days']} business days.")
+    return days
+
+
 @router.get("/vendor/shipping-methods")
 async def my_methods(user: User = Depends(get_current_user)):
     vendor = await my_vendor(user)
@@ -344,7 +404,7 @@ async def add_method(body: MethodIn, user: User = Depends(get_current_user)):
     vendor = await my_vendor(user)
     if body.type == "pickup" and len(body.pickup_address) < 5:
         raise APIError(422, "validation_error", "Add the pickup address customers should come to.")
-    doc = {**body.model_dump(), "vendor_id": vendor["_id"], "created_by": ObjectId(user.id), "created_at": utcnow(), "updated_at": utcnow()}
+    doc = {**body.model_dump(), "handling_days": await _check_handling(body.handling_days), "vendor_id": vendor["_id"], "created_by": ObjectId(user.id), "created_at": utcnow(), "updated_at": utcnow()}
     doc["_id"] = (await db.shipping_methods.insert_one(doc)).inserted_id
     return ser(doc)
 
@@ -352,7 +412,9 @@ async def add_method(body: MethodIn, user: User = Depends(get_current_user)):
 @router.put("/vendor/shipping-methods/{method_id}")
 async def edit_method(method_id: str, body: MethodIn, user: User = Depends(get_current_user)):
     vendor = await my_vendor(user)
-    res = await db.shipping_methods.find_one_and_update({"_id": oid(method_id), "vendor_id": vendor["_id"]}, {"$set": {**body.model_dump(), "updated_at": utcnow()}})
+    days = await _check_handling(body.handling_days)
+    res = await db.shipping_methods.find_one_and_update({"_id": oid(method_id), "vendor_id": vendor["_id"]},
+                                                        {"$set": {**body.model_dump(), "handling_days": days, "updated_at": utcnow()}})
     if not res:
         raise APIError(404, "not_found", "Shipping option not found.")
     return ser(await db.shipping_methods.find_one({"_id": res["_id"]}))
@@ -389,6 +451,33 @@ async def admin_receive(req_id: str, body: ReceiveIn, admin: User = Depends(ADMI
     if not req:
         raise APIError(404, "not_found", "Request not found.")
     return {"request": ser(await _receive(req, body.restock, "admin", admin.id))}
+
+
+@router.get("/admin/fulfillment/overdue")
+async def admin_overdue(_: User = Depends(ADMIN)):
+    docs = await db.vendor_orders.find({"status": {"$in": list(ff.HANDLING_ACTIVE)}, "handling.deadline_at": {"$lt": utcnow()}}).sort("handling.deadline_at", 1).to_list(300)
+    return {"data": [{"id": str(v["_id"]), **ser({k: v.get(k) for k in ("order_number", "vendor_name", "status", "fulfillment_type", "handling", "order_id")})} for v in docs]}
+
+
+@router.post("/admin/fulfillment/vendor-orders/{vo_id}/extend")
+async def admin_extend(vo_id: str, body: ExtendIn, admin: User = Depends(ADMIN)):
+    vo = await db.vendor_orders.find_one({"_id": oid(vo_id), "status": {"$in": list(ff.HANDLING_ACTIVE)}, "handling": {"$ne": None}})
+    if not vo or not vo.get("handling"):
+        raise APIError(409, "invalid_state", "Only accepted orders that haven't shipped can get an extension.")
+    h = vo["handling"]
+    new = add_business_days(h["deadline_at"], body.business_days, set(h.get("non_business_days") or []))
+    ext = {"business_days": body.business_days, "reason": body.reason.strip(), "by": admin.id, "previous_deadline_at": h["deadline_at"], "new_deadline_at": new, "at": utcnow()}
+    vo = await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "handling.deadline_at": h["deadline_at"]},
+                                                    {"$set": {"handling.deadline_at": new, "handling.overdue": False}, "$push": {"handling.extensions": ext}},
+                                                    return_document=ff.ReturnDocument.AFTER)
+    if not vo:
+        raise APIError(409, "conflict", "This order changed at the same time. Refresh and try again.")
+    what = "ready for pickup" if h["kind"] == "pickup" else "shipped"
+    await ff.event(vo, "handling_extended", f"Expected to be {what} by {ff._day(new)}", "admin", admin.id, reason=body.reason.strip())
+    await ff.notify_user(vo["customer_id"], "Updated order date", f"Your items from {vo['vendor_name']} on order {vo['order_number']} are now expected to be "
+                         f"{what} by {ff._day(new)}.", f"/account/orders/{vo['order_id']}")
+    await ff.notify_vendor(vo["vendor_id"], "Deadline extended", f"AfroVending extended the handling deadline for order {vo['order_number']} to {ff._day(new)}. Reason: {body.reason.strip()}")
+    return {"vendor_order": await _detail(vo, False)}
 
 
 @router.get("/admin/fulfillment/config")

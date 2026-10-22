@@ -49,6 +49,10 @@ async def m0008_phase08_fulfillment(db) -> None:
     await ensure_indexes(db, phase=8)
 
 
+async def m0009_handling_times(db) -> None:
+    await ensure_indexes(db, phase=8)
+
+
 async def m0005_phase05_search(db) -> None:
     for idx in await db.products.list_indexes().to_list(50):
         if "textIndexVersion" in idx and "weights" in idx and idx["weights"].get("title") != 10:
@@ -83,6 +87,7 @@ MIGRATIONS = (
     ("0006", "phase06_cart_checkout", m0006_phase06_cart),
     ("0007", "phase07_payments", m0007_phase07_payments),
     ("0008", "phase08_fulfillment", m0008_phase08_fulfillment),
+    ("0009", "handling_times", m0009_handling_times),
 )
 
 

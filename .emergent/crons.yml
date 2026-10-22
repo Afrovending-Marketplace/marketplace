@@ -20,3 +20,10 @@ crons:
     endpoint: "{{BASE_URL}}/api/v1/cron/fulfillment-escalations"
     method: POST
     enabled: true
+  - name: handling-alerts
+    description: "Hourly: vendor reminders before handling deadlines, customer/vendor overdue emails, admin escalation after the configured threshold (each sent once)"
+    cron: "45 * * * *"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/v1/cron/handling-alerts"
+    method: POST
+    enabled: true

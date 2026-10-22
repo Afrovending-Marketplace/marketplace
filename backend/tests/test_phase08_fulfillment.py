@@ -102,12 +102,12 @@ def test_02_return_rma_refund_restock_and_admin_override(w):  # noqa: F811
 
 
 def test_03_vendor_shipping_methods_and_pickup_rules(w):  # noqa: F811
-    m = w["a"].post("/vendor/shipping-methods", json={"name": "TEST7 Pickup", "type": "pickup", "amount_minor": 0, "pickup_address": "12 Market St, Boston"})
+    m = w["a"].post("/vendor/shipping-methods", json={"name": "TEST8 Pickup", "type": "pickup", "amount_minor": 0, "pickup_address": "12 Market St, Boston"})
     assert m.status_code == 201
     assert w["b"].put(f"/vendor/shipping-methods/{m.json()['id']}", json={"name": "Hijack", "amount_minor": 1}).status_code == 404
-    assert w["a"].post("/vendor/shipping-methods", json={"name": "TEST7 Bad", "type": "pickup", "amount_minor": 0}).status_code == 422
+    assert w["a"].post("/vendor/shipping-methods", json={"name": "TEST8 Bad", "type": "pickup", "amount_minor": 0}).status_code == 422
     assert w["a"].post(f"/vendor/orders/{S['va8']['id']}/status", json={"to": "ready_for_pickup"}).status_code == 409
-    mongo.shipping_methods.delete_many({"name": {"$regex": "^TEST7"}})
+    mongo.shipping_methods.delete_many({"name": {"$regex": "^TEST8"}})
 
 
 def test_04_statements_pdf_csv_permissions(w):  # noqa: F811
@@ -130,3 +130,104 @@ def test_04_statements_pdf_csv_permissions(w):  # noqa: F811
     assert w["adm"].get(f"/admin/payments/statements/{vid}/{p}.pdf").status_code == 200
     assert a.get("/vendor/payments/statements/2026-13.csv").status_code == 422
     mongo.statements.delete_many({"vendor_id": {"$in": S["vendor_ids"]}})
+
+
+def test_05_business_days():
+    from datetime import timezone
+    from afrovending.core.business_days import add_business_days
+    fri = datetime(2026, 10, 23, 15, 0, tzinfo=timezone.utc)
+    assert add_business_days(fri, 3, set()) == datetime(2026, 10, 28, 15, 0, tzinfo=timezone.utc)
+    assert add_business_days(fri, 3, {"2026-10-26"}) == datetime(2026, 10, 29, 15, 0, tzinfo=timezone.utc)
+    sat = datetime(2026, 10, 24, 9, 0, tzinfo=timezone.utc)
+    assert add_business_days(sat, 1, set()) == datetime(2026, 10, 26, 9, 0, tzinfo=timezone.utc)
+    assert add_business_days(fri, 0, set()) == fri
+
+
+def run_cron(name: str) -> None:
+    rid = f"test-t8-{uuid.uuid4().hex}"
+    r = httpx.post(_ENV["FRONTEND_URL"] + f"/api/v1/cron/{name}", headers={"Authorization": f"Bearer {_ENV['WEBHOOK_CRON_SECRET']}", "X-Webhook-Id": rid},
+                   json={}, timeout=60)
+    assert r.status_code == 202
+    for _ in range(20):
+        if (mongo.cron_runs.find_one({"run_id": rid}) or {}).get("status") == "done":
+            return
+        time.sleep(0.5)
+    raise AssertionError("cron did not finish")
+
+
+def logs(vo_id, kind):
+    return mongo.notification_log.count_documents({"vendor_order_id": ObjectId(vo_id), "kind": kind})
+
+
+def test_06_handling_deadline_snapshot_alerts_extension(w):  # noqa: F811
+    from datetime import timedelta, timezone
+    from afrovending.core.business_days import add_business_days
+    c, a, adm = S["c8"], w["a"], w["adm"]
+    oid_, vos = paid(c, [(w["scarf"][1], 1)])
+    va = vos[w["slug_a"]]
+    assert va["handling"] is None and va["shipping_method"]["handling_days"] == 3
+    a.post(f"/vendor/orders/{va['id']}/status", json={"to": "accepted"})
+    vo = mongo.vendor_orders.find_one({"_id": ObjectId(va["id"])})
+    h = vo["handling"]
+    assert h["days"] == 3 and h["kind"] == "ship"
+    assert h["deadline_at"].replace(tzinfo=timezone.utc) == add_business_days(h["started_at"].replace(tzinfo=timezone.utc), 3, set())
+    cfg = adm.get("/admin/fulfillment/config").json()
+    assert adm.put("/admin/fulfillment/config", json={**cfg, "default_handling_days": 20, "max_handling_days": 5}).status_code == 422
+    assert adm.put("/admin/fulfillment/config", json={**cfg, "default_handling_days": 5}).status_code == 200
+    assert mongo.vendor_orders.find_one({"_id": vo["_id"]})["handling"]["deadline_at"] == h["deadline_at"]
+    assert a.post("/vendor/shipping-methods", json={"name": "TEST8 Slow", "amount_minor": 100, "handling_days": 40}).status_code == 422
+    m = a.post("/vendor/shipping-methods", json={"name": "TEST8 Std", "amount_minor": 100}).json()
+    assert m["handling_days"] == 5
+    adm.put("/admin/fulfillment/config", json=cfg)
+    now = datetime.now(timezone.utc)
+    mongo.vendor_orders.update_one({"_id": vo["_id"]}, {"$set": {"handling.deadline_at": now + timedelta(hours=2)}})
+    run_cron("handling-alerts")
+    run_cron("handling-alerts")
+    assert logs(va["id"], "reminder") == 1 and logs(va["id"], "overdue_customer") == 0
+    mongo.vendor_orders.update_one({"_id": vo["_id"]}, {"$set": {"handling.deadline_at": now - timedelta(hours=1)}})
+    run_cron("handling-alerts")
+    run_cron("handling-alerts")
+    assert logs(va["id"], "overdue_customer") == 1 and logs(va["id"], "overdue_vendor") == 1 and logs(va["id"], "overdue_admin") == 0
+    assert mongo.vendor_orders.find_one({"_id": vo["_id"]})["handling"]["overdue"] is True
+    assert any(o["id"] == va["id"] for o in adm.get("/admin/fulfillment/overdue").json()["data"])
+    mongo.vendor_orders.update_one({"_id": vo["_id"]}, {"$set": {"handling.deadline_at": now - timedelta(hours=49)}})
+    run_cron("handling-alerts")
+    run_cron("handling-alerts")
+    assert logs(va["id"], "overdue_admin") == 1
+    assert a.post(f"/admin/fulfillment/vendor-orders/{va['id']}/extend", json={"business_days": 2, "reason": "Supplier delay"}).status_code == 403
+    assert adm.post(f"/admin/fulfillment/vendor-orders/{va['id']}/extend", json={"business_days": 2, "reason": "x"}).status_code == 422
+    ext = adm.post(f"/admin/fulfillment/vendor-orders/{va['id']}/extend", json={"business_days": 5, "reason": "Supplier delay documented"})
+    assert ext.status_code == 200
+    h2 = mongo.vendor_orders.find_one({"_id": vo["_id"]})["handling"]
+    assert h2["overdue"] is False and len(h2["extensions"]) == 1 and h2["extensions"][0]["reason"] == "Supplier delay documented"
+    assert h2["original_deadline_at"] == h["deadline_at"]
+    item = va["items"][0]["id"]
+    s = a.post(f"/vendor/orders/{va['id']}/shipments", json={"lines": [{"order_item_id": item, "quantity": 1}], "carrier": "usps", "tracking_number": "9400111111111111111111"}).json()["shipment"]
+    mongo.vendor_orders.update_one({"_id": vo["_id"]}, {"$set": {"handling.deadline_at": now - timedelta(hours=100)}})
+    before = mongo.notification_log.count_documents({"vendor_order_id": vo["_id"]})
+    run_cron("handling-alerts")
+    assert mongo.notification_log.count_documents({"vendor_order_id": vo["_id"]}) == before
+    assert not any(o["id"] == va["id"] for o in adm.get("/admin/fulfillment/overdue").json()["data"])
+    S["slip"] = (va["id"], s["id"])
+    mongo.shipping_methods.delete_many({"name": {"$regex": "^TEST8"}})
+
+
+def test_07_packing_slips(w):  # noqa: F811
+    vo_id, ship_id = S["slip"]
+    a, b = w["a"], w["b"]
+    r = a.get(f"/vendor/orders/{vo_id}/packing-slip")
+    assert r.status_code == 200 and r.content[:4] == b"%PDF" and r.headers["content-type"] == "application/pdf"
+    assert a.get(f"/vendor/orders/{vo_id}/packing-slip", params={"shipment_id": ship_id}).status_code == 200
+    assert b.get(f"/vendor/orders/{vo_id}/packing-slip").status_code == 404
+    assert S["c8"].get(f"/vendor/orders/{vo_id}/packing-slip").status_code in (403, 404)
+    other = mongo.shipments.find_one({"vendor_id": {"$ne": mongo.vendor_orders.find_one({"_id": ObjectId(vo_id)})["vendor_id"]}})
+    if other:
+        assert a.get(f"/vendor/orders/{vo_id}/packing-slip", params={"shipment_id": str(other["_id"])}).status_code == 404
+    from afrovending.core.packing_slip import build_slip
+    from reportlab import rl_config
+    rl_config.pageCompression = 0
+    vo = mongo.vendor_orders.find_one({"_id": ObjectId(vo_id)})
+    items = list(mongo.order_items.find({"vendor_order_id": vo["_id"]}))
+    text = build_slip(vo, [(i, i["quantity"]) for i in items], None)
+    assert vo["order_number"].encode() in text and items[0]["sku"].encode() in text
+    assert b"$" not in text and b"info@afrovending.com" in text

@@ -31,10 +31,13 @@ def _allocate(total: int, weights: list[int]) -> list[int]:
 
 
 async def shipping_methods(vendor_id) -> list[dict]:
+    from afrovending.core.fulfillment import get_config
+    default = (await get_config())["default_handling_days"]
     docs = await db.shipping_methods.find({"status": "active", "vendor_id": {"$in": [None, vendor_id]}}).sort("amount_minor", 1).to_list(20)
     methods = [{"id": str(d["_id"]), "name": d["name"], "amount_minor": d["amount_minor"], "eta": d.get("eta", ""),
-                "free_over_minor": d.get("free_over_minor"), "type": d.get("type", "ship"), "pickup_address": d.get("pickup_address", "")} for d in docs]
-    return methods or [TBC_METHOD]
+                "free_over_minor": d.get("free_over_minor"), "type": d.get("type", "ship"), "pickup_address": d.get("pickup_address", ""),
+                "handling_days": default if d.get("handling_days") is None else d["handling_days"]} for d in docs]
+    return methods or [{**TBC_METHOD, "handling_days": default}]
 
 
 async def check_coupon(code: str, groups: list[dict], user_id=None) -> tuple[Optional[dict], str]:
