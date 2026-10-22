@@ -7,6 +7,7 @@ import { StatusAlert } from "@/components/common/StatusAlert";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { api, getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
+import { Statements } from "@/components/vendor/Statements";
 
 const useList = (url) => {
   const [rows, setRows] = useState(null);
@@ -175,9 +176,10 @@ export default function AdminPaymentsPage() {
       <Tabs defaultValue="overview">
         <TabsList className="h-auto flex-wrap justify-start"><TabsTrigger value="overview" data-testid="admin-pay-tab-overview">Overview</TabsTrigger><TabsTrigger value="settings" data-testid="admin-pay-tab-settings">Commission & timing</TabsTrigger>
           <TabsTrigger value="orders" data-testid="admin-pay-tab-orders">Orders & refunds</TabsTrigger><TabsTrigger value="disputes" data-testid="admin-pay-tab-disputes">Disputes</TabsTrigger>
-          <TabsTrigger value="payouts" data-testid="admin-pay-tab-payouts">Payouts</TabsTrigger></TabsList>
+          <TabsTrigger value="payouts" data-testid="admin-pay-tab-payouts">Payouts</TabsTrigger><TabsTrigger value="statements" data-testid="admin-pay-tab-statements">Statements</TabsTrigger></TabsList>
         <TabsContent value="overview"><Overview /></TabsContent><TabsContent value="settings"><Settings /></TabsContent>
         <TabsContent value="orders"><VendorOrders /></TabsContent><TabsContent value="disputes"><Disputes /></TabsContent><TabsContent value="payouts"><Payouts /></TabsContent>
+        <TabsContent value="statements"><Statements listUrl="/admin/payments/statements" fileUrl={(s) => `/admin/payments/statements/${s.vendor_id}/${s.period}`} testId="admin-statements" /></TabsContent>
       </Tabs>
     </div>
   );

@@ -53,6 +53,7 @@ export default function VendorDashboardPage() {
         {data.store.status === "published" && <Button asChild variant="outline" data-testid="vendor-view-store"><Link to={`/store/${data.store.slug}`}>View live store</Link></Button>}
         <Button asChild variant="outline" data-testid="vendor-manage-products"><Link to="/vendor/products">Manage products</Link></Button>
         <Button asChild variant="outline" data-testid="vendor-earnings-link"><Link to="/vendor/earnings">Earnings & payouts</Link></Button>
+        <Button asChild variant="outline" data-testid="vendor-orders-link"><Link to="/vendor/orders">Orders</Link></Button>
       </div>
       <form onSubmit={save} className="grid gap-5 rounded-2xl border border-av-line bg-white p-6 md:p-8 sm:grid-cols-2" data-testid="vendor-store-form">
         <div className="sm:col-span-2"><FormError message={error} testId="vendor-store-error" /></div>

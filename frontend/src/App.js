@@ -39,6 +39,9 @@ import PaymentStatusPage from "@/pages/PaymentStatusPage";
 import AccountOrdersPage from "@/pages/account/AccountOrdersPage";
 import VendorEarningsPage from "@/pages/vendor/VendorEarningsPage";
 import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
+import OrderDetailPage from "@/pages/account/OrderDetailPage";
+import VendorOrdersPage from "@/pages/vendor/VendorOrdersPage";
+import AdminFulfillmentPage from "@/pages/admin/AdminFulfillmentPage";
 import { CartProvider } from "@/context/CartContext";
 import VendorProductsPage from "@/pages/vendor/VendorProductsPage";
 import ProductEditorPage from "@/pages/vendor/ProductEditorPage";
@@ -87,7 +90,7 @@ function App() {
               <Route path="account" element={<AccountLayout />}>
                 <Route index element={<AccountOverview />} />
                 <Route path="orders" element={<AccountOrdersPage />} />
-                <Route path="orders/:id" element={<PaymentStatusPage />} />
+                <Route path="orders/:id" element={<OrderDetailPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="addresses" element={<AddressesPage />} />
                 <Route path="privacy" element={<PrivacySettingsPage />} />
@@ -104,11 +107,13 @@ function App() {
               <Route path="admin/search-insights" element={<AdminSearchInsightsPage />} />
               <Route path="admin/commerce" element={<AdminCommercePage />} />
               <Route path="admin/payments" element={<AdminPaymentsPage />} />
+              <Route path="admin/fulfillment" element={<AdminFulfillmentPage />} />
             </Route>
             <Route path="store/:slug" element={<PublicStorePage />} />
             <Route element={<ProtectedRoute roles={["vendor"]} />}>
               <Route path="vendor/dashboard" element={<VendorDashboardPage />} />
               <Route path="vendor/earnings" element={<VendorEarningsPage />} />
+              <Route path="vendor/orders" element={<VendorOrdersPage />} />
               <Route path="vendor/products" element={<VendorProductsPage />} />
               <Route path="vendor/products/import" element={<ProductImportPage />} />
               <Route path="vendor/products/:id" element={<ProductEditorPage />} />

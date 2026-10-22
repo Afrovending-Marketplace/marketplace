@@ -26,7 +26,8 @@ def cleanup7():
     pays = [p["_id"] for p in mongo.payments.find({"customer_id": {"$in": buyers}})]
     vos = [v["_id"] for v in mongo.vendor_orders.find({"customer_id": {"$in": buyers}})]
     mongo.commission_ledger.delete_many({"$or": [{"payment_id": {"$in": pays}}, {"vendor_order_id": {"$in": vos}}]})
-    for coll, field in (("payouts", "vendor_order_id"), ("order_items", "vendor_order_id")):
+    for coll, field in (("payouts", "vendor_order_id"), ("order_items", "vendor_order_id"), ("shipments", "vendor_order_id"),
+                        ("order_requests", "vendor_order_id"), ("order_events", "vendor_order_id")):
         mongo[coll].delete_many({field: {"$in": vos}})
     for coll in ("refunds", "disputes"):
         mongo[coll].delete_many({"payment_id": {"$in": pays}})
@@ -127,7 +128,8 @@ def test_01_multi_vendor_payment_success_commission_fee_and_duplicates(w):
     assert mongo.commission_ledger.count_documents({"payment_id": p["_id"], "type": "gross_sale"}) == 2
     items = list(mongo.order_items.find({"order_id": p["order_id"]}))
     assert {i["commission_bps"] for i in items} == {1500, 1200}
-    assert mongo.inventory.find_one({"variant_id": __import__("bson").ObjectId(w["scarf"][1])})["quantity_on_hand"] == 3
+    inv = mongo.inventory.find_one({"variant_id": __import__("bson").ObjectId(w["scarf"][1])})
+    assert inv["quantity_on_hand"] == 5 and inv["quantity_reserved"] == 2  # reserved at payment, deducted at shipment
     assert c.post(f"/payments/orders/{order['id']}/checkout", json={"origin_url": _ENV["FRONTEND_URL"]}).status_code == 409
     rec = w["adm"].get("/admin/payments/reconciliation").json()
     assert not [i for i in rec["issues"] if i.get("payment_id") == str(p["_id"])]

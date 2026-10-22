@@ -9,6 +9,7 @@ from pymongo.errors import DuplicateKeyError
 
 from afrovending.core.catalog import send_low_stock_digests
 from afrovending.core.payments import release_all
+from afrovending.core.fulfillment import escalate_overdue
 from afrovending.core.db import db
 from afrovending.core.errors import APIError
 from afrovending.core.models import utcnow
@@ -35,6 +36,11 @@ async def low_stock_digest(request: Request, background: BackgroundTasks, author
 @router.post("/payout-release", status_code=202)
 async def payout_release(request: Request, background: BackgroundTasks, authorization: str = Header(default="")):
     return await _accept(request, background, authorization, "payout-release", release_all)
+
+
+@router.post("/fulfillment-escalations", status_code=202)
+async def fulfillment_escalations(request: Request, background: BackgroundTasks, authorization: str = Header(default="")):
+    return await _accept(request, background, authorization, "fulfillment-escalations", escalate_overdue)
 
 
 async def _accept(request: Request, background: BackgroundTasks, authorization: str, schedule: str, job):

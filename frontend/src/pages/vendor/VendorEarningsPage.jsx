@@ -6,6 +6,7 @@ import { StatusAlert } from "@/components/common/StatusAlert";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { api, getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
+import { Statements } from "@/components/vendor/Statements";
 
 const BUCKETS = [["pending_minor", "Pending"], ["eligible_minor", "Eligible"], ["held_minor", "On hold"], ["transferred_minor", "Transferred"],
   ["paid_minor", "Paid to bank"], ["owed_minor", "Owed to AfroVending"]];
@@ -81,6 +82,7 @@ export default function VendorEarningsPage() {
       <div><p className="av-eyebrow">Vendor dashboard</p><h1 className="mt-2 text-4xl font-bold tracking-tight text-av-ink">Earnings & payouts</h1></div>
       {d.mode === "test" && <StatusAlert tone="info" title="Test mode" testId="vendor-earnings-test-mode">All payments are Stripe test payments. Earnings become eligible {d.hold_days} days after confirmed payment; a transfer to your Stripe account is separate from the bank deposit.</StatusAlert>}
       <PayoutAccount account={d.account} reload={load} />
+      <Statements listUrl="/vendor/payments/statements" fileUrl={(s) => `/vendor/payments/statements/${s.period}`} testId="vendor-statements" />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         {BUCKETS.map(([k, label]) => <div key={k} className="rounded-2xl border border-av-line bg-white p-4"><p className="text-xs text-av-muted">{label}</p>
           <p className="text-xl font-bold" data-testid={`vendor-balance-${k}`}>{formatPrice(d.balances[k])}</p></div>)}

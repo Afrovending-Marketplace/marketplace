@@ -13,3 +13,10 @@ crons:
     endpoint: "{{BASE_URL}}/api/v1/cron/payout-release"
     method: POST
     enabled: true
+  - name: fulfillment-escalations
+    description: "Hourly: flags cancellation/return requests past the vendor response deadline and notifies admins"
+    cron: "15 * * * *"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/v1/cron/fulfillment-escalations"
+    method: POST
+    enabled: true

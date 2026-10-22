@@ -3,9 +3,7 @@ from typing import Literal, Optional
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field
-from pymongo.errors import DuplicateKeyError
 
-import stripe
 from afrovending.api.v1.vendors import ser
 from afrovending.core import ledger
 from afrovending.core import payments as pay
@@ -16,7 +14,7 @@ from afrovending.core.deps import require_roles
 from afrovending.core.errors import APIError
 from afrovending.core.models import User, utcnow
 from afrovending.core.roles import Role
-from afrovending.core.stripe_client import MODE, call, get_config, guard
+from afrovending.core.stripe_client import MODE, get_config, guard
 
 router = APIRouter(prefix="/admin/payments", tags=["admin-payments"])
 READ = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
@@ -153,10 +151,6 @@ async def list_vendor_orders(_: User = Depends(READ)):
     return {"data": out}
 
 
-def _part(total: int, done: int, qty: int, remaining: int, quantity: int) -> int:
-    return total - done if qty == remaining else total * qty // quantity
-
-
 @router.post("/vendor-orders/{vo_id}/refunds", status_code=201)
 async def refund(vo_id: str, body: RefundIn, request: Request, idempotency_key: str = Header(default="", alias="Idempotency-Key"),
                  admin: User = Depends(FINANCE)):
@@ -169,55 +163,10 @@ async def refund(vo_id: str, body: RefundIn, request: Request, idempotency_key: 
     vo = await db.vendor_orders.find_one({"_id": oid(vo_id)})
     if not vo:
         raise APIError(404, "not_found", "Vendor order not found.")
-    payment = await db.payments.find_one({"_id": vo["payment_id"], "status": "succeeded"})
-    if not payment:
-        raise APIError(409, "conflict", "This order has no successful payment to refund.")
-    if await db.refunds.find_one({"vendor_order_id": vo["_id"], "status": {"$in": ["processing", "pending"]}}):
-        raise APIError(409, "refund_in_progress", "Another refund for this vendor order is still processing.")
-    lines, items_part, comm_part = [], 0, 0
-    for rl in body.lines:
-        it = await db.order_items.find_one({"_id": oid(rl.order_item_id), "vendor_order_id": vo["_id"]})
-        if not it:
-            raise APIError(422, "validation_error", "That item isn't part of this vendor order.")
-        remaining = it["quantity"] - it["refunded_qty"]
-        if rl.quantity > remaining:
-            raise APIError(422, "validation_error", f"Only {remaining} of “{it['title']}” can still be refunded.")
-        amt = _part(it["eligible_minor"], it["refunded_minor"], rl.quantity, remaining, it["quantity"])
-        comm = _part(it["commission_minor"], it["commission_refunded_minor"], rl.quantity, remaining, it["quantity"])
-        lines.append({"order_item_id": it["_id"], "quantity": rl.quantity, "amount_minor": amt, "commission_minor": comm})
-        items_part += amt
-        comm_part += comm
-    ship = vo["shipping_minor"] - vo["shipping_refunded_minor"] if body.include_shipping else 0
-    items_left = vo["items_net_minor"] - vo["items_refunded_minor"] - items_part
-    tax = (vo["tax_minor"] - vo["tax_refunded_minor"]) if items_left == 0 else vo["tax_minor"] * items_part // max(vo["items_net_minor"], 1)
-    total = items_part + ship + tax
-    if total <= 0:
-        raise APIError(422, "validation_error", "Choose items or shipping to refund.")
-    if total > vo["charged_minor"] - vo["refunded_minor"]:
-        raise APIError(422, "validation_error", "Refund exceeds what's left on this vendor order.")
-    now = utcnow()
-    doc = {"payment_id": payment["_id"], "order_id": vo["order_id"], "vendor_order_id": vo["_id"], "vendor_id": vo["vendor_id"], "lines": lines,
-           "items_minor": items_part, "shipping_minor": ship, "tax_minor": tax, "commission_returned_minor": comm_part, "amount_minor": total,
-           "vendor_debit_minor": items_part + ship - comm_part, "currency": vo["currency"], "reason": body.reason, "status": "processing",
-           "idempotency_key": idempotency_key, "requested_by": ObjectId(admin.id), "created_at": now}
-    try:
-        doc["_id"] = (await db.refunds.insert_one(doc)).inserted_id
-    except DuplicateKeyError:
-        return {"refund": ser(await db.refunds.find_one({"idempotency_key": idempotency_key})), "replayed": True}
-    try:
-        r = await call(stripe.Refund.create, payment_intent=payment["provider_payment_id"], amount=total, idempotency_key=f"refund:{doc['_id']}",
-                       metadata={"refund_id": str(doc["_id"]), "vendor_order_id": vo_id})
-    except APIError:
-        await db.refunds.update_one({"_id": doc["_id"]}, {"$set": {"status": "failed"}})
-        raise
-    await db.refunds.update_one({"_id": doc["_id"]}, {"$set": {"provider_refund_id": r["id"]}})
-    doc["provider_refund_id"] = r["id"]
-    await audit("admin.refund_requested", "refunds", request=request, actor=admin, entity_id=str(doc["_id"]), amount=total, reason=body.reason)
-    if r["status"] == "succeeded":
-        await pay.apply_refund(doc)
-    elif r["status"] in ("failed", "canceled"):
-        await db.refunds.update_one({"_id": doc["_id"]}, {"$set": {"status": "failed"}})
-    return {"refund": ser(await db.refunds.find_one({"_id": doc["_id"]})), "replayed": False}
+    doc = await pay.create_refund(vo, [(oid(rl.order_item_id), rl.quantity) for rl in body.lines], include_shipping=body.include_shipping,
+                                  reason=body.reason, key=idempotency_key, actor_id=admin.id)
+    await audit("admin.refund_requested", "refunds", request=request, actor=admin, entity_id=str(doc["_id"]), amount=doc["amount_minor"], reason=body.reason)
+    return {"refund": ser(doc), "replayed": False}
 
 
 @router.get("/refunds")
