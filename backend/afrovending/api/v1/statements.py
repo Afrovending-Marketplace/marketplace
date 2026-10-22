@@ -141,7 +141,8 @@ async def all_statements(_: User = Depends(ADMIN)):
     out = []
     for vid in await db.commission_ledger.distinct("vendor_id", {"account": "vendor"}):
         store = await db.vendor_stores.find_one({"vendor_id": vid}) or {}
-        out += [{"vendor_id": str(vid), "vendor_name": store.get("display_name", ""), "period": p} for p in await _months(vid)]
+        out += [{"vendor_id": str(vid), "vendor_name": store.get("display_name", ""), "vendor_slug": store.get("slug"), "period": p,
+                 "statement_id": f"AVS-{str(vid)[-6:].upper()}-{p.replace('-', '')}"} for p in await _months(vid)]
     return {"data": out}
 
 

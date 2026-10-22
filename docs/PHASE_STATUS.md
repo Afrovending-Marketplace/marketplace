@@ -10,7 +10,18 @@
 | 05 Search & product discovery (+ weekly low-stock digest) | ✅ Complete | 2026-10-19 |
 | 06 Shopping cart & checkout (drafts, no payment) | ✅ Complete | 2026-10-22 |
 | 07 Marketplace payments & commission accounting (+ save for later) | ✅ Complete (Stripe TEST mode; vendor accounts SIMULATED) — awaiting owner approval | 2026-10-22 |
-| 08–14 | ⏸ Not started | — |
+| 08 Order fulfilment (+ monthly payout statements) | ✅ Complete (manual tracking only; no paid carrier APIs) — awaiting owner approval | 2026-10-22 |
+| 09–14 | ⏸ Not started | — |
+
+## Phase 08 deliverables
+- Parent order + per-vendor suborders (address snapshot, chosen shipping method, fulfilment type). Stock reserved on payment, deducted on shipment, released on confirmed cancellation; returns optionally restock.
+- Validated status machine: pending → accepted → processing → partially_shipped / shipped / ready_for_pickup → delivered; cancelled/returned. Acceptance vs customer cancel is an atomic Mongo update (no race).
+- Vendor queue `/vendor/orders` with status tabs, partial shipments (manual carrier + tracking number, carrier tracking links), forward-only shipment status, local pickup, vendor shipping & pickup options (vendor-entered fees only).
+- Customer `/account/orders/:id`: per-vendor items, shipments, tracking links, timeline, cancel (instant before acceptance, otherwise seller request), returns within 14 days of delivery with RMA numbers.
+- Requests: vendor approves/rejects within 48 h; overdue ones escalate to admins (cron `fulfillment-escalations`, hourly); admin override with recorded reason at `/admin/fulfillment` (return window/response hours configurable).
+- Refunds use the Phase 07 idempotent Stripe refund path (pending until Stripe confirms); vendor earnings held while a refund is pending; financial effects appended as new ledger entries.
+- Monthly payout statements (vendor earnings page, admin payments → Statements): branded PDF + transaction-level CSV from the ledger, plan-commission display, corrections shown as separate adjustments, owner-only/admin access.
+- Shipping label abstraction: manual provider only; paid carrier APIs require separate approval.
 
 ## Phase 07 deliverables
 See docs/PAYMENT_ARCHITECTURE.md (approved). One Stripe Checkout payment per multi-vendor order; vendor_orders/order_items created only on verified webhook or server-side Stripe re-check; commission rules (vendor → category → 10% default, versioned, audited); actual Stripe fee allocated by largest remainder; append-only `commission_ledger`; per-vendor-order refunds (proportional tax, commission returned, transfer reversal or owed balance); disputes (holds, vendor evidence, admin attribution, lost → liable vendor only); payout release (7-day hold, idempotent, daily cron `payout-release`); reconciliation report; receipts + vendor notices; cart "Save for later". Live payments blocked by `guard()` unless an admin flag is set (not settable in Phase 07).

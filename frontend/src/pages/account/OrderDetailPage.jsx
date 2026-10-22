@@ -30,8 +30,10 @@ const Actions = ({ orderId, vo, reload }) => {
       toast.error(getErrorMessage(err));
     }
   };
-  const canCancel = ["pending", "accepted", "processing"].includes(vo.status);
+  const openCancel = vo.requests.find((r) => r.type === "cancel" && r.status === "requested");
+  const canCancel = ["pending", "accepted", "processing"].includes(vo.status) && !openCancel;
   const canReturn = vo.status === "delivered";
+  if (openCancel) return <p className="text-xs" data-testid={`order-cancel-pending-${vo.vendor_slug}`}>Cancellation requested — awaiting the seller (reply due {new Date(openCancel.due_at).toLocaleString()}).</p>;
   if (!canCancel && !canReturn) return null;
   return (
     <div className="space-y-2">
@@ -54,9 +56,10 @@ const VendorOrder = ({ orderId, vo, reload }) => (
       <StatusBadge tone={tone(vo.status)} testId={`order-status-${vo.vendor_slug}`}>{label(vo.status)}</StatusBadge>
       <span className="text-xs text-av-muted">{vo.fulfillment_type === "pickup" ? `Local pickup · ${vo.shipping_method?.pickup_address || ""}` : vo.shipping_method?.name}</span></div>
     <ul className="divide-y divide-av-line">{vo.items.map((i) => <li key={i.id} className="flex justify-between gap-3 py-2"><span>{i.title}{i.label !== "Default" && ` (${i.label})`} × {i.quantity}
-      <span className="block text-xs text-av-muted">{i.shipped_qty} shipped{i.cancelled_qty ? ` · ${i.cancelled_qty} cancelled` : ""}{i.returned_qty ? ` · ${i.returned_qty} returned` : ""}</span></span><span>{formatPrice(i.line_total_minor)}</span></li>)}</ul>
+      <span className="block text-xs text-av-muted">{i.shipped_qty} {vo.fulfillment_type === "pickup" ? "picked up" : "shipped"}{i.cancelled_qty ? ` · ${i.cancelled_qty} cancelled` : ""}{i.returned_qty ? ` · ${i.returned_qty} returned` : ""}</span></span><span>{formatPrice(i.line_total_minor)}</span></li>)}</ul>
     {vo.shipments.map((s) => <p key={s.id} data-testid={`order-shipment-${s.tracking_number}`}>{s.carrier_name} · {s.tracking_url ? <a href={s.tracking_url} target="_blank" rel="noreferrer" className="underline">{s.tracking_number}</a> : s.tracking_number} · {label(s.status)}</p>)}
-    {vo.requests.map((r) => <p key={r.id} className="text-xs" data-testid={`order-request-${r.id}`}>{r.type} request: <b>{r.status}</b>{r.rma_number && ` · ${r.rma_number}`}</p>)}
+    {vo.requests.map((r) => <p key={r.id} className="text-xs" data-testid={`order-request-${r.id}`}>{r.type} request (“{r.reason}”): <b>{r.status}</b>{r.rma_number && ` · ${r.rma_number}`}
+      {r.history.length > 1 && r.history[r.history.length - 1].note && ` · ${r.history[r.history.length - 1].note}`}</p>)}
     {vo.refunds.map((r) => <p key={r.created_at} className="text-xs text-av-clay">Refund {formatPrice(r.amount_minor)} · {r.status === "succeeded" ? "sent by Stripe (your bank may take 5–10 business days)" : "pending with Stripe"}</p>)}
     <Actions orderId={orderId} vo={vo} reload={reload} />
     <details className="text-xs text-av-muted"><summary data-testid={`order-timeline-toggle-${vo.vendor_slug}`}>Timeline</summary>
@@ -79,6 +82,7 @@ export default function OrderDetailPage() {
       <p className="text-sm"><Link to="/account/orders" className="underline">← Orders</Link></p>
       <h1 className="text-3xl font-bold tracking-tight text-av-ink">Order {d.order.order_number}</h1>
       <StatusAlert tone="info" title="Delivery address (as ordered)" testId="order-address">{a.full_name}, {[a.line1, a.line2, a.city, a.region, a.postal_code, a.country].filter(Boolean).join(", ")}
+        {d.vendor_orders.some((v) => v.fulfillment_type === "pickup") && <span className="block text-xs">Local pickup items are collected from the seller's pickup address shown below.</span>}
         <span className="block text-xs">Returns can be requested within {d.return_window_days} days of delivery.</span></StatusAlert>
       {d.vendor_orders.map((vo) => <VendorOrder key={vo.id} orderId={id} vo={vo} reload={load} />)}
       <Button asChild variant="outline" size="sm"><Link to={`/checkout/payment/${id}`} data-testid="order-receipt-link">Payment receipt</Link></Button>

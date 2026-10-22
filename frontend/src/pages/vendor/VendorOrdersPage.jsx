@@ -37,11 +37,12 @@ const Ship = ({ vo, reload }) => {
   );
 };
 
-const Request = ({ r, reload }) => (
+const Request = ({ r, vo, reload }) => (
   <div className="flex flex-wrap items-center gap-2 text-xs" data-testid={`vo-request-${r.id}`}>
     <b>{r.type} request</b> · {r.status}{r.rma_number && ` · ${r.rma_number}`} · “{r.reason}”{r.escalated && <StatusBadge tone="danger">overdue</StatusBadge>}
+    {r.status === "requested" && r.type === "cancel" && !["accepted", "processing"].includes(vo.status) && <span className="text-av-muted">Already shipped — can't be cancelled; reject it.</span>}
     {r.status === "requested" && <>
-      <Button size="sm" onClick={() => act(() => api.post(`/vendor/requests/${r.id}/decide`, { decision: "approve" }), "Approved", reload)} data-testid={`vo-request-approve-${r.id}`}>Approve</Button>
+      {(r.type === "return" || ["accepted", "processing"].includes(vo.status)) && <Button size="sm" onClick={() => act(() => api.post(`/vendor/requests/${r.id}/decide`, { decision: "approve" }), "Approved", reload)} data-testid={`vo-request-approve-${r.id}`}>Approve</Button>}
       <Button size="sm" variant="outline" onClick={() => act(() => api.post(`/vendor/requests/${r.id}/decide`, { decision: "reject", note: "Declined by seller" }), "Rejected", reload)} data-testid={`vo-request-reject-${r.id}`}>Reject</Button></>}
     {r.status === "approved" && r.type === "return" && <Button size="sm" onClick={() => act(() => api.post(`/vendor/requests/${r.id}/receive`, { restock: true }), "Received and refunded", reload)} data-testid={`vo-request-receive-${r.id}`}>Mark received + restock + refund</Button>}
   </div>
@@ -55,10 +56,10 @@ const Order = ({ vo, reload }) => {
     <li className="space-y-2 py-4 text-sm" data-testid={`vo-${vo.order_number}`}>
       <div className="flex flex-wrap items-center gap-2"><b>{vo.order_number}</b><StatusBadge tone={vo.status === "pending" ? "gold" : "neutral"}>{label(vo.status)}</StatusBadge>
         <span className="text-xs text-av-muted">{vo.fulfillment_type === "pickup" ? "Local pickup" : `${a.full_name}, ${a.line1}, ${a.city} ${a.postal_code} ${a.country}`}</span></div>
-      <p className="text-xs">{vo.items.map((i) => `${i.title} × ${i.quantity} (${i.shipped_qty} shipped)`).join(" · ")} · {formatPrice(vo.charged_minor)}</p>
+      <p className="text-xs">{vo.items.map((i) => `${i.title} × ${i.quantity} (${i.shipped_qty} ${vo.fulfillment_type === "pickup" ? "handed over" : "shipped"})`).join(" · ")} · {formatPrice(vo.charged_minor)}</p>
       {vo.shipments.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-2 text-xs">{s.carrier_name} {s.tracking_number} · {label(s.status)}
-        {s.status !== "delivered" && ["in_transit", "out_for_delivery", "delivered"].map((st) => <Button key={st} size="sm" variant="ghost" onClick={() => act(() => api.post(`/vendor/shipments/${s.id}/status`, { status: st }), "Updated", reload)} data-testid={`vo-shipment-${st}-${s.id}`}>{label(st)}</Button>)}</div>)}
-      {vo.requests.map((r) => <Request key={r.id} r={r} reload={reload} />)}
+        {s.status !== "delivered" && ["in_transit", "out_for_delivery", "delivered"].filter((st) => s.status === "exception" || ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(st) > ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(s.status)).map((st) => <Button key={st} size="sm" variant="ghost" onClick={() => act(() => api.post(`/vendor/shipments/${s.id}/status`, { status: st }), "Updated", reload)} data-testid={`vo-shipment-${st}-${s.id}`}>{label(st)}</Button>)}</div>)}
+      {vo.requests.map((r) => <Request key={r.id} r={r} vo={vo} reload={reload} />)}
       <div className="flex flex-wrap gap-2">
         {vo.status === "pending" && <Button size="sm" onClick={() => status("accepted")} data-testid={`vo-accept-${vo.order_number}`}>Accept</Button>}
         {vo.status === "accepted" && <Button size="sm" variant="outline" onClick={() => status("processing")} data-testid={`vo-processing-${vo.order_number}`}>Mark processing</Button>}

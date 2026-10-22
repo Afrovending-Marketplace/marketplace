@@ -71,7 +71,7 @@ export default function CheckoutPage() {
                 <ul className="divide-y divide-av-line">{g.items.map((l) => <CartLine key={l.variant_id} line={l} readOnly />)}</ul>
                 <RadioGroup value={g.shipping_method_id || ""} onValueChange={(m) => c.chooseShipping(g.vendor_id, m).catch((e) => toast.error(getErrorMessage(e)))} className="gap-2">
                   {g.shipping_methods.map((m) => <Option key={m.id} value={m.id} id={`ship-${g.vendor_id}-${m.id}`} testId={`checkout-shipping-${g.vendor_slug}-${m.id}`}>
-                    <b>{m.name}</b> · {m.amount_minor == null ? "Rate to be confirmed" : formatPrice(m.amount_minor)}{m.eta && <span className="block text-xs text-av-muted">{m.eta}</span>}</Option>)}
+                    <b>{m.name}</b>{m.type === "pickup" ? ` · Local pickup (free)${m.pickup_address ? ` at ${m.pickup_address}` : ""}` : ` · ${m.amount_minor == null ? "Rate to be confirmed" : formatPrice(m.amount_minor)}`}{m.eta && <span className="block text-xs text-av-muted">{m.eta}</span>}</Option>)}
                 </RadioGroup>
               </div>
             ))}

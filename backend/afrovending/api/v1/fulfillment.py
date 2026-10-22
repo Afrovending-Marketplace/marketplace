@@ -249,7 +249,11 @@ async def create_shipment(vo_id: str, body: ShipmentIn, user: User = Depends(get
 @router.post("/vendor/shipments/{shipment_id}/status")
 async def shipment_status(shipment_id: str, body: ShipStatusIn, user: User = Depends(get_current_user)):
     vendor = await my_vendor(user)
-    s = await db.shipments.find_one_and_update({"_id": oid(shipment_id), "vendor_id": vendor["_id"], "status": {"$ne": "delivered"}},
+    cur = await db.shipments.find_one({"_id": oid(shipment_id), "vendor_id": vendor["_id"]})
+    order = list(ff.SHIPMENT_STATES)
+    if not cur or (body.status != "exception" and cur["status"] != "exception" and order.index(body.status) <= order.index(cur["status"])):
+        raise APIError(409, "invalid_transition", "Shipment status can only move forward.")
+    s = await db.shipments.find_one_and_update({"_id": cur["_id"], "status": cur["status"]},
                                                {"$set": {"status": body.status}, "$push": {"events": {"status": body.status, "note": body.note, "at": utcnow()}}})
     if not s:
         raise APIError(404, "not_found", "Shipment not found or already delivered.")
