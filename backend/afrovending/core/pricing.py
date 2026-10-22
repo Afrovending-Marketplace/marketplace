@@ -15,7 +15,7 @@ TBC_METHOD = {"id": "to_be_confirmed", "name": "Standard shipping", "amount_mino
 
 
 def _bps(amount: int, bps: int) -> int:
-    return amount * bps // 10_000
+    return (amount * bps + 5_000) // 10_000  # round half up
 
 
 def _allocate(total: int, weights: list[int]) -> list[int]:
@@ -130,6 +130,8 @@ async def evaluate(cart: dict, address: Optional[dict] = None) -> dict:
     subtotal = sum(g["subtotal_minor"] for g in sellable)
     ship_values = [g["shipping_minor"] for g in sellable]
     shipping = sum(ship_values) if sellable and all(s is not None for s in ship_values) else None
+    known = sum(s for s in ship_values if s is not None)
+    not_selected = any(g["shipping_status"] == "not_selected" for g in sellable)
     tax = sum(g["tax_estimate_minor"] for g in sellable) if rate and sellable else None
     lines = [line for g in group_list for line in g["items"]]
     blocking = []
@@ -139,12 +141,13 @@ async def evaluate(cart: dict, address: Optional[dict] = None) -> dict:
         blocking.append("Remove unavailable items or lower quantities to what's in stock.")
     if any(line["previous_price_minor"] is not None for line in lines):
         blocking.append("Some prices changed since you added them. Review and accept the new prices.")
-    return {"groups": group_list, "item_count": sum(line["quantity"] for line in lines), "coupon": coupon_out,
+    return {"groups": group_list, "item_count": sum(line["quantity"] for line in lines if line["status"] == "ok"), "coupon": coupon_out,
             "totals": {"currency": "USD", "subtotal_minor": subtotal, "discount_minor": discount, "shipping_minor": shipping,
-                       "shipping_status": "to_be_confirmed" if shipping is None else "estimated",
+                       "shipping_known_minor": known if shipping is None else None,
+                       "shipping_status": "estimated" if shipping is not None else "not_selected" if not_selected else "to_be_confirmed",
                        "tax_estimate_minor": tax, "tax_status": "estimated" if tax is not None else "not_calculated",
                        "tax_rate_label": rate.get("label") if rate else None,
-                       "estimated_total_minor": subtotal - discount + (shipping or 0) + (tax or 0), "final": False},
+                       "estimated_total_minor": subtotal - discount + (shipping if shipping is not None else known) + (tax or 0), "final": False},
             "blocking": blocking}
 
 

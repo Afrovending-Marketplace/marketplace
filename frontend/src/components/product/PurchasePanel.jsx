@@ -66,7 +66,7 @@ export const PurchasePanel = ({ product, vendor }) => {
       </div>
       <p id="pdp-cart-note" data-testid="pdp-cart-note" className="text-xs text-av-muted">{product.is_dev_data ? "Sample listings can't be added to the cart." : "Prices are checked again at checkout. Payment opens in Phase 07."}</p>
       <ul className="space-y-3 rounded-2xl border border-av-line bg-white p-5 text-sm">
-        <li className="flex gap-3"><Truck className="h-5 w-5 shrink-0 text-av-emerald" /> Ships from the vendor. Rates and delivery times are shown at checkout (planned).</li>
+        <li className="flex gap-3"><Truck className="h-5 w-5 shrink-0 text-av-emerald" /> Ships from the vendor. Shipping options and estimates are shown at checkout.</li>
         <li className="flex gap-3"><ShieldCheck className="h-5 w-5 shrink-0 text-av-emerald" /> Purchase protection and returns policy: [to be confirmed].</li>
       </ul>
     </div>

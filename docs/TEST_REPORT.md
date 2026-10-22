@@ -43,6 +43,13 @@ Note: tests require the HTTPS preview URL (Secure cookies).
 | `test_phase03_vendors.py` (3) + `test_phase03_extended.py` (7, testing agent) + all earlier suites | Only approved+active vendors publish; draft/suspended stores not public; suspend/reactivate; policy acceptance required & recorded; request-info + required document; docs hidden from public, owner and other users, admin-only download; vendor isolation (applications, files); slug uniqueness & sync; re-apply after rejection | ✅ 52/52 |
 | E2E Playwright (iteration_4) | Apply flow with uploads, unverified gating, admin review dialog, request info → doc upload → approve, vendor dashboard edit/publish, public store, suspend/reactivate, /forbidden gating, brand red | ✅ all flows; fixes applied after: mobile slug row overflow, Approve/Reject colours, toast wording, status badge colours, empty vendor list state, location formatting |
 
+## Phase 06 — 2026-10-22
+| Suite | Scope | Result |
+|---|---|---|
+| `test_phase06_cart.py` (5) + all earlier suites | Guest cart token, browser price ignored, stock limits, quantity/remove; mixed-vendor grouping & totals; TBC shipping vs admin flat rate; tax only with admin rate; coupons (invalid, min spend, percent + per-vendor allocation); price change flag/accept; archived product unavailable; insufficient stock; guest merge once; idempotent checkout incl. 4 concurrent identical requests → 1 draft, key reuse with changed cart → 409, older draft abandoned, other users 404 | ✅ 74/74 |
+| E2E (iteration_7) | PDP add to cart, guest cart, merge on login, coupons, price change, unavailable item, checkout review, draft page, admin settings, 390px | ✅ all flows; fixes after: cart page sideways scroll on phones, alert spacing, copy, address formatting, coupon row, sticky totals, clearer stock error, item count excludes unavailable lines, tax round-half-up, known shipping shown as "$X + TBC" |
+
+
 ## Phase 05 — 2026-10-19
 | Suite | Scope | Result |
 |---|---|---|

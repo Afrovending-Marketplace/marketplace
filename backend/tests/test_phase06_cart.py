@@ -123,7 +123,9 @@ def test_mixed_vendor_grouping_totals_shipping_tax_coupon(world):
     cart = c.put("/cart/coupon", json={"code": f"ten{TAG.lower()}"}).json()
     assert cart["totals"]["discount_minor"] == 2250
     assert sum(g["discount_minor"] for g in cart["groups"]) == 2250
-    assert cart["totals"]["estimated_total_minor"] == 22500 - 2250 + 0 + (18000 - 1800) * 625 // 10000 + (4500 - 450) * 625 // 10000
+    half_up = lambda x: (x * 625 + 5000) // 10000  # noqa: E731
+    assert cart["totals"]["estimated_total_minor"] == 22500 - 2250 + 700 + half_up(18000 - 1800) + half_up(4500 - 450)  # known shipping included
+    assert cart["totals"]["shipping_known_minor"] == 700
     adm.put(f"/admin/commerce/tax-rates/{tx['id']}", json={"country": "ZZ", "rate_bps": 625, "label": "TEST estimated tax", "status": "inactive"})
 
 

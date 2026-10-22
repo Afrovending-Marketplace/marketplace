@@ -22,8 +22,8 @@ const Coupon = ({ cart, c }) => {
     }
   };
   if (cart.coupon?.applied) {
-    return <p className="flex items-center justify-between text-sm" data-testid="cart-coupon-applied">Coupon <b>{cart.coupon.code}</b> · −{formatPrice(cart.coupon.discount_minor)}
-      <Button size="sm" variant="ghost" onClick={c.removeCoupon} data-testid="cart-coupon-remove">Remove</Button></p>;
+    return <div className="flex items-center gap-2 text-sm" data-testid="cart-coupon-applied"><span className="flex-1">Coupon <b>{cart.coupon.code}</b> · −{formatPrice(cart.coupon.discount_minor)}</span>
+      <Button size="sm" variant="ghost" onClick={c.removeCoupon} data-testid="cart-coupon-remove">Remove</Button></div>;
   }
   return (
     <form onSubmit={apply} className="flex gap-2">
@@ -51,8 +51,8 @@ export default function CartPage() {
   return (
     <div data-testid="cart-page" className="av-container py-12">
       <h1 className="text-4xl font-bold tracking-tight text-av-ink">Your cart <span className="text-lg font-normal text-av-muted">({cart.item_count} items)</span></h1>
-      <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
+      <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_360px]">
+        <div className="min-w-0 space-y-6">
           {priceChanged && <StatusAlert tone="warning" title="Some prices changed" testId="cart-price-alert">
             Review the new prices below. <Button size="sm" variant="outline" className="ml-2" onClick={() => run(c.acceptPrices)} data-testid="cart-accept-prices">Accept new prices</Button></StatusAlert>}
           {cart.groups.map((g) => (

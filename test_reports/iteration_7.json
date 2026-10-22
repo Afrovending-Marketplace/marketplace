@@ -1,0 +1,43 @@
+{
+  "summary": "Phase 06 frontend E2E test of cart and checkout, run in the browser against live seeded data: 2 TEST6X_ vendors, 3 live products (one has an out-of-stock Size M variant) and 2 buyers. Every requested flow passed: product page add to cart, guest cart grouped by vendor, quantity changes, stock limit, guest merge after login, coupons, price change, unavailable product, checkout, idempotent draft creation and admin Checkout settings. One functional UI bug: the cart page scrolls sideways on a 390px phone. The other findings are minor copy and design issues. No backend defects found. All test data was cleaned up.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "core/pricing.py tax estimate", "issue": "Tax is rounded down per vendor group, so the total can be a cent short. Example: 12.5% of $108.00 should be $13.50, but the page shows $13.49 (3.375 becomes 3 and 10.125 becomes 10.12). Consider round-half-up, or apply rounding once on the total."},
+      {"endpoint": "core/pricing.py totals.shipping_minor", "issue": "If any vendor's shipping is still 'to be confirmed', the whole Shipping row shows 'To be confirmed' and the estimated total leaves out the shipping that is already known (e.g. vendor A's $7 flat rate). The same row also says 'To be confirmed' when the user simply hasn't picked an option yet (shipping_status not_selected). Consider showing the known part (e.g. '$7.00 + TBC') and a 'Choose option' message."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "CartPage at 390px width", "issue": "The page scrolls sideways: scrollWidth is 425px on a 390px screen. The vendor group cards and line prices are cut off on the right. Cause: the single-column grid on mobile sizes its column to the content's minimum width, and the quantity + Remove row (flex, no wrap) is wider than the card. Fix: add 'min-w-0' to the left column div (className='space-y-6' in CartPage.jsx, or use 'grid-cols-1'), and add 'flex-wrap' to the quantity/Remove row in CartParts.jsx CartLine. The Checkout and Draft pages do not overflow (scrollWidth 390).", "selector": "[data-testid='cart-page'] .space-y-6", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Draft order page", "issues": ["StatusAlert ignores its className prop, so the className='mt-6' passed on DraftOrderPage is dropped. The 'Payment isn't available yet' alert sits right under the title and badge. Forward className in components/common/StatusAlert.jsx using cn('rounded-xl', cls, className)."]},
+      {"screen": "Announcement bar and product page copy", "issues": ["With live data the announcement bar still says 'Checkout opens in a later phase', but checkout review now exists. It should say 'Payment opens in a later phase'.", "The product page says 'Rates and delivery times are shown at checkout (planned)'. This is now out of date because checkout shows shipping options."]},
+      {"screen": "Checkout address card", "issues": ["When region and postal code are empty, the address reads '1 Main St, Accra , GH' with a stray space before the comma. The JSX in CheckoutPage Addresses is: {a.city}{region} {a.postal_code}, {a.country}."]},
+      {"screen": "Cart totals card", "issues": ["The applied-coupon row uses justify-between across 4 text pieces, so 'Coupon', 'TEST6X10', '· −$12.60' and 'Remove' are spread out unevenly.", "The totals card stretches to the full height of the grid row. Consider 'self-start' or making it sticky.", "The stock-limit error toast only says 'Max 3.' because getErrorMessage uses the field detail. The server's own message, 'Only 3 left in stock.', is clearer.", "The item count (header badge and the '(4 items)' title) still includes lines that are no longer available."]},
+      {"screen": "Admin Checkout settings", "issues": ["Coupon 'type' is a free-text input that only accepts 'percent' or 'fixed'. A wrong value just shows a validation toast. Use a shadcn Select.", "Shipping option rows don't show the vendor scope or the ETA, so an admin can't tell a vendor-specific option from a global one."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/ui_seed_phase06.py", "/app/backend/tests/ui_helpers_phase06.py"],
+  "action_items": [
+    "Fix the horizontal overflow on the cart page at 390px (min-w-0 on the grid column plus flex-wrap on the quantity/Remove row)",
+    "Make StatusAlert forward className (the spacing on the draft order page is lost)",
+    "Update the stale copy: the announcement bar 'Checkout opens in a later phase' and the product page 'shown at checkout (planned)'",
+    "Optional: per-group tax rounding is a cent off; shipping total hides known amounts when one vendor is TBC; show the server message for stock-limit toasts; use a coupon type Select in admin; show vendor scope on shipping option rows; fix the stray space in the address line"
+  ],
+  "critical_code_review_comments": [
+    "CartContext: the effect returns early when user === undefined, but AuthContext uses null for 'checking' and false for 'signed out'. The early return never fires, so GET /cart runs while auth is still loading and then runs again (or merges) once auth resolves. This is harmless but makes a wasted request. Check for user === null instead.",
+    "CheckoutPage: the Idempotency-Key is created once per mount (useMemo). If the cart changes while the user stays on the page after a failed start that had already created an order, the same key returns 409 idempotency_conflict and the only way out is a reload. This is rare, since failed starts normally don't create orders. Consider making a new key after a 409 idempotency_conflict.",
+    "The cart merge copies guest lines without checking stock. Evaluate() rechecks later and flags insufficient stock, so this is acceptable.",
+    "AdminCommercePage toggle: the PUT sends the full row minus some fields. If the API ever adds read-only fields, this will start failing with 422. Sending a minimal {status} PATCH would be more robust."
+  ],
+  "updated_files": ["/app/backend/tests/ui_seed_phase06.py (new)", "/app/backend/tests/ui_helpers_phase06.py (new)"],
+  "success_rate": {"backend": "not re-run (frontend-only request; the main agent reports 74 passing)", "frontend": "~95%: all 11 requested flows pass; 1 medium mobile overflow bug plus minor design and copy issues"},
+  "test_credentials": "Admin from /app/memory/test_credentials.md (works). Buyers and vendors are created at runtime by tests/ui_seed_phase06.py (password TestPass12345, emails in /tmp/p6seed.json).",
+  "seed_data_creation": "'cd /app/backend && python -m tests.ui_seed_phase06' seeds the data. 'python -m tests.ui_seed_phase06 clean' removes it, including TEST6X* coupons, shipping methods and tax rates. Clean was run: the DB now holds only the admin user, and products, vendors, carts, orders, addresses, files, coupons, shipping_methods and tax_rates are all at 0. Uploaded image blobs in remote object storage were not deleted (the files records were). Only the register/cart/coupon rate_limits were cleared.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Helper actions: 'python -m tests.ui_helpers_phase06 precart|price <minor>|archive|restore|addr <CC>|orders|cart'. Key testids: pdp-add-to-cart, pdp-cart-note, pdp-variant-{label}, header-cart-count, cart-page, cart-group-{slug}, cart-group-subtotal-{slug}, cart-qty-inc/dec-{vid}, cart-qty-{vid}, cart-remove-{vid}, cart-line-issue-{vid}, cart-line-price-changed-{vid}, cart-price-alert, cart-accept-prices, cart-coupon-input/apply/applied/remove, cart-blocking, cart-checkout-button (a BUTTON when blocked, an A when allowed), totals-*, checkout-no-address, checkout-address-{id}, checkout-shipping-{slug}-{methodId}, checkout-blocking, checkout-start-button, draft-order-number/status/payment-note, commerce-{shipping-methods|coupons|tax-rates}-{field}/-create, commerce-toggle-{id}. Login fields: #login-email, #login-password. A vendor with exactly one shipping option has it auto-selected. With 2 or more options the user must pick one, otherwise checkout is blocked. Double-clicking the start button sends only one /checkout/start request."
+}

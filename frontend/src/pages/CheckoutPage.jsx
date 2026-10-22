@@ -30,7 +30,7 @@ const Addresses = ({ cart, c }) => {
   return (
     <RadioGroup value={cart.address_id || ""} onValueChange={(id) => c.chooseAddress(id).catch((e) => toast.error(getErrorMessage(e)))} className="grid gap-3 sm:grid-cols-2">
       {list.map((a) => <Option key={a.id} value={a.id} id={`addr-${a.id}`} testId={`checkout-address-${a.id}`}>
-        <b>{a.full_name}</b>{a.label && ` · ${a.label}`}<br />{a.line1}{a.line2 && `, ${a.line2}`}, {a.city}{a.region && `, ${a.region}`} {a.postal_code}, {a.country}</Option>)}
+        <b>{a.full_name}</b>{a.label && ` · ${a.label}`}<br />{[a.line1, a.line2, a.city, [a.region, a.postal_code].filter(Boolean).join(" "), a.country].filter(Boolean).join(", ")}</Option>)}
     </RadioGroup>
   );
 };

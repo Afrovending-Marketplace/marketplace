@@ -21,11 +21,12 @@ Multi-vendor marketplace modules A–N; server-side RBAC; versioned migrations; 
 - 2026-10-17 — Brand red theme (#D40000). Phase 03 Vendor onboarding: application form with logo/banner/slug, policy acceptance record, admin review (approve/reject/request info + required docs), private verification documents (admin-only), vendor role on same account, store editor + publish, public /store/:slug, suspend/reactivate, email notices. Tests 52/52 backend + e2e.
 - 2026-10-19 — Phase 04 Product catalog & inventory: vendor product CRUD with deletion safeguards, variants (3 options, SKU/price/stock), optimized WebP images, draft/pending/active/rejected/archived states, inventory adjustments with append-only history + low-stock alerts, admin moderation, category management (seeded 9 + subcategories), CSV import with preview/errors, public /api/v1/catalog APIs feeding the storefront. Tests 57/57 backend + e2e (iteration_5). Next: Phase 05 storefronts & search (awaiting approval).
 - 2026-10-19 — Phase 05 Search & discovery: weighted full-text search + partial fallback, suggestions, category/subcategory/price/vendor/availability filters, relevance/newest/price sorts, load-more pagination, URL state, empty/error states, anonymous privacy-safe search analytics + admin insights, indexes tested at 1,500 products. Restock reminders: vendor choice of instant vs weekly digest via platform cron. Tests 69/69 + e2e (iteration_6).
+- 2026-10-22 — Phase 06 Cart & checkout: persistent customer + guest carts with one-time secure merge, multi-vendor grouping, live revalidation (status/stock/price), address + per-vendor shipping selection, coupon & tax-rate frameworks (admin-entered only), server-side totals marked estimated, checkout review, idempotent draft orders (no payment). Tests 74/74 + e2e (iteration_7).
 
 ## Prioritized backlog
-- P0: Phase 06 cart & checkout (awaiting approval)
+- P0: Phase 07 payments (awaiting approval)
 - P1: Phases 06–08 (cart/checkout → orders/shipping)
 - P2: Phases 09–14; automated vendor-document cleanup job; CSV image import
 
 ## Next tasks
-Await owner approval for Phase 06. Email: Emergent Managed Email now; branded sending from info@afrovending.com is a go-live task (DEPLOYMENT_RUNBOOK step 7, D-029) — needs owner's email-provider account, verified afrovending.com DNS (SPF/DKIM/DMARC) and sending key. Open owner decisions: currencies (USD only today), commission rate, legal copy, supported markets, afrovending.com DNS for contact email.
+Await owner approval for Phase 07. Email: Emergent Managed Email now; branded sending from info@afrovending.com is a go-live task (DEPLOYMENT_RUNBOOK step 7, D-029) — needs owner's email-provider account, verified afrovending.com DNS (SPF/DKIM/DMARC) and sending key. Open owner decisions: currencies (USD only today), commission rate, legal copy, supported markets, afrovending.com DNS for contact email.

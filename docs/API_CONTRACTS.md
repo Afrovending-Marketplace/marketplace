@@ -14,6 +14,21 @@
 - **Auth (from Phase 01):** documented per endpoint as `Auth: public | customer | vendor | admin(<role>)`.
 - **Idempotency (from Phase 06/07):** mutating money endpoints require `Idempotency-Key` header.
 
+## Phase 06 endpoints (all under `/api/v1`)
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/cart` | customer cookie or `X-Cart-Token` | Server-evaluated cart `{groups[], item_count, coupon, totals, blocking[]}` |
+| POST | `/cart/items` | any (guest gets `cart_token` once) | `{variant_id, quantity}` — 404 unavailable, 409 out/insufficient stock |
+| PATCH / DELETE | `/cart/items/{variant_id}` | cart owner | Set quantity (0 removes) / remove |
+| POST | `/cart/accept-prices` | cart owner | Accept current prices |
+| PUT / DELETE | `/cart/coupon` | cart owner | Apply `{code}` (422 invalid) / remove |
+| PUT | `/cart/shipping` · `/cart/address` | owner · signed in | `{vendor_id, method_id}` · `{address_id}` (own addresses only) |
+| POST | `/cart/merge` | signed in + `X-Cart-Token` | One-time guest → account merge |
+| POST | `/checkout/start` | signed in + `Idempotency-Key` | Draft order (200 `{order, replayed}`); 409 blocked / key conflict |
+| GET | `/checkout/orders/{id}` | order owner | Draft order snapshot |
+| GET/POST/PUT | `/admin/commerce/{shipping-methods,coupons,tax-rates}[/{id}]` | marketplace/super admin | Checkout settings |
+
+
 ## Phase 05 endpoints (all under `/api/v1`)
 | Method | Path | Auth | Description |
 |---|---|---|---|

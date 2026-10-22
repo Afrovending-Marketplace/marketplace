@@ -19,7 +19,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 100
 def cleanup():
     mongo.rate_limits.delete_many({"key": {"$regex": "^register:"}})
     yield
-    ids = [u["_id"] for u in mongo.users.find({"email": {"$in": CREATED}})]  # only this worker's users (xdist-safe)  # only this worker's users (xdist-safe)
+    ids = [u["_id"] for u in mongo.users.find({"email": {"$in": CREATED}})]  # only this worker's users (xdist-safe)
     vendor_ids = [v["_id"] for v in mongo.vendors.find({"owner_user_id": {"$in": ids}})]
     mongo.vendor_stores.delete_many({"vendor_id": {"$in": vendor_ids}})
     mongo.vendors.delete_many({"_id": {"$in": vendor_ids}})

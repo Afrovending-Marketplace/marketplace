@@ -107,7 +107,7 @@ async def _purchasable(variant_id: str, wanted: int) -> dict:
     if left <= 0:
         raise APIError(409, "out_of_stock", "This item is out of stock.")
     if wanted > left:
-        raise APIError(409, "insufficient_stock", f"Only {left} left in stock.", [{"field": "quantity", "message": f"Max {left}."}])
+        raise APIError(409, "insufficient_stock", f"Only {left} left in stock.")
     return {"variant": v, "product": p}
 
 

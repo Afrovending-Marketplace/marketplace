@@ -9,10 +9,10 @@ const TONES = {
   error: { icon: XCircle, cls: "border-red-300 bg-red-50 text-red-800 [&>svg]:text-red-700" },
 };
 
-export const StatusAlert = ({ tone = "info", title, children, testId }) => {
+export const StatusAlert = ({ tone = "info", title, children, testId, className }) => {
   const { icon: Icon, cls } = TONES[tone];
   return (
-    <Alert data-testid={testId} role={tone === "error" ? "alert" : "status"} className={cn("rounded-xl", cls)}>
+    <Alert data-testid={testId} role={tone === "error" ? "alert" : "status"} className={cn("rounded-xl", cls, className)}>
       <Icon className="h-4 w-4" />
       <AlertTitle className="font-semibold">{title}</AlertTitle>
       {children && <AlertDescription>{children}</AlertDescription>}

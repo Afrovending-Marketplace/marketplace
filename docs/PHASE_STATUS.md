@@ -7,8 +7,16 @@
 | 02 Identity & customer accounts | ✅ Complete | 2026-10-17 |
 | 03 Vendor onboarding (+ brand red theme) | ✅ Complete | 2026-10-17 |
 | 04 Product catalog & inventory | ✅ Complete | 2026-10-19 |
-| 05 Search & product discovery (+ weekly low-stock digest) | ✅ Complete — awaiting owner approval | 2026-10-19 |
+| 05 Search & product discovery (+ weekly low-stock digest) | ✅ Complete | 2026-10-19 |
+| 06 Shopping cart & checkout (drafts, no payment) | ✅ Complete — awaiting owner approval | 2026-10-22 |
 | 05–14 | ⏸ Not started | — |
+
+## Phase 06 deliverables
+- Cart API `/api/v1/cart` (+ `/items`, `/accept-prices`, `/coupon`, `/shipping`, `/address`, `/merge`): customer carts persist by account; guest carts use an unguessable token (`X-Cart-Token`, stored hashed, 30-day expiry) and merge once into the account cart on sign-in.
+- Every read re-validates product/variant status, vendor visibility and stock; flags unavailable / out-of-stock / insufficient stock and price changes (old → new) which must be accepted before checkout.
+- `core/pricing.evaluate` computes all money server-side: per-vendor subtotals, shipping (admin options or "rate to be confirmed"), coupon discount (percent/fixed, window, min spend, limit, vendor scope; allocated per vendor), estimated tax only when an admin-entered rate matches the address, estimated total, `final: false`.
+- Checkout `POST /api/v1/checkout/start` (sign-in, `Idempotency-Key`): blocks on cart issues, missing address or shipping choice; creates one draft order with an immutable snapshot; repeats with the same key return the same draft; same key + different cart → 409; newer drafts mark older ones abandoned; drafts expire after 24 h. No payment, no stock reservation yet.
+- UI: Add to cart on live products, header count, `/cart` grouped by vendor, `/checkout` review (address, per-vendor shipping, totals clearly marked estimated), `/checkout/draft/:id`, admin `/admin/commerce` (shipping options, coupons, tax rates — none pre-filled).
 
 ## Phase 05 deliverables
 - `GET /api/v1/catalog/search`: MongoDB weighted text index (title 10, tags 5, description 1, English stemming) with relevance sort; automatic word-prefix fallback for partial words ("bask" → basket); filters category (+subcategories), vendor (multi), price min/max, in stock; sorts relevance/featured/newest/price; page+limit (max 120) with `has_more`; facets (category counts unscoped, vendor/price/stock scoped to category).

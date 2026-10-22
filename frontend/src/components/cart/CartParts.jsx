@@ -15,7 +15,7 @@ export const CartLine = ({ line, onQty, onRemove, readOnly }) => (
       {line.status !== "ok" && <StatusBadge tone="danger" testId={`cart-line-issue-${line.variant_id}`}>{ISSUE[line.status]}{line.available ? ` — ${line.available} left` : ""}</StatusBadge>}
       {line.previous_price_minor != null && <p className="text-xs text-av-clay" data-testid={`cart-line-price-changed-${line.variant_id}`}>Price changed from {formatPrice(line.previous_price_minor)} to {formatPrice(line.unit_price_minor)}</p>}
       {!readOnly && (
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <div className="flex items-center rounded-full border border-av-line bg-white">
             <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Decrease quantity" onClick={() => onQty(line.quantity - 1)} data-testid={`cart-qty-dec-${line.variant_id}`}><Minus /></Button>
             <span className="w-6 text-center text-sm font-semibold" data-testid={`cart-qty-${line.variant_id}`}>{line.quantity}</span>
@@ -35,10 +35,10 @@ const Row = ({ label, value, testId, note }) => (
 );
 
 export const TotalsCard = ({ totals, children }) => (
-  <div className="space-y-2 rounded-2xl border border-av-line bg-white p-6" data-testid="cart-totals">
+  <div className="space-y-2 self-start rounded-2xl border border-av-line bg-white p-6 lg:sticky lg:top-24" data-testid="cart-totals">
     <Row label="Subtotal" value={formatPrice(totals.subtotal_minor)} testId="totals-subtotal" />
     {totals.discount_minor > 0 && <Row label="Discount" value={`−${formatPrice(totals.discount_minor)}`} testId="totals-discount" />}
-    <Row label="Shipping (estimated)" value={totals.shipping_minor == null ? "To be confirmed" : formatPrice(totals.shipping_minor)} testId="totals-shipping"
+    <Row label="Shipping (estimated)" value={totals.shipping_minor != null ? formatPrice(totals.shipping_minor) : totals.shipping_known_minor ? `${formatPrice(totals.shipping_known_minor)} + TBC` : totals.shipping_status === "not_selected" ? "Choose an option" : "To be confirmed"} testId="totals-shipping"
       note={totals.shipping_minor == null ? "Rates are confirmed before payment" : "Estimate — confirmed before payment"} />
     <Row label="Tax (estimated)" value={totals.tax_estimate_minor == null ? "Not yet calculated" : formatPrice(totals.tax_estimate_minor)} testId="totals-tax"
       note={totals.tax_estimate_minor == null ? "Calculated before payment" : totals.tax_rate_label} />
