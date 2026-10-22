@@ -105,9 +105,13 @@ async def summary(user: User = Depends(get_current_user)):
     payouts = await db.payouts.find({"vendor_id": vid}).sort("created_at", -1).to_list(200)
     disputes = await db.disputes.find({"payment_id": {"$in": list({v["payment_id"] for v in vos})}}).to_list(100)
     cfg = await get_config()
+    earned = {}
+    async for e in db.commission_ledger.find({"account": "vendor", "vendor_id": vid, "type": {"$nin": ["transfer", "transfer_reversal", "liability_recovery"]}}):
+        earned[e["vendor_order_id"]] = earned.get(e["vendor_order_id"], 0) + e["amount_minor"]
     return {"account": _acct(await db.connected_accounts.find_one({"vendor_id": vid})), "balances": await ledger.vendor_summary(vid),
             "hold_days": cfg["hold_days"], "mode": MODE,
             "vendor_orders": [{"id": str(v["_id"]), **ser({k: v.get(k) for k in BREAKDOWN}), "net_minor": bal.get(v["_id"], 0),
+                               "earned_net_minor": earned.get(v["_id"], 0),
                                "on_hold": any(h["active"] for h in v.get("holds", [])),
                                "holds": [{"type": h["type"], "reason": h["reason"]} for h in v.get("holds", []) if h["active"]]} for v in vos],
             "payouts": [{"id": str(p["_id"]), "order_number": p["order_number"], "amount_minor": p["amount_minor"], "status": p["status"],

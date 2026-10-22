@@ -43,6 +43,13 @@ Note: tests require the HTTPS preview URL (Secure cookies).
 | `test_phase03_vendors.py` (3) + `test_phase03_extended.py` (7, testing agent) + all earlier suites | Only approved+active vendors publish; draft/suspended stores not public; suspend/reactivate; policy acceptance required & recorded; request-info + required document; docs hidden from public, owner and other users, admin-only download; vendor isolation (applications, files); slug uniqueness & sync; re-apply after rejection | ✅ 52/52 |
 | E2E Playwright (iteration_4) | Apply flow with uploads, unverified gating, admin review dialog, request info → doc upload → approve, vendor dashboard edit/publish, public store, suspend/reactivate, /forbidden gating, brand red | ✅ all flows; fixes applied after: mobile slug row overflow, Approve/Reject colours, toast wording, status badge colours, empty vendor list state, location formatting |
 
+## Phase 07 — 2026-10-22
+| Suite | Scope | Result |
+|---|---|---|
+| `test_phase07_payments.py` (7) + all earlier suites | Multi-vendor payment (real Stripe test PaymentIntent + signed webhook), commission priority vendor>category>default, actual fee allocation sums exactly, duplicate/invalid-signature webhooks, amount mismatch → needs_review, cancel + failed payment, partial refund affecting one vendor, dispute attributed to one vendor (lost → only liable vendor debited), idempotent payout release with simulated account, save for later | ✅ 81/81 |
+| E2E Playwright (iteration_8) | Real Stripe hosted checkout with 4242 card, webhook-confirmed paid order, receipts, save for later, vendor earnings + simulated payout account, admin reconciliation/commission/holds/real refund/release/simulated payout, permissions, 390px | ✅ all flows; fixed after: mobile admin tabs, vendor "net" column, commission rate error text, order row links, refund button disabling, stale copy |
+
+
 ## Phase 06 — 2026-10-22
 | Suite | Scope | Result |
 |---|---|---|

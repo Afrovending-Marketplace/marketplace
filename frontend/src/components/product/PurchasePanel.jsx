@@ -64,7 +64,7 @@ export const PurchasePanel = ({ product, vendor }) => {
         </div>
         <Button size="lg" disabled={!canBuy || busy} onClick={add} data-testid="pdp-add-to-cart" aria-describedby="pdp-cart-note" className="flex-1 min-w-[200px]">{variant?.in_stock || product.is_dev_data ? "Add to cart" : "Out of stock"}</Button>
       </div>
-      <p id="pdp-cart-note" data-testid="pdp-cart-note" className="text-xs text-av-muted">{product.is_dev_data ? "Sample listings can't be added to the cart." : "Prices are checked again at checkout. Payment opens in Phase 07."}</p>
+      <p id="pdp-cart-note" data-testid="pdp-cart-note" className="text-xs text-av-muted">{product.is_dev_data ? "Sample listings can't be added to the cart." : "Prices are checked again at checkout. Payments run in Stripe test mode."}</p>
       <ul className="space-y-3 rounded-2xl border border-av-line bg-white p-5 text-sm">
         <li className="flex gap-3"><Truck className="h-5 w-5 shrink-0 text-av-emerald" /> Ships from the vendor. Shipping options and estimates are shown at checkout.</li>
         <li className="flex gap-3"><ShieldCheck className="h-5 w-5 shrink-0 text-av-emerald" /> Purchase protection and returns policy: [to be confirmed].</li>

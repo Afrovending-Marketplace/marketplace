@@ -63,7 +63,11 @@
 | Payments | `payments` | 07 | H | system; customer reads own |
 | Refunds | `refunds` | 07 | H | admins write; customer reads own |
 | CommissionLedger | `commission_ledger` | 07 | H | system; vendor reads own |
-| Payouts | `payouts` | 07 | H | vendor reads own; super_admin approves |
+| Payouts | `payouts` | 07 | H | vendor reads own; super_admin releases |
+| ConnectedAccounts | `connected_accounts` | 07 | H | vendor_id |
+| Disputes | `disputes` | 07 | H | admins; vendors read/submit evidence for own orders |
+| WebhookEvents | `webhook_events` | 07 | H | system |
+| CommissionRules | `commission_rules` | 07 | H | super_admin |
 | ShippingMethods | `shipping_methods` | 06 | I | vendor_id (null = platform-wide) |
 | Shipments | `shipments` | 08 | I | vendor_id; customer reads own |
 | Returns | `returns` | 08 | I | customer_id requests; vendor_id/admins resolve |
@@ -362,65 +366,109 @@ Admin-entered estimated tax rates by country/region (basis points). None are see
 
 ## VendorOrders (`vendor_orders`) — Phase 07
 
-The slice of an order a single vendor must fulfil.
+The slice of a paid order a single vendor must fulfil, with its money breakdown (items, shipping, tax, commission, fee share, refunds) and earning_status pending → eligible (after hold days) → transferred → paid; holds block release.
 
 - **Owner:** vendor_id (fulfils); customer_id (reads)
 - **States (`status`):** `pending` → `accepted` → `processing` → `shipped` → `delivered` → `cancelled` → `returned`
-- **Relations:** `order_id -> orders`, `vendor_id -> vendors`
-- **Index** `order_id_1`
+- **Relations:** `order_id -> orders`, `vendor_id -> vendors`, `payment_id -> payments`
+- **Index** `order_id_1_vendor_id_1` (unique)
 - **Index** `vendor_id_1_status_1_created_at_-1`
+- **Index** `payment_id_1`
+- **Index** `vendor_id_1_earning_status_1`
 
 ## OrderItems (`order_items`) — Phase 07
 
-Immutable price/qty snapshot of a purchased variant.
+Immutable price/qty snapshot of a purchased variant, with the commission rate, source and amount applied at payment.
 
 - **Owner:** customer_id; vendor_id
 - **Relations:** `order_id -> orders`, `vendor_order_id -> vendor_orders`, `variant_id -> product_variants`
 - **Index** `order_id_1`
-- **Index** `vendor_order_id_1`
+- **Index** `vendor_order_id_1_variant_id_1` (unique)
 - **Index** `vendor_id_1_created_at_-1`
 
 ## Payments (`payments`) — Phase 07
 
-Provider payment record (Stripe Connect). Idempotency enforced.
+One Stripe payment (Checkout Session → PaymentIntent) for a whole multi-vendor order, with the frozen per-vendor plan and actual Stripe fee.
 
 - **Owner:** system; customer reads own
-- **States (`status`):** `requires_payment` → `processing` → `succeeded` → `failed` → `cancelled` → `refunded`
+- **States (`status`):** `requires_payment` → `processing` → `succeeded` → `failed` → `cancelled` → `needs_review`
 - **Relations:** `order_id -> orders`
 - **Index** `order_id_1`
 - **Index** `idempotency_key_1` (unique)
+- **Index** `provider_session_id_1` (unique) sparse=True
 - **Index** `provider_payment_id_1` (unique) sparse=True
 
 ## Refunds (`refunds`) — Phase 07
 
-Full or partial refund against a payment.
+Full or partial refund of one vendor order (items, shipping, proportional tax, commission returned).
 
 - **Owner:** admins write; customer reads own
-- **States (`status`):** `requested` → `approved` → `processing` → `succeeded` → `failed` → `rejected`
-- **Relations:** `payment_id -> payments`, `order_id -> orders`, `return_id -> returns`
+- **States (`status`):** `processing` → `pending` → `succeeded` → `failed`
+- **Relations:** `payment_id -> payments`, `order_id -> orders`, `vendor_order_id -> vendor_orders`
 - **Index** `payment_id_1`
 - **Index** `order_id_1`
 - **Index** `status_1_created_at_-1`
+- **Index** `idempotency_key_1` (unique)
+- **Index** `provider_refund_id_1` (unique) sparse=True
 
 ## CommissionLedger (`commission_ledger`) — Phase 07
 
-Append-only double-entry style ledger of sales, commission, refunds, payouts (minor units).
+Append-only ledger (accounts vendor/platform/tax; types gross_sale, shipping, tax_collected, commission, processing_fee_allocation, refund, commission_reversal, transfer, transfer_reversal, dispute_*, liability_recovery). Unique entry_key makes every write idempotent.
 
 - **Owner:** system; vendor reads own
 - **Append-only:** yes
-- **Relations:** `vendor_id -> vendors`, `vendor_order_id -> vendor_orders`, `payout_id -> payouts`
-- **Index** `vendor_id_1_created_at_-1`
-- **Index** `source_type_1_source_id_1_entry_type_1` (unique)
+- **Relations:** `vendor_id -> vendors`, `vendor_order_id -> vendor_orders`, `payment_id -> payments`
+- **Index** `entry_key_1` (unique)
+- **Index** `vendor_id_1_account_1_created_at_-1`
+- **Index** `payment_id_1`
+- **Index** `account_1_type_1`
 
 ## Payouts (`payouts`) — Phase 07
 
-Transfer of vendor balance to connected account.
+Stripe transfer of one vendor order's net earnings to the vendor's connected account (transferred), then bank payout (paid).
 
-- **Owner:** vendor reads own; super_admin approves
-- **States (`status`):** `scheduled` → `processing` → `paid` → `failed` → `cancelled`
-- **Relations:** `vendor_id -> vendors`
+- **Owner:** vendor reads own; super_admin releases
+- **States (`status`):** `transferred` → `paid` → `failed`
+- **Relations:** `vendor_id -> vendors`, `vendor_order_id -> vendor_orders`
 - **Index** `vendor_id_1_created_at_-1`
 - **Index** `status_1`
+- **Index** `idempotency_key_1` (unique)
+- **Index** `destination_1_status_1`
+
+## ConnectedAccounts (`connected_accounts`) — Phase 07
+
+Vendor's Stripe Connect Express account (or SIMULATED sandbox account while Connect is not enabled).
+
+- **Owner:** vendor_id
+- **Relations:** `vendor_id -> vendors`
+- **Index** `vendor_id_1` (unique)
+- **Index** `stripe_account_id_1` (unique)
+
+## Disputes (`disputes`) — Phase 07
+
+Stripe dispute with admin attribution to responsible vendor orders and vendor evidence.
+
+- **Owner:** admins; vendors read/submit evidence for own orders
+- **States (`status`):** `warning_needs_response` → `needs_response` → `under_review` → `won` → `lost`
+- **Relations:** `payment_id -> payments`, `order_id -> orders`
+- **Index** `provider_dispute_id_1` (unique)
+- **Index** `payment_id_1`
+
+## WebhookEvents (`webhook_events`) — Phase 07
+
+Verified Stripe events, stored once by event id for idempotent processing.
+
+- **Owner:** system
+- **States (`status`):** `processing` → `processed` → `failed`
+- **Index** `event_id_1` (unique)
+
+## CommissionRules (`commission_rules`) — Phase 07
+
+Versioned commission rates (bps) by scope default/category/vendor. Changes supersede; history kept.
+
+- **Owner:** super_admin
+- **States (`status`):** `active` → `superseded` → `ended`
+- **Index** `scope_1_scope_id_1_status_1`
 
 ## ShippingMethods (`shipping_methods`) — Phase 06
 

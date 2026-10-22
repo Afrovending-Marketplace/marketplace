@@ -64,7 +64,7 @@ const Breakdown = ({ v }) => (
     <td className="pr-3">−{formatPrice(v.commission_minor - v.commission_refunded_minor)}</td>
     <td className="pr-3">{v.fee_minor == null ? "pending" : `−${formatPrice(v.fee_minor)}`}</td>
     <td className="pr-3">{v.refunded_minor ? `−${formatPrice(v.items_refunded_minor + v.shipping_refunded_minor)}` : "—"}</td>
-    <td className="pr-3 font-semibold" data-testid={`vendor-earning-net-${v.order_number}`}>{formatPrice(v.net_minor)}</td>
+    <td className="pr-3 font-semibold" data-testid={`vendor-earning-net-${v.order_number}`}>{formatPrice(v.earned_net_minor)}</td>
     <td><StatusBadge tone={v.on_hold ? "danger" : v.earning_status === "pending" ? "gold" : "success"}>{v.on_hold ? "on hold" : v.earning_status}</StatusBadge></td>
   </tr>
 );
@@ -85,7 +85,7 @@ export default function VendorEarningsPage() {
         {BUCKETS.map(([k, label]) => <div key={k} className="rounded-2xl border border-av-line bg-white p-4"><p className="text-xs text-av-muted">{label}</p>
           <p className="text-xl font-bold" data-testid={`vendor-balance-${k}`}>{formatPrice(d.balances[k])}</p></div>)}
       </div>
-      <section className="overflow-x-auto rounded-2xl border border-av-line bg-white p-5">
+      <section className="overflow-x-auto rounded-2xl border border-av-line bg-white p-5" data-testid="vendor-order-earnings">
         <h2 className="mb-3 text-xl font-semibold">Order earnings</h2>
         {d.vendor_orders.length === 0 ? <p className="text-sm text-av-muted" data-testid="vendor-earnings-empty">No paid orders yet.</p> : (
           <table className="w-full min-w-[720px] text-left text-sm"><thead className="text-xs text-av-muted"><tr><th>Order</th><th>Items</th><th>Shipping</th><th>Commission</th><th>Card fee share</th><th>Refunds</th><th>Your net</th><th>Status</th></tr></thead>

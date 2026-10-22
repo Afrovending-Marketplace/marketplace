@@ -8,8 +8,14 @@
 | 03 Vendor onboarding (+ brand red theme) | ✅ Complete | 2026-10-17 |
 | 04 Product catalog & inventory | ✅ Complete | 2026-10-19 |
 | 05 Search & product discovery (+ weekly low-stock digest) | ✅ Complete | 2026-10-19 |
-| 06 Shopping cart & checkout (drafts, no payment) | ✅ Complete — awaiting owner approval | 2026-10-22 |
-| 05–14 | ⏸ Not started | — |
+| 06 Shopping cart & checkout (drafts, no payment) | ✅ Complete | 2026-10-22 |
+| 07 Marketplace payments & commission accounting (+ save for later) | ✅ Complete (Stripe TEST mode; vendor accounts SIMULATED) — awaiting owner approval | 2026-10-22 |
+| 08–14 | ⏸ Not started | — |
+
+## Phase 07 deliverables
+See docs/PAYMENT_ARCHITECTURE.md (approved). One Stripe Checkout payment per multi-vendor order; vendor_orders/order_items created only on verified webhook or server-side Stripe re-check; commission rules (vendor → category → 10% default, versioned, audited); actual Stripe fee allocated by largest remainder; append-only `commission_ledger`; per-vendor-order refunds (proportional tax, commission returned, transfer reversal or owed balance); disputes (holds, vendor evidence, admin attribution, lost → liable vendor only); payout release (7-day hold, idempotent, daily cron `payout-release`); reconciliation report; receipts + vendor notices; cart "Save for later". Live payments blocked by `guard()` unless an admin flag is set (not settable in Phase 07).
+
+Owner actions before go-live: claim the Stripe sandbox and enable Connect (real Express accounts replace simulated ones); tax adviser review (marketplace-facilitator, 1099-K); Vendor Agreement + customer terms updates for fees/refunds/chargebacks/negative balances.
 
 ## Phase 06 deliverables
 - Cart API `/api/v1/cart` (+ `/items`, `/accept-prices`, `/coupon`, `/shipping`, `/address`, `/merge`): customer carts persist by account; guest carts use an unguessable token (`X-Cart-Token`, stored hashed, 30-day expiry) and merge once into the account cart on sign-in.

@@ -10,6 +10,29 @@
   ```
   Codes: `bad_request` 400, `unauthorized` 401, `forbidden` 403, `not_found` 404, `method_not_allowed` 405, `conflict` 409, `validation_error` 422, `rate_limited` 429, `internal_error` 500. Raise `APIError(status, code, message, details)` from services.
 - **Validation:** Pydantic models on every request body/query; unknown fields ignored on input models unless stated.
+
+## Phase 07 endpoints (under `/api/v1` unless noted)
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/payments/orders/{id}/checkout` | order owner | `{origin_url}` (must be an allowed origin). Re-validates draft, freezes commission plan, creates Stripe Checkout Session (idempotency key `pay:{order}:{attempt}`); reuses an open session |
+| GET | `/payments/orders/{id}` | owner | Server-side Stripe re-check when pending; receipt with vendor orders/refunds |
+| POST | `/payments/orders/{id}/cancel` | owner | Expires open session; order back to draft |
+| GET | `/payments/orders` | customer | Orders & receipts |
+| POST | `/api/stripe/webhook` | Stripe signature | Verified, stored once per event id; handles checkout.session.*, refund.*, charge.dispute.*, charge.updated, account.updated, payout.* |
+| POST | `/vendor/payments/onboarding` · `/onboarding/simulate-complete` · `/onboarding/refresh` | vendor | Express account link, or SIMULATED account while Connect is off |
+| GET | `/vendor/payments/summary` · `/vendor/payments/ledger` | vendor (own only) | Buckets pending/eligible/held/transferred/paid/owed; per-order breakdown |
+| POST | `/vendor/payments/disputes/{id}/evidence` | vendor in dispute | |
+| GET/PUT | `/admin/payments/config` | read: marketplace/super; write: super | `hold_days` |
+| GET/POST/DELETE | `/admin/payments/commission-rules` | write: super_admin | `{scope, target, rate_bps}` versioned; 0–5000 bps |
+| GET | `/admin/payments/payments` · `/vendor-orders` · `/refunds` · `/disputes` · `/payouts` · `/ledger` · `/reconciliation` | marketplace/super | |
+| POST | `/admin/payments/payments/{id}/sync-fee` | super | Records actual Stripe fee when available |
+| POST | `/admin/payments/vendor-orders/{id}/refunds` | super, `Idempotency-Key` | `{lines:[{order_item_id, quantity}], include_shipping, reason}` |
+| POST | `/admin/payments/vendor-orders/{id}/holds` · `/holds/{hold}/release` | super | |
+| POST | `/admin/payments/disputes/{id}/attribute` | super | `{attributions:[{vendor_order_id, amount_minor, vendor_liable}]}` |
+| POST | `/admin/payments/payouts/release` · `/payouts/{id}/simulate-paid` | super | Idempotent release; simulation test-mode only |
+| POST | `/cron/payout-release` | cron bearer | Daily |
+| POST | `/cart/items/{variant}/save-for-later` · `/cart/saved/{variant}/move-to-cart` · DELETE `/cart/saved/{variant}` | cart owner | |
+
 - **Headers:** `X-Request-ID` (in/out), `X-Content-Type-Options: nosniff`.
 - **Auth (from Phase 01):** documented per endpoint as `Auth: public | customer | vendor | admin(<role>)`.
 - **Idempotency (from Phase 06/07):** mutating money endpoints require `Idempotency-Key` header.

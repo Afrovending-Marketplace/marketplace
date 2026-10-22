@@ -44,7 +44,7 @@ export const TotalsCard = ({ totals, children }) => (
     <Row label="Tax (estimated)" value={totals.tax_estimate_minor == null ? "Not yet calculated" : formatPrice(totals.tax_estimate_minor)} testId="totals-tax"
       note={totals.tax_estimate_minor == null ? "Calculated before payment" : totals.tax_rate_label} />
     <div className="flex justify-between border-t border-av-line pt-3 font-semibold"><span>Estimated total</span><span data-testid="totals-estimated-total">{formatPrice(totals.estimated_total_minor)}</span></div>
-    <p className="text-xs text-av-muted" data-testid="totals-not-final">{totals.final ? "Final amounts charged." : "Not final. Shipping and tax are confirmed before payment; you won't be charged at this step."}</p>
+    <p className="text-xs text-av-muted" data-testid="totals-not-final">{totals.final ? "This is the amount you'll pay. Tax is $0.00 where no rate is configured." : "Not final. Shipping and tax are confirmed before payment; you won't be charged at this step."}</p>
     {children}
   </div>
 );

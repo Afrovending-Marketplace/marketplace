@@ -16,11 +16,13 @@ export default function AccountOrdersPage() {
       {rows.length === 0 && <p className="text-av-muted" data-testid="account-orders-empty">No orders yet.</p>}
       <ul className="divide-y divide-av-line rounded-2xl border border-av-line bg-white">
         {rows.map((o) => (
-          <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm" data-testid={`account-order-${o.order_number}`}>
-            <Link to={`/account/orders/${o.id}`} className="font-semibold hover:underline">{o.order_number}</Link>
+          <li key={o.id} data-testid={`account-order-${o.order_number}`}>
+            <Link to={`/account/orders/${o.id}`} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm hover:bg-av-sand">
+            <span className="font-semibold">{o.order_number}</span>
             <span className="text-av-muted">{new Date(o.paid_at || o.created_at).toLocaleDateString()}</span>
-            <StatusBadge tone={o.status === "pending_payment" ? "gold" : "success"}>{o.status.replace("_", " ")}</StatusBadge>
+            <StatusBadge tone={o.status === "paid" ? "success" : o.status === "pending_payment" ? "gold" : "neutral"}>{o.status.replace("_", " ")}</StatusBadge>
             <span className="font-semibold">{formatPrice(o.totals.estimated_total_minor)}</span>
+            </Link>
           </li>
         ))}
       </ul>

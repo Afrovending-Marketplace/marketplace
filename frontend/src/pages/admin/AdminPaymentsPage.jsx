@@ -92,7 +92,7 @@ const RefundForm = ({ vo, done }) => {
   return (
     <div className="space-y-2 rounded-xl bg-av-sand p-3 text-xs" data-testid={`admin-refund-form-${vo.order_number}-${vo.vendor_slug}`}>
       {vo.items.map((i) => <label key={i.id} className="flex items-center gap-2">{i.title} ({i.quantity - i.refunded_qty} refundable)
-        <Input className="h-8 w-16 bg-white" value={qty[i.id] || ""} onChange={(e) => setQty({ ...qty, [i.id]: e.target.value })} data-testid={`admin-refund-qty-${i.sku}`} /></label>)}
+        <Input className="h-8 w-16 bg-white" disabled={i.quantity === i.refunded_qty} value={qty[i.id] || ""} onChange={(e) => setQty({ ...qty, [i.id]: e.target.value })} data-testid={`admin-refund-qty-${i.sku}`} /></label>)}
       <label className="flex items-center gap-2"><input type="checkbox" checked={ship} onChange={(e) => setShip(e.target.checked)} data-testid="admin-refund-shipping" /> Refund shipping</label>
       <Input className="h-8 bg-white" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)} data-testid="admin-refund-reason" />
       <Button size="sm" onClick={submit} disabled={reason.trim().length < 3} data-testid="admin-refund-submit">Issue refund</Button>
@@ -115,7 +115,7 @@ const VendorOrders = () => {
               fee {v.fee_minor == null ? "pending" : formatPrice(v.fee_minor)} · refunded {formatPrice(v.refunded_minor)}
               <StatusBadge tone={holds.length ? "danger" : "neutral"}>{holds.length ? "on hold" : v.earning_status}</StatusBadge></div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => setOpen(open === v.id ? null : v.id)} data-testid={`admin-vo-refund-toggle-${v.id}`}>Refund</Button>
+              <Button size="sm" variant="outline" disabled={v.refunded_minor >= v.charged_minor} onClick={() => setOpen(open === v.id ? null : v.id)} data-testid={`admin-vo-refund-toggle-${v.id}`}>Refund</Button>
               {["pending", "releasing"].includes(v.earning_status) && <Button size="sm" variant="outline" onClick={() => act(() => api.post(`/admin/payments/vendor-orders/${v.id}/holds`, { type: "admin", reason: "Admin review" }), "Hold placed", load)} data-testid={`admin-vo-hold-${v.id}`}>Place hold</Button>}
               {holds.map((h) => <Button key={h.id} size="sm" variant="ghost" onClick={() => act(() => api.post(`/admin/payments/vendor-orders/${v.id}/holds/${h.id}/release`), "Hold released", load)} data-testid={`admin-vo-release-hold-${h.id}`}>Release {h.type} hold</Button>)}
             </div>
@@ -173,7 +173,7 @@ export default function AdminPaymentsPage() {
       <h1 className="text-4xl font-bold tracking-tight text-av-ink">Payments & commission</h1>
       <StatusAlert tone="info" title="Sandbox only" testId="admin-pay-sandbox">Stripe test mode. Live payments, transfers and dispute adjustments stay disabled until you approve go-live. Vendor payout accounts are simulated until Stripe Connect is enabled on the claimed account.</StatusAlert>
       <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap"><TabsTrigger value="overview" data-testid="admin-pay-tab-overview">Overview</TabsTrigger><TabsTrigger value="settings" data-testid="admin-pay-tab-settings">Commission & timing</TabsTrigger>
+        <TabsList className="h-auto flex-wrap justify-start"><TabsTrigger value="overview" data-testid="admin-pay-tab-overview">Overview</TabsTrigger><TabsTrigger value="settings" data-testid="admin-pay-tab-settings">Commission & timing</TabsTrigger>
           <TabsTrigger value="orders" data-testid="admin-pay-tab-orders">Orders & refunds</TabsTrigger><TabsTrigger value="disputes" data-testid="admin-pay-tab-disputes">Disputes</TabsTrigger>
           <TabsTrigger value="payouts" data-testid="admin-pay-tab-payouts">Payouts</TabsTrigger></TabsList>
         <TabsContent value="overview"><Overview /></TabsContent><TabsContent value="settings"><Settings /></TabsContent>

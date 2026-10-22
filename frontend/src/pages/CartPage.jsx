@@ -65,7 +65,7 @@ export default function CartPage() {
   const priceChanged = cart.groups.some((g) => g.items.some((l) => l.previous_price_minor != null));
   return (
     <div data-testid="cart-page" className="av-container py-12">
-      <h1 className="text-4xl font-bold tracking-tight text-av-ink">Your cart <span className="text-lg font-normal text-av-muted">({cart.item_count} items)</span></h1>
+      <h1 className="text-4xl font-bold tracking-tight text-av-ink">Your cart <span className="text-lg font-normal text-av-muted">({cart.item_count} {cart.item_count === 1 ? "item" : "items"})</span></h1>
       <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_360px]">
         <div className="min-w-0 space-y-6">
           {priceChanged && <StatusAlert tone="warning" title="Some prices changed" testId="cart-price-alert">

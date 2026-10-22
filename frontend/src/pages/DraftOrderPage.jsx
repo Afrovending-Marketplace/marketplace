@@ -60,7 +60,7 @@ export default function DraftOrderPage() {
             </section>
           ))}
         </div>
-        <TotalsCard totals={order.totals}><PayButton order={order} /><Link to="/shop" className="block text-center text-sm underline" data-testid="draft-continue-shopping">Continue shopping</Link></TotalsCard>
+        <TotalsCard totals={order.totals.shipping_minor != null ? { ...order.totals, tax_estimate_minor: order.totals.tax_estimate_minor ?? 0, final: true } : order.totals}><PayButton order={order} /><Link to="/shop" className="block text-center text-sm underline" data-testid="draft-continue-shopping">Continue shopping</Link></TotalsCard>
       </div>
     </div>
   );

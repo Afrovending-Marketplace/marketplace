@@ -1,0 +1,47 @@
+{
+  "summary": "Phase 07 frontend E2E (desktop 1920 + mobile 390) on the preview URL using API-seeded TEST7UI_ data (2 vendors, 1 product each, TEST7UI Flat shipping $5, 2 buyers). I completed a REAL Stripe hosted checkout with the 4242 card: draft $70 -> checkout.stripe.com -> returned to /checkout/payment/:id -> 'Payment confirmed'. The real Stripe webhook (confirmed_by=webhook) marked the order paid. Fee 233 was split 166/67 across the vendors and sums exactly. Commission is 10% of items only (450/150). Also verified: save for later (guest and signed-in, kept after reload, saved section shown when the cart is empty), cancel/retry, account orders/receipt, the order permission check, vendor earnings with a SIMULATED payout account, admin payments (reconciliation, hold days, adding/removing a category rule with history, validation errors, placing/releasing a hold, a real Stripe refund, the over-refund guard, an empty disputes tab, releasing a SIMULATED transfer once (idempotent), simulated bank payout) and no horizontal overflow at 390px. All core flows passed. Found 2 small logic/UX bugs, 1 mobile layout bug and some stale copy. All test data was cleaned up.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/v1/vendor/payments (earnings) vendor_orders[].net_minor", "issue": "net_minor is the remaining ledger balance for the vendor order (vendor_payments.py line ~110: bal.get(v['_id'],0)), not the vendor's net earning. After a transfer or payout the 'Your net' column drops from $43.84 to $0.00. Expose a separate earned_net_minor (items+shipping-commission-fee-refunds) and keep remaining balance as its own field."},
+      {"endpoint": "POST /api/v1/admin/payments/commission-rules", "issue": "An out-of-range rate (150%) returns raw Pydantic text 'Input should be less than or equal to 5000' (in bps). The admin entered a %, so the message should say 'Rate must be between 0% and 50%'."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AccountOrdersPage row", "issue": "Only the order-number text is a Link. Clicking anywhere else on the row (date/status/total) does nothing, which users won't expect. Make the whole <li> a link.", "selector": "[data-testid^='account-order-']", "priority": "LOW"},
+      {"component": "AccountOrdersPage status badge", "issue": "Tone is 'gold' only for pending_payment and 'success' for everything else, so draft/cancelled/expired orders would show a green badge.", "selector": "[data-testid^='account-order-'] badge", "priority": "LOW"},
+      {"component": "AdminPaymentsPage TabsList (mobile 390px)", "issue": "The tabs wrap onto 2 lines but the TabsList keeps a fixed height, so the second row (Orders & refunds / Disputes / Payouts) overflows the pill background and overlaps the top of the card below. Use h-auto with flex-wrap, or make the tabs scroll horizontally (overflow-x-auto, no wrap).", "selector": "[data-testid='admin-pay-tab-orders']", "priority": "MEDIUM"},
+      {"component": "AdminPaymentsPage RefundForm", "issue": "'Issue refund' stays enabled when 0 items are refundable. The backend rejects it correctly ('Only 0 of ... can still be refunded'), but the button or Refund toggle should be disabled when nothing is refundable.", "selector": "[data-testid='admin-refund-submit']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "VendorEarningsPage mobile 390px", "issues": ["The 'Order earnings' card has no left padding on mobile: the heading and the table start flush with the card border, while the Transfers card has padding. The table does scroll inside its container (no page overflow)."]},
+      {"screen": "Global / PDP copy", "issues": ["The top preview banner still says 'Payment opens in a later phase.' and the PDP note (pdp-cart-note) says 'Payment opens in Phase 07.' Payments are live in test mode now, so update this copy.", "Cart heading shows '(1 items)'. Pluralize it."]},
+      {"screen": "DraftOrderPage totals", "issues": ["Right above 'Pay $70.00 securely', the copy says 'you won't be charged at this step', and tax shows 'Not yet calculated' on the final pay step. This is confusing: show the final tax ($0.00) and drop the 'won't be charged' line on the draft page."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/seed_phase07_ui.py"],
+  "action_items": [
+    "Fix the AdminPaymentsPage TabsList wrap/overlap on mobile (h-auto or horizontal scroll)",
+    "Return an earned net value in the vendor earnings API so 'Your net' doesn't show $0.00 after payout (keep remaining balance separate)",
+    "Show a human-readable % range error for out-of-range commission rates",
+    "Make the whole account order row clickable and fix the badge tone for non-paid statuses",
+    "Add mobile padding to the Order earnings card",
+    "Update stale 'Payment opens in a later phase / Phase 07' copy (preview banner and PDP note), the '(1 items)' plural and the draft-page 'won't be charged' text",
+    "Disable the refund submit/toggle when 0 items are refundable"
+  ],
+  "critical_code_review_comments": [
+    "vendor_payments.py: net_minor overloads the remaining balance (see above).",
+    "AdminPaymentsPage Settings: hold-days save doesn't validate the input client-side (Number('') -> 0) and doesn't re-fetch config. The commission rule form isn't reset after saving.",
+    "UI-created commission rules have note='' (no note field in the form), so audit/cleanup by note isn't possible. Consider an optional note input."
+  ],
+  "updated_files": ["/app/backend/tests/seed_phase07_ui.py (new seed/cleanup helper: python -m tests.seed_phase07_ui seed|cleanup)"],
+  "success_rate": {"backend": "N/A (not re-run per request)", "frontend": "95% (all requested flows pass; 1 medium mobile layout bug, rest minor)"},
+  "test_credentials": "Super admin from /app/memory/test_credentials.md worked. Test users were created at runtime and deleted.",
+  "seed_data_creation": "Seeded via API and fully cleaned. Removed: 4 TEST7UI_ users, 2 vendors/stores, 2 products, orders, payments, vendor_orders, order_items, refund, ledger, payout, connected_accounts, carts, addresses, the TEST7UI Flat shipping method, the UI-created Fashion 15% rule, the 10 real Stripe webhook_events from this run and the audit_logs since 16:40. Final DB: users=1 (super admin), commission_rules=1 (default 10%), all payment collections are 0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The Stripe hosted checkout CAN be automated: click [data-testid=card-accordion-item-button] (or input[value=card]), fill #cardNumber/#cardExpiry/#cardCvc/#billingName/#billingPostalCode, then click [data-testid=hosted-payment-submit-button]. The real webhook arrives within ~5s and the status page shows payment-confirmed. To test payouts, set vendor_orders.eligible_at in the past via Mongo, then use admin-pay-release-all. Not tested: a real dispute via the UI (no dispute was created; would need the dispute test card 4000000000000259) and vendor dispute evidence submission.",
+  "rca of the issue": "Admin tabs overlap: the shadcn TabsList has a fixed h-9/h-10, and with flex-wrap the extra row renders outside it. Vendor net shows $0.00: the API maps net_minor to the ledger balance by vendor_order_id, which reaches 0 after the transfer ledger entry."
+}

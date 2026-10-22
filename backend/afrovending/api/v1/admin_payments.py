@@ -30,7 +30,7 @@ class ConfigIn(BaseModel):
 class RuleIn(BaseModel):
     scope: Literal["default", "category", "vendor"]
     target: Optional[str] = Field(default=None, max_length=80, description="category slug or vendor store slug")
-    rate_bps: int = Field(ge=0, le=5000)
+    rate_bps: int
     note: str = Field(default="", max_length=200)
 
 
@@ -101,6 +101,8 @@ async def rules(_: User = Depends(READ)):
 @router.post("/commission-rules", status_code=201)
 async def set_rule(body: RuleIn, request: Request, admin: User = Depends(FINANCE)):
     """Rules are versioned: a change supersedes the previous rule; historical order items keep their recorded rate."""
+    if not 0 <= body.rate_bps <= 5000:
+        raise APIError(422, "validation_error", "Rate must be between 0% and 50%.")
     sid, label = await _target(body.scope, body.target)
     now = utcnow()
     prev = await db.commission_rules.find_one_and_update({"scope": body.scope, "scope_id": sid, "status": "active"},
