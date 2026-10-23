@@ -1,7 +1,10 @@
 from typing import Literal, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, Header, Request
+from datetime import timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, model_validator
 
@@ -83,6 +86,7 @@ class BulkSlipsIn(BaseModel):
     vendor_order_ids: Optional[list[str]] = Field(default=None, max_length=200)
     accepted_from: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     accepted_to: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    tz: Optional[str] = Field(default=None, max_length=60)
 
 
 class ReturnsFlagIn(BaseModel):
@@ -410,9 +414,13 @@ async def _pending_slips(vendor: dict, body: BulkSlipsIn) -> list[tuple[dict, li
     q = {"vendor_id": vendor["_id"], "fulfillment_type": {"$ne": "pickup"}, "status": {"$in": ["accepted", "processing", "partially_shipped"]}}
     if body.vendor_order_ids is not None:
         q["_id"] = {"$in": list({oid(i) for i in body.vendor_order_ids})}
+    try:
+        zone = ZoneInfo(body.tz) if body.tz else timezone.utc
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = timezone.utc
     out = []
     for vo in await db.vendor_orders.find(q).to_list(500):
-        day = _accepted_at(vo).date().isoformat()
+        day = _accepted_at(vo).astimezone(zone).date().isoformat()
         if (body.accepted_from and day < body.accepted_from) or (body.accepted_to and day > body.accepted_to):
             continue
         items = await db.order_items.find({"vendor_order_id": vo["_id"]}).to_list(100)
@@ -424,9 +432,11 @@ async def _pending_slips(vendor: dict, body: BulkSlipsIn) -> list[tuple[dict, li
 
 
 @router.get("/vendor/packing-slips/pending")
-async def pending_slips(accepted_from: Optional[str] = None, accepted_to: Optional[str] = None, user: User = Depends(get_current_user)):
+async def pending_slips(accepted_from: Optional[str] = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                        accepted_to: Optional[str] = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                        tz: Optional[str] = Query(default=None, max_length=60), user: User = Depends(get_current_user)):
     vendor = await my_vendor(user)
-    rows = await _pending_slips(vendor, BulkSlipsIn(accepted_from=accepted_from, accepted_to=accepted_to))
+    rows = await _pending_slips(vendor, BulkSlipsIn(accepted_from=accepted_from, accepted_to=accepted_to, tz=tz))
     return {"count": len(rows), "data": [{"id": str(vo["_id"]), "order_number": vo["order_number"], "status": vo["status"],
                                           "accepted_at": _accepted_at(vo).isoformat(), "items": sum(n for _, n in lines)} for vo, lines in rows]}
 
@@ -470,6 +480,8 @@ async def add_method(body: MethodIn, user: User = Depends(get_current_user)):
 @router.put("/vendor/shipping-methods/{method_id}")
 async def edit_method(method_id: str, body: MethodIn, user: User = Depends(get_current_user)):
     vendor = await my_vendor(user)
+    if body.type == "pickup" and len(body.pickup_address.strip()) < 5:
+        raise APIError(422, "validation_error", "Add the pickup address customers should come to.")
     days = await _check_handling(body.handling_days)
     res = await db.shipping_methods.find_one_and_update({"_id": oid(method_id), "vendor_id": vendor["_id"]},
                                                         {"$set": {**body.model_dump(), "handling_days": days, "updated_at": utcnow()}})

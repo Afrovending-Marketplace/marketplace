@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 11: pickup hours (weekly grid, multiple intervals, closed days, timezone, exceptions, instructions), pickup-ready alert and bulk pending packing slips. Regression pytest tests/test_phase08_fulfillment.py passed 10/10. Frontend E2E on desktop 1920 and mobile 390 with seeded TEST8UI data: vendor A had 3 accepted delivery orders (one partly shipped) and 1 pickup order. Results: (1) Adding a pickup option: choosing Local pickup shows the editor. Monday was set to 9–12 and then a second period was added; Wednesday closed, Saturday opened 10–14, timezone America/Chicago, one closed day 2026-10-30 (TEST holiday), one special-hours range 2026-11-05→06 (11–13), and instructions. Overlapping intervals (9–12 with 11–18) showed the toast 'Mon: opening hours overlap.' and nothing was saved. The valid version saved and the compact hours appeared on the row. (2) Edit pickup hours: the editor loads the stored values. An overlapping exception and open>=close both showed error toasts. A valid change (Tue 10–16, timezone New_York) saved and is still there after reload (EDT label). (3) Checkout shows checkout-pickup-hours-{slug}-{id} with the weekly hours and upcoming exceptions. The customer order detail shows order-pickup-hours-{slug} with the -exceptions block and the instructions. (4) Ready for pickup: success toast and a 'Picked up' button. notification_log has exactly 1 pickup_ready record, status failed with 1 attempt because of the expected managed-email 429. The email HTML, rendered directly, contains the pickup address, vendor name, order number, instructions, exceptions and timezone. (5) Bulk slips: the count reads '3 of 3' and the pickup order is not listed. Unchecking one order gave '2 of 3' and the print button label updated. Download produced a valid PDF (%PDF, packing-slips-2026-10-23.pdf) and the request body held only the 2 selected ids. Print returned 200 with X-Slip-Count 2 and created an iframe. A future from-date gave 0 and disabled the buttons; Clear restored 3; a filter for today gave 3. After printing, no status changed and no shipment was created. Vendor B got 0 pending and a 409 when posting vendor A's ids. Duplicate ids plus a pickup id still gave a count of 3. (6) Mobile 390: scrollWidth equals 390 with both editors and the bulk section open; no element overflows.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/v1/vendor/packing-slips/pending?accepted_from=bad", "issue": "Returns 500 internal_error. BulkSlipsIn(...) is built inside the handler, so the pydantic ValidationError is not converted to a 422. Use Query(pattern=...) params, or catch ValidationError and raise APIError(422)."},
+      {"endpoint": "PUT /api/v1/vendor/shipping-methods/{id}", "issue": "Doesn't re-check the pickup_address length for pickup methods (POST enforces >=5), so editing can blank the address."},
+      {"endpoint": "POST /vendor/orders/{id}/status ready_for_pickup", "issue": "Sets shipped_qty to the full quantity at Ready time, so the vendor sees '1 handed over' (and the customer will see 'picked up') before the customer actually collects. The wording or the timing is misleading (likely carried over from an earlier phase)."},
+      {"endpoint": "_pending_slips date filter", "issue": "The accepted_from/to filter compares against the UTC date of the acceptance, not the vendor's local date. Near midnight the filter can be off by a day."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "VendorOrdersPage Methods", "issue": "Duplicate data-testids (hours-mon-add, hours-timezone, exc-from, etc.) when the add-form editor (Local pickup selected) and the 'Edit pickup hours' editor are open at the same time. Consider scoping testids with a prefix.", "selector": "[data-testid='pickup-hours-editor']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Pickup hours editor / Bulk slips", "issues": ["Uses native <input type=date/time> pickers instead of the shadcn calendar (works, but not consistent with the design system)", "Compact pickup hours at checkout omit the pickup instructions (they are shown only on the order detail page)"]},
+      {"screen": "Customer order detail (pickup order)", "issues": ["Still shows a 'Delivery address (as ordered)' banner for an order that is only local pickup"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase08_fulfillment.py", "/app/backend/tests/seed_iter11_pickup_bulk.py", "/app/test_reports/pytest/pytest_phase08_iter11.xml"],
+  "action_items": [
+    "Return 422 instead of 500 for invalid accepted_from/accepted_to on GET /vendor/packing-slips/pending",
+    "Validate pickup_address on PUT /vendor/shipping-methods for pickup type",
+    "Review shipped_qty/'handed over' semantics at ready_for_pickup (optional)",
+    "Optionally hide the delivery-address banner on pickup-only orders and scope editor testids"
+  ],
+  "critical_code_review_comments": [
+    "fulfillment.py pending_slips: building the pydantic model inside the handler leaks ValidationError as a 500",
+    "edit_method uses body.model_dump() wholesale, so frontend saveHours sends the full method object (extra fields are ignored by pydantic, which is OK), but the pickup address isn't re-validated",
+    "BulkSlips: every keystroke in the date inputs triggers a refetch; harmless but could be debounced"
+  ],
+  "updated_files": ["/app/backend/tests/seed_iter11_pickup_bulk.py"],
+  "success_rate": {"backend": "100% of the pytest suite (10/10); 1 minor 500 on bad date input", "frontend": "100% of the requested flows passed"},
+  "test_credentials": "From /app/memory/test_credentials.md; runtime TEST8UI_ users at delivered+...@resend.dev / TestPass12345 (deleted)",
+  "seed_data_creation": "seed_phase08_ui seed (vendors A/B, buyer, 1 paid order) plus seed_iter11_pickup_bulk: 2 more paid orders for A, accept, a partial shipment, and a pickup order via the UI-created pickup method; inventory_on_hand was bumped by 10. Everything was deleted with seed_iter11_pickup_bulk cleanup_logs and seed_phase08_ui cleanup. Final counts: users=1, vendors/orders/vendor_orders/shipments/notification_log/shipping_methods/order_events/carts=0. platform_settings fulfillment.config is at defaults. Audit logs from this run were left untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Server clock is Oct 23 2026 (Friday). To reproduce: run seed_phase08_ui seed; then seed_iter11_pickup_bulk orders, accept and partial; create a pickup method in the UI; bump stock of vendor A's variant in inventory (stock 5 runs out); then seed_iter11_pickup_bulk pickup <method_id> and accept. Clean up with cleanup_logs and then seed_phase08_ui cleanup. Emails return 429 (rate-limited), so notification_log shows failed. Not verified: the visual content of the PDF text (no pdf parser installed) and the browser print dialog.",
+  "rca of the issue": "500 on GET pending with a bad date: pending_slips() calls BulkSlipsIn(accepted_from=...) directly. The pattern validator raises pydantic.ValidationError, which is not a RequestValidationError, so the global handler maps it to internal_error 500."
+}

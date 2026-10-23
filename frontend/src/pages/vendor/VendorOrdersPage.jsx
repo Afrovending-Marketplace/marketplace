@@ -99,7 +99,7 @@ const Order = ({ vo, reload }) => {
     <li className="space-y-2 py-4 text-sm" data-testid={`vo-${vo.order_number}`}>
       <div className="flex flex-wrap items-center gap-2"><b>{vo.order_number}</b><StatusBadge tone={vo.status === "pending" ? "gold" : "neutral"}>{label(vo.status)}</StatusBadge><Deadline vo={vo} />
         <span className="text-xs text-av-muted">{vo.fulfillment_type === "pickup" ? "Local pickup" : `${a.full_name}, ${a.line1}, ${a.city} ${a.postal_code} ${a.country}`}</span></div>
-      <p className="text-xs">{vo.items.map((i) => `${i.title} × ${i.quantity} (${i.shipped_qty} ${vo.fulfillment_type === "pickup" ? "handed over" : "shipped"})`).join(" · ")} · {formatPrice(vo.charged_minor)}</p>
+      <p className="text-xs">{vo.items.map((i) => `${i.title} × ${i.quantity} (${vo.fulfillment_type === "pickup" ? (vo.status === "delivered" ? `${i.shipped_qty} collected` : vo.status === "ready_for_pickup" ? `${i.shipped_qty} waiting for collection` : "not ready yet") : `${i.shipped_qty} shipped`})`).join(" · ")} · {formatPrice(vo.charged_minor)}</p>
       {vo.shipments.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-2 text-xs">{s.carrier_name} {s.tracking_number} · {label(s.status)}<SlipButtons vo={vo} shipment={s} tid={s.id} />
         {s.status !== "delivered" && ["in_transit", "out_for_delivery", "delivered"].filter((st) => s.status === "exception" || ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(st) > ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(s.status)).map((st) => <Button key={st} size="sm" variant="ghost" onClick={() => act(() => api.post(`/vendor/shipments/${s.id}/status`, { status: st }), "Updated", reload)} data-testid={`vo-shipment-${st}-${s.id}`}>{label(st)}</Button>)}</div>)}
       {vo.requests.map((r) => <Request key={r.id} r={r} vo={vo} reload={reload} />)}
@@ -152,7 +152,8 @@ const Methods = () => {
           : <Input className="h-9 w-64" placeholder="Pickup address" value={f.pickup || ""} onChange={(e) => setF({ ...f, pickup: e.target.value })} data-testid="method-pickup" />}
         <Input className="h-9 w-36" type="number" min="0" placeholder="Handling days (3)" value={f.days ?? ""} onChange={(e) => setF({ ...f, days: e.target.value })} data-testid="method-days" />
         <Button size="sm" onClick={save} disabled={!f.name} data-testid="method-save">Add</Button>
-        {f.type === "pickup" && <PickupHoursEditor value={f.hours} onChange={(v) => setF({ ...f, hours: v })} />}
+        {f.type === "pickup" && !editing && <PickupHoursEditor value={f.hours} onChange={(v) => setF({ ...f, hours: v })} />}
+        {f.type === "pickup" && editing && <p className="text-xs text-av-muted">Finish editing the hours above first.</p>}
       </div>
     </section>
   );

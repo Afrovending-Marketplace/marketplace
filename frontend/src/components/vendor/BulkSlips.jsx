@@ -3,13 +3,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { api, getErrorMessage } from "@/lib/api";
 
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 export const BulkSlips = ({ refreshKey }) => {
   const [rows, setRows] = useState(null);
   const [range, setRange] = useState({});
   const [picked, setPicked] = useState(null);
   const [busy, setBusy] = useState(false);
   const load = useCallback(() => {
-    api.get("/vendor/packing-slips/pending", { params: { accepted_from: range.from || undefined, accepted_to: range.to || undefined } })
+    api.get("/vendor/packing-slips/pending", { params: { tz: TZ, accepted_from: range.from || undefined, accepted_to: range.to || undefined } })
       .then((r) => { setRows(r.data.data); setPicked(null); });
   }, [range]);
   useEffect(() => {
@@ -25,7 +27,7 @@ export const BulkSlips = ({ refreshKey }) => {
   const go = async (print) => {
     setBusy(true);
     try {
-      const r = await api.post("/vendor/packing-slips/bulk", { vendor_order_ids: [...chosen], accepted_from: range.from || null, accepted_to: range.to || null }, { responseType: "blob" });
+      const r = await api.post("/vendor/packing-slips/bulk", { vendor_order_ids: [...chosen], accepted_from: range.from || null, accepted_to: range.to || null, tz: TZ }, { responseType: "blob" });
       const url = URL.createObjectURL(new Blob([r.data], { type: "application/pdf" }));
       if (print) {
         const frame = document.createElement("iframe");

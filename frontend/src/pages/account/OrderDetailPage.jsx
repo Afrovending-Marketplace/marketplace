@@ -63,7 +63,7 @@ const VendorOrder = ({ orderId, vo, reload }) => (
     {!vo.handling && vo.status === "pending" && vo.shipping_method?.handling_days != null && <p className="text-xs text-av-muted" data-testid={`order-handling-${vo.vendor_slug}`}>
       {vo.fulfillment_type === "pickup" ? "Ready for pickup" : "Ships"} within {vo.shipping_method.handling_days} business day{vo.shipping_method.handling_days === 1 ? "" : "s"} after the seller accepts.</p>}
     <ul className="divide-y divide-av-line">{vo.items.map((i) => <li key={i.id} className="flex justify-between gap-3 py-2"><span>{i.title}{i.label !== "Default" && ` (${i.label})`} × {i.quantity}
-      <span className="block text-xs text-av-muted">{i.shipped_qty} {vo.fulfillment_type === "pickup" ? "picked up" : "shipped"}{i.cancelled_qty ? ` · ${i.cancelled_qty} cancelled` : ""}{i.returned_qty ? ` · ${i.returned_qty} returned` : ""}</span></span><span>{formatPrice(i.line_total_minor)}</span></li>)}</ul>
+      <span className="block text-xs text-av-muted">{vo.fulfillment_type === "pickup" ? (vo.status === "delivered" ? `${i.shipped_qty} collected` : vo.status === "ready_for_pickup" ? `${i.shipped_qty} ready to collect` : "0 ready yet") : `${i.shipped_qty} shipped`}{i.cancelled_qty ? ` · ${i.cancelled_qty} cancelled` : ""}{i.returned_qty ? ` · ${i.returned_qty} returned` : ""}</span></span><span>{formatPrice(i.line_total_minor)}</span></li>)}</ul>
     {vo.shipments.map((s) => <p key={s.id} data-testid={`order-shipment-${s.tracking_number}`}>{s.carrier_name} · {s.tracking_url ? <a href={s.tracking_url} target="_blank" rel="noreferrer" className="underline">{s.tracking_number}</a> : s.tracking_number} · {label(s.status)}</p>)}
     {vo.requests.map((r) => <p key={r.id} className="text-xs" data-testid={`order-request-${r.id}`}>{r.type} request (“{r.reason}”): <b>{r.status}</b>{r.rma_number && ` · ${r.rma_number}`}
       {r.history.length > 1 && r.history[r.history.length - 1].note && ` · ${r.history[r.history.length - 1].note}`}</p>)}
@@ -88,7 +88,8 @@ export default function OrderDetailPage() {
     <div className="space-y-5" data-testid="order-detail-page">
       <p className="text-sm"><Link to="/account/orders" className="underline">← Orders</Link></p>
       <h1 className="text-3xl font-bold tracking-tight text-av-ink">Order {d.order.order_number}</h1>
-      <StatusAlert tone="info" title="Delivery address (as ordered)" testId="order-address">{a.full_name}, {[a.line1, a.line2, a.city, a.region, a.postal_code, a.country].filter(Boolean).join(", ")}
+      <StatusAlert tone="info" title={d.vendor_orders.every((v) => v.fulfillment_type === "pickup") ? "Local pickup order" : "Delivery address (as ordered)"} testId="order-address">
+        {!d.vendor_orders.every((v) => v.fulfillment_type === "pickup") && <>{a.full_name}, {[a.line1, a.line2, a.city, a.region, a.postal_code, a.country].filter(Boolean).join(", ")}</>}
         {d.vendor_orders.some((v) => v.fulfillment_type === "pickup") && <span className="block text-xs">Local pickup items are collected from the seller's pickup address shown below.</span>}
         <span className="block text-xs">Returns can be requested within {d.return_window_days} days of delivery.</span></StatusAlert>
       {d.vendor_orders.map((vo) => <VendorOrder key={vo.id} orderId={id} vo={vo} reload={load} />)}
