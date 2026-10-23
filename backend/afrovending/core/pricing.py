@@ -36,7 +36,7 @@ async def shipping_methods(vendor_id) -> list[dict]:
     docs = await db.shipping_methods.find({"status": "active", "vendor_id": {"$in": [None, vendor_id]}}).sort("amount_minor", 1).to_list(20)
     methods = [{"id": str(d["_id"]), "name": d["name"], "amount_minor": d["amount_minor"], "eta": d.get("eta", ""),
                 "free_over_minor": d.get("free_over_minor"), "type": d.get("type", "ship"), "pickup_address": d.get("pickup_address", ""),
-                "handling_days": default if d.get("handling_days") is None else d["handling_days"]} for d in docs]
+                "handling_days": default if d.get("handling_days") is None else d["handling_days"], "pickup_hours": d.get("pickup_hours")} for d in docs]
     return methods or [{**TBC_METHOD, "handling_days": default}]
 
 

@@ -7,6 +7,10 @@ import { api, getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
 
 const TABS = ["", "pending", "accepted", "partially_shipped", "shipped", "ready_for_pickup", "delivered", "cancelled"];
+import { BulkSlips } from "@/components/vendor/BulkSlips";
+import { PickupHoursEditor, emptyHours } from "@/components/vendor/PickupHoursEditor";
+import { PickupHours } from "@/components/common/PickupHours";
+
 const label = (s) => (s ? s.replace(/_/g, " ") : "all");
 const day = (d) => new Date(d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 const openSlip = async (vo, shipment, print) => {
@@ -119,7 +123,9 @@ const Methods = () => {
   useEffect(() => {
     load();
   }, [load]);
-  const save = () => act(() => api.post("/vendor/shipping-methods", { name: f.name, type: f.type, amount_minor: Math.round(Number(f.amount || 0) * 100), eta: f.eta || "", pickup_address: f.pickup || "", handling_days: f.days === undefined || f.days === "" ? null : Number(f.days) }), "Shipping option added", () => { setF({ type: "ship" }); load(); });
+  const [editing, setEditing] = useState(null);
+  const save = () => act(() => api.post("/vendor/shipping-methods", { name: f.name, type: f.type, amount_minor: f.type === "pickup" ? 0 : Math.round(Number(f.amount || 0) * 100), eta: f.eta || "", pickup_address: f.pickup || "", handling_days: f.days === undefined || f.days === "" ? null : Number(f.days), pickup_hours: f.type === "pickup" ? (f.hours || emptyHours()) : null }), "Shipping option added", () => { setF({ type: "ship" }); load(); });
+  const saveHours = () => act(() => api.put(`/vendor/shipping-methods/${editing.id}`, editing), "Pickup hours saved", () => { setEditing(null); load(); });
   const setDays = async (m, input) => {
     try {
       await api.put(`/vendor/shipping-methods/${m.id}`, { ...m, handling_days: Number(input.value) });
@@ -134,7 +140,11 @@ const Methods = () => {
     <section className="space-y-3 rounded-2xl border border-av-line bg-white p-5" data-testid="vendor-shipping-methods">
       <h2 className="text-xl font-semibold">Your shipping & pickup options</h2>
       <ul className="space-y-1 text-sm">{rows.map((m) => <li key={m.id} className="flex flex-wrap items-center gap-2" data-testid={`method-row-${m.id}`}>{m.name} · {m.type === "pickup" ? `pickup at ${m.pickup_address}` : formatPrice(m.amount_minor)} · {m.status} ·
-        <Input className="h-8 w-16" type="number" min="0" defaultValue={m.handling_days ?? 3} onBlur={(e) => Number(e.target.value) !== m.handling_days && setDays(m, e.target)} data-testid={`method-days-${m.id}`} /> business days to {m.type === "pickup" ? "prepare" : "ship"}</li>)}</ul>
+        <Input className="h-8 w-16" type="number" min="0" defaultValue={m.handling_days ?? 3} onBlur={(e) => Number(e.target.value) !== m.handling_days && setDays(m, e.target)} data-testid={`method-days-${m.id}`} /> business days to {m.type === "pickup" ? "prepare" : "ship"}
+        {m.type === "pickup" && <Button size="sm" variant="ghost" onClick={() => setEditing({ ...m, pickup_hours: m.pickup_hours || emptyHours() })} data-testid={`method-hours-edit-${m.id}`}>{m.pickup_hours ? "Edit pickup hours" : "Set pickup hours"}</Button>}
+        {m.type === "pickup" && editing?.id !== m.id && <PickupHours hours={m.pickup_hours} compact testId={`method-hours-${m.id}`} />}
+        {editing?.id === m.id && <><PickupHoursEditor value={editing.pickup_hours} onChange={(v) => setEditing({ ...editing, pickup_hours: v })} />
+          <Button size="sm" onClick={saveHours} data-testid="method-hours-save">Save hours</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)} data-testid="method-hours-cancel">Cancel</Button></>}</li>)}</ul>
       <div className="flex flex-wrap gap-2">
         <select className="h-9 rounded border border-av-line bg-white px-2 text-sm" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} data-testid="method-type"><option value="ship">Delivery</option><option value="pickup">Local pickup</option></select>
         <Input className="h-9 w-40" placeholder="Name" value={f.name || ""} onChange={(e) => setF({ ...f, name: e.target.value })} data-testid="method-name" />
@@ -142,6 +152,7 @@ const Methods = () => {
           : <Input className="h-9 w-64" placeholder="Pickup address" value={f.pickup || ""} onChange={(e) => setF({ ...f, pickup: e.target.value })} data-testid="method-pickup" />}
         <Input className="h-9 w-36" type="number" min="0" placeholder="Handling days (3)" value={f.days ?? ""} onChange={(e) => setF({ ...f, days: e.target.value })} data-testid="method-days" />
         <Button size="sm" onClick={save} disabled={!f.name} data-testid="method-save">Add</Button>
+        {f.type === "pickup" && <PickupHoursEditor value={f.hours} onChange={(v) => setF({ ...f, hours: v })} />}
       </div>
     </section>
   );
@@ -159,6 +170,7 @@ export default function VendorOrdersPage() {
       <div><p className="av-eyebrow">Vendor dashboard</p><h1 className="mt-2 text-4xl font-bold tracking-tight text-av-ink">Orders</h1></div>
       <div className="flex gap-2 overflow-x-auto">{TABS.map((t) => <Button key={t || "all"} size="sm" variant={tab === t ? "default" : "outline"} onClick={() => setTab(t)} className="shrink-0" data-testid={`vo-tab-${t || "all"}`}>
         {label(t)}{t && d?.counts?.[t] ? ` (${d.counts[t]})` : ""}</Button>)}</div>
+      <BulkSlips refreshKey={d} />
       <section className="rounded-2xl border border-av-line bg-white px-5">
         {d && d.data.length === 0 && <p className="py-6 text-sm text-av-muted" data-testid="vo-empty">No orders here.</p>}
         <ul className="divide-y divide-av-line">{d?.data.map((vo) => <Order key={vo.id} vo={vo} reload={load} />)}</ul>

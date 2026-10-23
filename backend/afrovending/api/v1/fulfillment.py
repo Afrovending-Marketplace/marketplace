@@ -8,13 +8,14 @@ from pydantic import BaseModel, Field, model_validator
 from afrovending.api.v1.vendors import my_vendor, ser
 from afrovending.core import fulfillment as ff
 from afrovending.core import ledger
+from afrovending.core import pickup_hours as ph
 from afrovending.core.catalog import adjust_stock, oid
 from afrovending.core.db import db
 from afrovending.core.deps import get_current_user, require_roles
 from afrovending.core.errors import APIError
 from afrovending.core.business_days import add_business_days
 from afrovending.core.models import User, utcnow
-from afrovending.core.packing_slip import build_slip
+from afrovending.core.packing_slip import build_slip, build_slips
 from afrovending.core.payments import create_refund
 from afrovending.core.roles import Role
 
@@ -69,7 +70,19 @@ class MethodIn(BaseModel):
     free_over_minor: Optional[int] = Field(default=None, ge=0)
     pickup_address: str = Field(default="", max_length=200)
     handling_days: Optional[int] = Field(default=None, ge=0, le=60)
+    pickup_hours: Optional[dict] = None
     status: Literal["active", "inactive"] = "active"
+
+    @model_validator(mode="after")
+    def _hours(self):
+        self.pickup_hours = ph.validate(self.pickup_hours) if self.type == "pickup" and self.pickup_hours else None
+        return self
+
+
+class BulkSlipsIn(BaseModel):
+    vendor_order_ids: Optional[list[str]] = Field(default=None, max_length=200)
+    accepted_from: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    accepted_to: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 class ReturnsFlagIn(BaseModel):
@@ -236,8 +249,11 @@ async def vendor_status(vo_id: str, body: StatusIn, user: User = Depends(get_cur
                 await db.order_items.update_one({"_id": it["_id"]}, {"$inc": {"shipped_qty": left}})
     sets = {"handling": ff.handling_snapshot(vo, await ff.get_config(), utcnow())} if body.to == "accepted" else {}
     vo = await ff.transition(vo, body.to, "vendor", user.id, body.note, **sets)
-    msgs = {"accepted": "was accepted by", "processing": "is being prepared by", "ready_for_pickup": "is ready for pickup from", "delivered": "was picked up from"}
-    await ff.notify_user(vo["customer_id"], "Order update", f"Your order {vo['order_number']} {msgs[body.to]} {vo['vendor_name']}.", f"/account/orders/{vo['order_id']}")
+    msgs = {"accepted": "was accepted by", "processing": "is being prepared by", "delivered": "was picked up from"}
+    if body.to == "ready_for_pickup":
+        await ff.notify_pickup_ready(vo)
+    else:
+        await ff.notify_user(vo["customer_id"], "Order update", f"Your order {vo['order_number']} {msgs[body.to]} {vo['vendor_name']}.", f"/account/orders/{vo['order_id']}")
     return {"vendor_order": await _detail(vo, False)}
 
 
@@ -383,6 +399,48 @@ async def packing_slip(vo_id: str, shipment_id: Optional[str] = None, user: User
         raise APIError(409, "nothing_to_pack", "There are no items to pack for this order.")
     name = f"packing-slip-{vo['order_number']}{'-' + shipment['tracking_number'] if shipment else ''}.pdf".replace(" ", "")
     return Response(build_slip(vo, lines, shipment), media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{name}"'})
+
+
+def _accepted_at(vo: dict):
+    return (vo.get("handling") or {}).get("started_at") or vo.get("updated_at") or vo["created_at"]
+
+
+async def _pending_slips(vendor: dict, body: BulkSlipsIn) -> list[tuple[dict, list]]:
+    """Accepted ship orders (not pickup, not cancelled) with unshipped quantities, oldest acceptance first, each order once."""
+    q = {"vendor_id": vendor["_id"], "fulfillment_type": {"$ne": "pickup"}, "status": {"$in": ["accepted", "processing", "partially_shipped"]}}
+    if body.vendor_order_ids is not None:
+        q["_id"] = {"$in": list({oid(i) for i in body.vendor_order_ids})}
+    out = []
+    for vo in await db.vendor_orders.find(q).to_list(500):
+        day = _accepted_at(vo).date().isoformat()
+        if (body.accepted_from and day < body.accepted_from) or (body.accepted_to and day > body.accepted_to):
+            continue
+        items = await db.order_items.find({"vendor_order_id": vo["_id"]}).to_list(100)
+        lines = [(i, i["quantity"] - i["shipped_qty"] - i["cancelled_qty"]) for i in items]
+        lines = [(i, n) for i, n in lines if n > 0]
+        if lines:
+            out.append((vo, lines))
+    return sorted(out, key=lambda x: _accepted_at(x[0]))
+
+
+@router.get("/vendor/packing-slips/pending")
+async def pending_slips(accepted_from: Optional[str] = None, accepted_to: Optional[str] = None, user: User = Depends(get_current_user)):
+    vendor = await my_vendor(user)
+    rows = await _pending_slips(vendor, BulkSlipsIn(accepted_from=accepted_from, accepted_to=accepted_to))
+    return {"count": len(rows), "data": [{"id": str(vo["_id"]), "order_number": vo["order_number"], "status": vo["status"],
+                                          "accepted_at": _accepted_at(vo).isoformat(), "items": sum(n for _, n in lines)} for vo, lines in rows]}
+
+
+@router.post("/vendor/packing-slips/bulk")
+async def bulk_slips(body: BulkSlipsIn, user: User = Depends(get_current_user)):
+    """Read-only: printing never changes order or shipment status."""
+    vendor = await my_vendor(user)
+    rows = await _pending_slips(vendor, body)
+    if not rows:
+        raise APIError(409, "nothing_to_pack", "No accepted orders are waiting to ship.")
+    pdf = build_slips([(vo, lines, None) for vo, lines in rows], f"Pending packing slips ({len(rows)})")
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="packing-slips-{utcnow().date()}.pdf"',
+                                                                 "X-Slip-Count": str(len(rows))})
 
 
 async def _check_handling(days: Optional[int]) -> int:

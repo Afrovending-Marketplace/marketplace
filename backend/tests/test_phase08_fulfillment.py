@@ -233,3 +233,113 @@ def test_07_packing_slips(w):  # noqa: F811
     text = build_slip(vo, [(i, i["quantity"]) for i in items], None)
     assert vo["order_number"].encode() in text and items[0]["sku"].encode() in text
     assert b"$" not in text and b"info@afrovending.com" in text
+
+
+HOURS = {"timezone": "America/Chicago", "instructions": "Use the side door; bring your order number.",
+         "weekly": {"mon": [{"open": "09:00", "close": "12:00"}, {"open": "14:00", "close": "18:00"}], "tue": [{"open": "09:00", "close": "17:00"}],
+                    "wed": [], "thu": [{"open": "09:00", "close": "17:00"}], "fri": [{"open": "09:00", "close": "17:00"}], "sat": [{"open": "10:00", "close": "14:00"}], "sun": []},
+         "exceptions": [{"from": "2026-12-24", "to": "2026-12-26", "closed": True, "note": "Holidays"},
+                        {"from": "2026-12-31", "closed": False, "intervals": [{"open": "10:00", "close": "13:00"}]}]}
+
+
+def test_08_pickup_hours_rules():
+    import pytest
+    from datetime import timezone
+    from afrovending.core import pickup_hours as ph
+    h = ph.validate(HOURS)
+    assert h["weekly"]["wed"] == [] and h["exceptions"][1]["to"] == "2026-12-31"
+    assert ph.weekly_lines(h)[0] == "Mon: 9:00 AM–12:00 PM, 2:00 PM–6:00 PM" and ph.weekly_lines(h)[6] == "Sun: Closed"
+    # Mon 2026-12-21 15:00 UTC = 09:00 Chicago -> open; 18:30 UTC = 12:30 -> lunch closed
+    assert ph.is_open_at(h, datetime(2026, 12, 21, 15, 0, tzinfo=timezone.utc))
+    assert not ph.is_open_at(h, datetime(2026, 12, 21, 18, 30, tzinfo=timezone.utc))
+    assert not ph.is_open_at(h, datetime(2026, 12, 24, 16, 0, tzinfo=timezone.utc))  # holiday (Thu)
+    assert ph.is_open_at(h, datetime(2026, 12, 31, 17, 0, tzinfo=timezone.utc)) and not ph.is_open_at(h, datetime(2026, 12, 31, 20, 0, tzinfo=timezone.utc))
+    assert not ph.is_open_at(h, datetime(2026, 12, 23, 16, 0, tzinfo=timezone.utc))  # Wednesday closed
+    # Sat 2026-12-19 03:30 UTC is still Fri 21:30 in Chicago -> closed
+    assert not ph.is_open_at(h, datetime(2026, 12, 19, 3, 30, tzinfo=timezone.utc))
+    assert ph.upcoming_exceptions(h, datetime(2026, 12, 20, tzinfo=timezone.utc))[0] == "2026-12-24 to 2026-12-26: Closed (Holidays)"
+    bad = [{**HOURS, "timezone": "Mars/Base"},
+           {**HOURS, "weekly": {**HOURS["weekly"], "mon": [{"open": "09:00", "close": "13:00"}, {"open": "12:00", "close": "15:00"}]}},
+           {**HOURS, "weekly": {**HOURS["weekly"], "tue": [{"open": "17:00", "close": "09:00"}]}},
+           {**HOURS, "weekly": {**HOURS["weekly"], "tue": [{"open": "9am", "close": "17:00"}]}},
+           {**HOURS, "exceptions": [{"from": "2026-12-26", "to": "2026-12-24"}]},
+           {**HOURS, "exceptions": [{"from": "2026-12-24", "to": "2026-12-26"}, {"from": "2026-12-25"}]}]
+    for b in bad:
+        with pytest.raises(ValueError):
+            ph.validate(b)
+
+
+def _pickup_order(c, w, method_id):  # noqa: F811
+    assert c.post("/cart/items", json={"variant_id": w["scarf"][1], "quantity": 1}).status_code == 200
+    addr = c.post("/account/addresses", json={"full_name": "TEST Buyer", "line1": "1 Main St", "city": "Boston", "country": "ZY"}).json()
+    c.put("/cart/address", json={"address_id": addr.get("id") or addr["address"]["id"]})
+    g = next(g for g in c.get("/cart").json()["groups"] if g["vendor_slug"] == w["slug_a"])
+    assert c.put("/cart/shipping", json={"vendor_id": g["vendor_id"], "method_id": method_id}).status_code == 200
+    order = c.post("/checkout/start", headers={"Idempotency-Key": f"t8-{uuid.uuid4().hex}"}).json()["order"]
+    p = start_pay(c, order["id"])
+    send("checkout.session.completed", completed(p, real_pi(p["amount_minor"]).id))
+    return order["id"], next(v for v in c.get(f"/orders/{order['id']}/detail").json()["vendor_orders"] if v["vendor_slug"] == w["slug_a"])
+
+
+def test_09_pickup_ready_email_and_snapshot(w):  # noqa: F811
+    a, c = w["a"], S["c8"]
+    assert a.post("/vendor/shipping-methods", json={"name": "TEST8 Overlap", "type": "pickup", "amount_minor": 0, "pickup_address": "1 X St",
+                                                     "pickup_hours": {**HOURS, "weekly": {"mon": [{"open": "09:00", "close": "13:00"}, {"open": "12:00", "close": "15:00"}]}}}).status_code == 422
+    m = a.post("/vendor/shipping-methods", json={"name": "TEST8 Shop pickup", "type": "pickup", "amount_minor": 0, "pickup_address": "12 Market St, Boston",
+                                                  "pickup_hours": HOURS}).json()
+    assert m["pickup_hours"]["timezone"] == "America/Chicago"
+    order_id, vo = _pickup_order(c, w, m["id"])
+    assert vo["fulfillment_type"] == "pickup" and vo["shipping_method"]["pickup_hours"]["weekly"]["wed"] == []
+    assert a.put(f"/vendor/shipping-methods/{m['id']}", json={**m, "pickup_address": "99 New Rd", "pickup_hours": {**HOURS, "weekly": {"wed": [{"open": "08:00", "close": "09:00"}]}}}).status_code == 200
+    snap = c.get(f"/orders/{order_id}/detail").json()["vendor_orders"]
+    snap = next(v for v in snap if v["id"] == vo["id"])
+    assert snap["shipping_method"]["pickup_address"] == "12 Market St, Boston" and snap["shipping_method"]["pickup_hours"]["weekly"]["wed"] == []
+    assert a.post(f"/vendor/orders/{vo['id']}/status", json={"to": "accepted"}).status_code == 200
+    assert a.post(f"/vendor/orders/{vo['id']}/status", json={"to": "ready_for_pickup"}).status_code == 200
+    assert logs(vo["id"], "pickup_ready") == 1
+    from afrovending.core import email as mail, pickup_hours as ph
+    full = mongo.vendor_orders.find_one({"_id": ObjectId(vo["id"])})
+    h = full["shipping_method"]["pickup_hours"]
+    subject, html = mail.pickup_ready_email("Ada", full, ph.weekly_lines(h), ph.upcoming_exceptions(h, datetime(2026, 12, 20, tzinfo=__import__("datetime").timezone.utc)), h["timezone"], "/account/orders/x")
+    for s in (full["order_number"], full["vendor_name"], "12 Market St, Boston", "Mon: 9:00 AM–12:00 PM, 2:00 PM–6:00 PM", "Wed: Closed", "side door", "America/Chicago", "Holidays"):
+        assert s in html or s in subject, s
+    assert full["order_number"] in subject
+    S["pickup_vo"] = vo["id"]
+    mongo.shipping_methods.delete_many({"name": {"$regex": "^TEST8"}})
+
+
+def test_10_bulk_packing_slips(w):  # noqa: F811
+    a, b, c = w["a"], w["b"], S["c8"]
+    o1, v1 = paid(c, [(w["scarf"][1], 1), (w["shea"][1], 2)])
+    o2, v2 = paid(c, [(w["shea"][1], 1)])
+    b1, b2, a1 = v1[w["slug_b"]], v2[w["slug_b"]], v1[w["slug_a"]]
+    for vo, who in ((b1, b), (b2, b), (a1, a)):
+        assert who.post(f"/vendor/orders/{vo['id']}/status", json={"to": "accepted"}).status_code == 200
+        time.sleep(0.05)
+    shea_item = next(i for i in b1["items"] if i["quantity"] == 2)["id"]
+    assert b.post(f"/vendor/orders/{b1['id']}/shipments", json={"lines": [{"order_item_id": shea_item, "quantity": 1}], "carrier": "usps", "tracking_number": "9400222222222222222222"}).status_code == 201
+    pb = b.get("/vendor/packing-slips/pending").json()
+    ids = [r["id"] for r in pb["data"]]
+    assert b1["id"] in ids and b2["id"] in ids and a1["id"] not in ids and ids.index(b1["id"]) < ids.index(b2["id"])
+    assert next(r for r in pb["data"] if r["id"] == b1["id"])["items"] == 1 and pb["count"] == len(ids)
+    pa = [r["id"] for r in a.get("/vendor/packing-slips/pending").json()["data"]]
+    assert a1["id"] in pa and b1["id"] not in pa and S["pickup_vo"] not in pa
+    r = b.post("/vendor/packing-slips/bulk", json={"vendor_order_ids": [b1["id"], b2["id"], b1["id"], a1["id"]]})
+    assert r.status_code == 200 and r.content[:4] == b"%PDF" and r.headers["x-slip-count"] == "2"
+    assert b.post("/vendor/packing-slips/bulk", json={"vendor_order_ids": [a1["id"]]}).status_code == 409
+    assert b.post("/vendor/packing-slips/bulk", json={"accepted_from": "2099-01-01"}).status_code == 409
+    assert b.get("/vendor/packing-slips/pending", params={"accepted_from": "2099-01-01"}).json()["count"] == 0
+    assert c.get("/vendor/packing-slips/pending").status_code in (403, 404)
+    before = {d["_id"]: d["status"] for d in mongo.vendor_orders.find({"_id": {"$in": [ObjectId(b1["id"]), ObjectId(b2["id"])]}})}
+    n_ship = mongo.shipments.count_documents({"vendor_order_id": {"$in": [ObjectId(b1["id"]), ObjectId(b2["id"])]}})
+    b.post("/vendor/packing-slips/bulk", json={})
+    assert {d["_id"]: d["status"] for d in mongo.vendor_orders.find({"_id": {"$in": list(before)}})} == before
+    assert mongo.shipments.count_documents({"vendor_order_id": {"$in": list(before)}}) == n_ship
+    from reportlab import rl_config
+    from afrovending.core.packing_slip import build_slips
+    rl_config.pageCompression = 0
+    vo = mongo.vendor_orders.find_one({"_id": ObjectId(b1["id"])})
+    items = list(mongo.order_items.find({"vendor_order_id": vo["_id"]}))
+    pdf = build_slips([(vo, [(i, i["quantity"] - i["shipped_qty"]) for i in items], None)] * 2, "t")
+    assert pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page ") >= 2 or pdf.count(b"PACKING SLIP") == 2
+    assert b"$" not in pdf

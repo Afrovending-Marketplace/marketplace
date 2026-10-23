@@ -188,6 +188,21 @@ async def _once(key: str, vo: dict, kind: str) -> bool:
             {"key": key, "status": "failed", "attempts": {"$lt": MAX_SEND_ATTEMPTS}}, {"$set": {"status": "sending"}}))
 
 
+async def notify_pickup_ready(vo: dict) -> None:
+    """Uses the pickup details snapshotted on the order, so later vendor edits don't change this arrangement."""
+    from afrovending.core import pickup_hours as ph
+    key = f"{vo['_id']}:pickup_ready"
+    if not await _once(key, vo, "pickup_ready"):
+        return
+    u = await db.users.find_one({"_id": vo["customer_id"]})
+    if not u:
+        return await _sent(key, True)
+    h = (vo.get("shipping_method") or {}).get("pickup_hours")
+    hours, exc = (ph.weekly_lines(h), ph.upcoming_exceptions(h, utcnow())) if h else ([], [])
+    subject, html = mail.pickup_ready_email(u.get("first_name") or "there", vo, hours, exc, (h or {}).get("timezone", ""), f"/account/orders/{vo['order_id']}")
+    await _sent(key, await mail.try_send(to=u["email"], subject=subject, html=html))
+
+
 def _day(d: datetime) -> str:
     return d.strftime("%a %b %d, %Y")
 
@@ -204,6 +219,10 @@ async def handling_alerts() -> dict:
     cfg = await get_config()
     now = utcnow()
     out = {"reminders": 0, "overdue": 0, "escalations": 0}
+    async for log in db.notification_log.find({"kind": "pickup_ready", "status": "failed", "attempts": {"$lt": MAX_SEND_ATTEMPTS}}):
+        vo = await db.vendor_orders.find_one({"_id": log["vendor_order_id"], "status": "ready_for_pickup"})
+        if vo:
+            await notify_pickup_ready(vo)
     async for vo in db.vendor_orders.find({"status": {"$in": list(HANDLING_ACTIVE)}, "handling.deadline_at": {"$ne": None}}):
         h = vo["handling"]
         dl, pickup, vid = h["deadline_at"], h["kind"] == "pickup", str(vo["_id"])

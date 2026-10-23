@@ -196,6 +196,18 @@ def payment_notice_email(name: str, headline: str, text: str, path: str) -> tupl
     return f"AfroVending: {headline}", _layout(headline, body)
 
 
+def pickup_ready_email(name: str, vo: dict, hours: list[str], exceptions: list[str], tz: str, path: str) -> tuple[str, str]:
+    m = vo.get("shipping_method") or {}
+    hrs = "".join(f"<li>{escape(x)}</li>" for x in hours) or "<li>Contact the seller for opening hours.</li>"
+    exc = f"<p><b>Upcoming closures / special hours</b></p><ul>{''.join(f'<li>{escape(x)}</li>' for x in exceptions)}</ul>" if exceptions else ""
+    ins = f"<p><b>Pickup instructions</b><br/>{escape((m.get('pickup_hours') or {}).get('instructions', ''))}</p>" if (m.get("pickup_hours") or {}).get("instructions") else ""
+    body = (f"<p>Hi {escape(name)},</p><p>Good news — your order <b>{escape(vo['order_number'])}</b> from <b>{escape(vo['vendor_name'])}</b> is ready to collect.</p>"
+            f"<p><b>Pickup address</b><br/>{escape(m.get('pickup_address') or 'See your order page')}</p>"
+            f"<p><b>Opening hours</b>{f' ({escape(tz)})' if tz else ''}</p><ul>{hrs}</ul>{exc}{ins}"
+            f"<p>Please bring your order number. </p>{_button(settings.frontend_url + path, 'View order')}")
+    return f"AfroVending: Order {vo['order_number']} is ready for pickup", _layout("Ready for pickup", body)
+
+
 def receipt_email(name: str, order: dict, payment: dict) -> tuple[str, str]:
     rows = "".join(f"<tr><td style=\"padding:6px 0;border-bottom:1px solid #E6DFD3\">Sold by {escape(g['vendor_name'])}</td>"
                    f"<td align=\"right\" style=\"padding:6px 0;border-bottom:1px solid #E6DFD3\">${g['charged_minor'] / 100:.2f}</td></tr>"
