@@ -57,7 +57,7 @@ async def build_plan(order: dict) -> list[dict]:
             if available(await db.inventory.find_one({"variant_id": v["_id"]})) < line["quantity"]:
                 raise APIError(409, "checkout_changed", f"“{line['title']}” no longer has enough stock. Return to your cart.")
             eligible = line["line_total_minor"] - disc
-            bps, source = ledger.rate_for(rules, vendor["_id"], p.get("category_id"))
+            bps, source = ledger.rate_for(rules, vendor["_id"], p.get("category_id"), vendor.get("plan"))
             lines.append({**line, "discount_minor": disc, "eligible_minor": eligible, "commission_bps": bps, "commission_source": source,
                           "commission_minor": ledger.commission(eligible, bps)})
         items_net = g["subtotal_minor"] - g["discount_minor"]

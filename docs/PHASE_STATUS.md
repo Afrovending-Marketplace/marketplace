@@ -11,7 +11,17 @@
 | 06 Shopping cart & checkout (drafts, no payment) | ✅ Complete | 2026-10-22 |
 | 07 Marketplace payments & commission accounting (+ save for later) | ✅ Complete (Stripe TEST mode; vendor accounts SIMULATED) — awaiting owner approval | 2026-10-22 |
 | 08 Order fulfilment (+ monthly payout statements) | ✅ Complete (manual tracking only; no paid carrier APIs) — awaiting owner approval | 2026-10-22 |
-| 09–14 | ⏸ Not started | — |
+| 09 Vendor dashboard (control center) | ✅ Complete — awaiting owner approval | 2026-10-23 |
+| 10–14 | ⏸ Not started | — |
+
+## Phase 09 deliverables
+- `/vendor` control center (tabs: Overview, Orders & stock, Earnings & payouts, Store settings), responsive.
+- `GET /api/v1/vendor/dashboard?from&to` and `GET /api/v1/vendor/reports/{summary|transactions|orders|products}.csv` — vendor resolved from the session only (`my_vendor`), every query filtered by that vendor_id.
+- Figures come from `commission_ledger`, `refunds`, `vendor_orders`, `order_items`, `products/inventory`, `payouts` via `core/reports.py` (no duplicate money logic; balances reuse `ledger.vendor_summary`).
+- Net item sales = paid merchandise − merchandise part of confirmed refunds; shipping, tax, commission, fees, refunds, earnings shown separately.
+- US Eastern reporting time zone (America/New_York) for dashboard, CSVs and monthly statements; ET day/month boundaries converted to UTC, DST-aware.
+- Subscription plans Starter 10% / Growth 7% / Premium 5% drive commission for new orders (vendor override → category rule → plan → default); admin endpoint `PUT /api/v1/admin/vendors/{id}/plan`. Plan fees are displayed only (billing not built).
+- Customer review summary card shows 0 reviews / “—” average until Phase 11.
 
 ## Phase 08 deliverables
 - Parent order + per-vendor suborders (address snapshot, chosen shipping method, fulfilment type). Stock reserved on payment, deducted on shipment, released on confirmed cancellation; returns optionally restock.

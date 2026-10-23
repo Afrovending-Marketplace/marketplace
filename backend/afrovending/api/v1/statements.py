@@ -1,7 +1,7 @@
 import csv
 import hashlib
 import io
-from datetime import datetime, timezone
+from datetime import datetime
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends
@@ -18,6 +18,7 @@ from afrovending.core.db import db
 from afrovending.core.deps import get_current_user, require_roles
 from afrovending.core.errors import APIError
 from afrovending.core.models import User, utcnow
+from afrovending.core.reports import ET, et_month
 from afrovending.core.roles import Role
 
 router = APIRouter(tags=["statements"])
@@ -29,12 +30,11 @@ GROUPS = {"Gross item sales": ("gross_sale",), "Shipping collected": ("shipping"
 
 
 def _period(period: str) -> tuple[datetime, datetime]:
+    """US Eastern calendar month, converted to UTC (same reporting time zone as the vendor dashboard)."""
     try:
-        start = datetime.strptime(period, "%Y-%m").replace(tzinfo=timezone.utc)
+        return et_month(period)
     except ValueError:
-        raise APIError(422, "validation_error", "Period must look like 2026-10.")
-    end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
-    return start, end
+        raise APIError(422, "validation_error", "Period must look like 2026-10.") from None
 
 
 async def build(vendor: dict, period: str) -> dict:
@@ -47,7 +47,7 @@ async def build(vendor: dict, period: str) -> dict:
     net = sum(v for k, v in totals.items() if not k.startswith("Transfers"))
     rates = await db.order_items.aggregate([{"$match": {"vendor_id": vendor["_id"], "vendor_order_id": {"$in": list(vos)}}},
                                             {"$group": {"_id": {"bps": "$commission_bps", "source": "$commission_source"}}}]).to_list(20)
-    rows = [{"date": e["created_at"].strftime("%Y-%m-%d %H:%M"), "type": e["type"], "order": vos.get(e["vendor_order_id"], {}).get("order_number", ""),
+    rows = [{"date": e["created_at"].astimezone(ET).strftime("%Y-%m-%d %H:%M ET"), "type": e["type"], "order": vos.get(e["vendor_order_id"], {}).get("order_number", ""),
              "amount_minor": e["amount_minor"], "currency": e["currency"], "entry_key": e["entry_key"],
              "stripe_ref": (payouts.get(e["vendor_order_id"]) or {}).get("stripe_transfer_id", "") if e["type"] == "transfer" else ""} for e in entries]
     digest = hashlib.sha256("|".join(r["entry_key"] for r in rows).encode()).hexdigest()[:16]
@@ -121,7 +121,7 @@ def _file(s: dict, fmt: str) -> Response:
 
 async def _months(vendor_id) -> list[str]:
     docs = await db.commission_ledger.aggregate([{"$match": {"account": "vendor", "vendor_id": vendor_id}},
-                                                 {"$group": {"_id": {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}}}}]).to_list(240)
+                                                 {"$group": {"_id": {"$dateToString": {"format": "%Y-%m", "date": "$created_at", "timezone": "America/New_York"}}}}]).to_list(240)
     return sorted((d["_id"] for d in docs), reverse=True)
 
 

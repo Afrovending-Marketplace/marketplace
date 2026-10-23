@@ -23,9 +23,9 @@ Owner redefined Phase 01 as "Public Storefront" (D-011); later phases shifted ac
 | 06 | Multi-vendor cart & checkout (no live charges) | G | 02, 04, 05 | carts, cart_items, orders, order_items, vendor_orders |
 | 07 | Payments (Stripe Connect test mode), commission ledger, payouts | H | 03, 06 | payments, refunds, commission_ledger, payouts |
 | 08 | Order management, shipping, tracking & returns | I | 06, 07 | shipping_methods, shipments, returns |
-| 09 | Vendor analytics dashboard | J | 06–08 | (aggregations) |
+| 09 | Vendor analytics dashboard (control center; review summary card is empty until Phase 11) | J | 06–08 | (aggregations) |
 | 10 | Marketplace administration dashboard | K | 02–08 | (admin views) |
-| 11 | Reviews, notifications (email), support | L | 02, 06, 08 | reviews, notifications, support_tickets |
+| 11 | Reviews (submission, star ratings, moderation, review notifications — still scheduled here, not built in Phase 09), notifications (email), support | L | 02, 06, 08 | reviews, notifications, support_tickets |
 | 12 | Marketing, SEO, CMS content, newsletter, coupons, subscriptions | M, A | 04, 06, 07 | coupons (+ content entities) |
 | 13 | Security hardening, audit, backups & monitoring | N | all | — |
 | 14 | Launch readiness & production deploy | all | 00–13 | — |

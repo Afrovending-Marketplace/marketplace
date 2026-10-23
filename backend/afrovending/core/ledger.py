@@ -28,13 +28,22 @@ async def active_rules() -> dict:
     return {(r["scope"], str(r.get("scope_id"))): r async for r in db.commission_rules.find({"status": "active"})}
 
 
-def rate_for(rules: dict, vendor_id, category_id) -> tuple[int, str]:
-    """Priority: vendor-specific → category-specific → marketplace default."""
-    for scope, sid in (("vendor", vendor_id), ("category", category_id), ("default", None)):
+# Subscription plans: (monthly fee in cents, commission in basis points). Billing of plan fees is not part of Phase 09.
+PLANS = {"starter": {"name": "Starter", "monthly_fee_minor": 0, "rate_bps": 1000},
+         "growth": {"name": "Growth", "monthly_fee_minor": 2499, "rate_bps": 700},
+         "premium": {"name": "Premium", "monthly_fee_minor": 4999, "rate_bps": 500}}
+
+
+def rate_for(rules: dict, vendor_id, category_id, plan: Optional[str] = None) -> tuple[int, str]:
+    """Priority: approved vendor override → category rule → vendor's subscription plan → marketplace default."""
+    for scope, sid in (("vendor", vendor_id), ("category", category_id)):
         r = rules.get((scope, str(sid)))
         if r:
             return r["rate_bps"], scope
-    return 0, "none"
+    if plan in PLANS:
+        return PLANS[plan]["rate_bps"], f"plan:{plan}"
+    r = rules.get(("default", "None"))
+    return (r["rate_bps"], "default") if r else (0, "none")
 
 
 def commission(eligible_minor: int, rate_bps: int) -> int:
