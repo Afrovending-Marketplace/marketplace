@@ -146,17 +146,17 @@ const Methods = () => {
         {m.type === "pickup" && editing?.id !== m.id && <PickupHours hours={m.pickup_hours} compact testId={`method-hours-${m.id}`} />}
         {m.type === "pickup" && editing?.id !== m.id && <span className="text-xs text-av-muted" data-testid={`method-slots-${m.id}`}>{m.slot_minutes ?? 30}-min slots · {m.slot_capacity ?? 3} per slot</span>}
         {editing?.id === m.id && <><PickupHoursEditor value={editing.pickup_hours} onChange={(v) => setEditing({ ...editing, pickup_hours: v })} />
-          <label className="text-xs">Slot length (min)<Input className="h-8 w-20" type="number" min="15" step="5" value={editing.slot_minutes ?? 30} onChange={(e) => setEditing({ ...editing, slot_minutes: Number(e.target.value) })} data-testid="edit-slot-minutes" /></label>
-          <label className="text-xs">Customers per slot<Input className="h-8 w-20" type="number" min="1" value={editing.slot_capacity ?? 3} onChange={(e) => setEditing({ ...editing, slot_capacity: Number(e.target.value) })} data-testid="edit-slot-capacity" /></label>
+          <label className="text-xs">Slot length (min)<Input className="h-8 w-20" type="number" min="15" step="5" value={editing.slot_minutes ?? ""} placeholder="30" onChange={(e) => setEditing({ ...editing, slot_minutes: Number(e.target.value) || null })} data-testid="edit-slot-minutes" /></label>
+          <label className="text-xs">Customers per slot<Input className="h-8 w-20" type="number" min="1" value={editing.slot_capacity ?? ""} placeholder="3" onChange={(e) => setEditing({ ...editing, slot_capacity: Number(e.target.value) || null })} data-testid="edit-slot-capacity" /></label>
           <Button size="sm" onClick={saveHours} data-testid="method-hours-save">Save hours</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)} data-testid="method-hours-cancel">Cancel</Button></>}</li>)}</ul>
       <div className="flex flex-wrap gap-2">
         <select className="h-9 rounded border border-av-line bg-white px-2 text-sm" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} data-testid="method-type"><option value="ship">Delivery</option><option value="pickup">Local pickup</option></select>
         <Input className="h-9 w-40" placeholder="Name" value={f.name || ""} onChange={(e) => setF({ ...f, name: e.target.value })} data-testid="method-name" />
         {f.type === "ship" ? <Input className="h-9 w-28" placeholder="Fee ($)" value={f.amount || ""} onChange={(e) => setF({ ...f, amount: e.target.value })} data-testid="method-amount" />
           : <Input className="h-9 w-64" placeholder="Pickup address" value={f.pickup || ""} onChange={(e) => setF({ ...f, pickup: e.target.value })} data-testid="method-pickup" />}
-        <Input className="h-9 w-36" type="number" min="0" placeholder="Handling days (3)" value={f.days ?? ""} onChange={(e) => setF({ ...f, days: e.target.value })} data-testid="method-days" />
-        {f.type === "pickup" && <><Input className="h-9 w-32" type="number" min="15" step="5" placeholder="Slot min (30)" value={f.slotMin ?? ""} onChange={(e) => setF({ ...f, slotMin: e.target.value })} data-testid="method-slot-minutes" />
-          <Input className="h-9 w-36" type="number" min="1" placeholder="Per slot (3)" value={f.slotCap ?? ""} onChange={(e) => setF({ ...f, slotCap: e.target.value })} data-testid="method-slot-capacity" /></>}
+        <Input className="h-9 w-40" type="number" min="0" placeholder="Handling days (3)" value={f.days ?? ""} onChange={(e) => setF({ ...f, days: e.target.value })} data-testid="method-days" />
+        {f.type === "pickup" && <><Input className="h-9 w-40" type="number" min="15" step="5" placeholder="Slot minutes (30)" value={f.slotMin ?? ""} onChange={(e) => setF({ ...f, slotMin: e.target.value })} data-testid="method-slot-minutes" />
+          <Input className="h-9 w-40" type="number" min="1" placeholder="Per slot (3)" value={f.slotCap ?? ""} onChange={(e) => setF({ ...f, slotCap: e.target.value })} data-testid="method-slot-capacity" /></>}
         <Button size="sm" onClick={save} disabled={!f.name} data-testid="method-save">Add</Button>
         {f.type === "pickup" && !editing && <PickupHoursEditor value={f.hours} onChange={(v) => setF({ ...f, hours: v })} />}
         {f.type === "pickup" && editing && <p className="text-xs text-av-muted">Finish editing the hours above first.</p>}

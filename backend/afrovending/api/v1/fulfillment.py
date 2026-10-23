@@ -294,6 +294,8 @@ async def vendor_status(vo_id: str, body: StatusIn, user: User = Depends(get_cur
     if body.to == "ready_for_pickup":
         await ff.notify_pickup_ready(vo)
     else:
+        if body.to == "delivered":
+            await ff.release_on_collect(vo)
         await ff.notify_user(vo["customer_id"], "Order update", f"Your order {vo['order_number']} {msgs[body.to]} {vo['vendor_name']}.", f"/account/orders/{vo['order_id']}")
     return {"vendor_order": await _detail(vo, False)}
 

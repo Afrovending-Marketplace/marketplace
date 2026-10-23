@@ -1,0 +1,43 @@
+{
+  "summary": "Tested pickup appointments and collection reminders, mostly in the frontend. Backend: the full tests/test_phase08_fulfillment.py suite passes (12/12; test_11/test_12 depend on fixtures from earlier tests, so they fail if run alone with -k). API spot-checks: 409 invalid_state for an accepted order, 422 for a Saturday (closed) time and for an unparseable time, slot_full on a race. Cron handling-alerts: collect_reminder_3, collect_reminder_7 and collect_vendor_7 were each logged once, and failed sends were retried (attempts incremented). Status was failed because of the expected managed-email 429. Frontend checks that passed: vendor creates a Local pickup option with method-slot-minutes/method-slot-capacity; the row shows '60-min slots · 1 per slot'; 17 gives the toast 'Slot length must be in 5-minute steps.' both on create and in the edit panel; the edit panel saves 45/2, it survives a reload, and reverting works. Customer: pickup-booking-{slug} is shown for ready_for_pickup and hidden for accepted. Day buttons covered Oct 23 to Nov 4 (the 14-day window, Sat/Sun closed). Times are in America/Chicago, and after the DST change 9:00 AM correctly maps to 15:00Z. Booking shows the toast 'Pickup time booked' and pickup-booked shows the time. Rescheduling shows 'Pickup time changed' and frees the old slot. pickup-cancel works with the toast 'Pickup time cancelled'. With capacity 1, the second order sees '10:00 AM · full' disabled. A stale click on a slot that just filled shows 'That time just filled up' and the button then shows full. The timeline shows the booked/cancelled events. The vendor row shows vo-pickup-booking-{orderNumber} 'Pickup booked: Mon, Oct 26, 10:00 AM CDT'. Mobile 390px: no horizontal overflow on the booking panel or the vendor method form (scrollWidth == clientWidth).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "DELETE /api/v1/orders/{oid}/vendor-orders/{voId}/pickup-booking", "issue": "No status check. After the vendor marks the order delivered (picked up), the customer can still DELETE the booking: 200, pickup_booking is unset and the slot is released. This wipes the booking from order history and from the vendor row. It should return 409 unless status == ready_for_pickup."},
+      {"endpoint": "core/fulfillment.py transition to delivered", "issue": "The booked slot is not released when the order is collected (pickup_slots count stays 1). If the customer collects before their booked time, that slot's capacity stays blocked for other customers until the time passes. Release the booking on delivered, or on any terminal status."},
+      {"endpoint": "core/fulfillment.py _once/_sent", "issue": "A notification_log record left in status 'sending' (process crash between claim and send) is never retried, because only 'failed' records can be re-claimed. Consider re-claiming stale 'sending' records older than N minutes."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Customer order detail booking panel (PickupBooking.jsx)", "issues": [
+        "The time-zone label in the header is computed from 'now' (e.g. CDT) and shown for all 14 days, but slots after the DST change (Nov 1) are CST. The times are correct; only the abbreviation is misleading. Consider showing the abbreviation per day or omitting it.",
+        "The customer's own booked slot uses variant=default but is disabled, so it renders as a faded red button that looks unavailable instead of selected. Consider not dimming the 'mine' state.",
+        "After a reload the day tabs default to the first day, not the day of the existing booking."]},
+      {"screen": "Vendor /vendor/orders methods form", "issues": [
+        "Placeholders are cut off on desktop and mobile ('Handling days (3', 'Slot min (30'). Widen the inputs or shorten the placeholders.",
+        "In the edit panel, clearing edit-slot-minutes/edit-slot-capacity sends Number('') = 0, which gives a 422 toast instead of falling back to the default."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase08_fulfillment.py", "/app/test_reports/pytest/iter12_phase08.xml"],
+  "action_items": [
+    "Reject DELETE pickup-booking with 409 unless vo.status == ready_for_pickup",
+    "Release the pickup slot (pickup_slots count) when the order moves to delivered or another terminal status",
+    "Optional: per-day time-zone abbreviation in the booking header; don't dim the customer's own booked slot; default the day tab to the booked day",
+    "Optional: widen the vendor slot/handling inputs so placeholders fit; handle an empty edit-slot-* input"
+  ],
+  "critical_code_review_comments": [
+    "cancel_pickup_booking has no status guard (see minor issue)",
+    "Slot capacity is keyed by shipping_method id, so two pickup methods at the same address do not share capacity. That's fine if 'location' means 'pickup option', but worth documenting.",
+    "VendorOrdersPage.jsx is a very long single file with long JSX lines. Consider extracting the Methods component.",
+    "The handling_alerts retry loop at the top only scans kind=pickup_ready failures. collect_* retries work only because the age loop re-calls notify_pickup_ready. That's correct, just implicit."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (12/12 pytest + spot-checks)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "A temporary tests/seed_iter12_pickup.py wrapping seed_phase08_ui: vendors A/B, buyer, 1 paid order, plus 3 pickup orders through a UI-created 'T12UI Market Pickup' method (60 min/1 per slot, America/Chicago, Mon-Fri 9-5). Everything was deleted afterwards (pickup_slots, notification_log, vendor_orders, orders, shipping_methods, order_events, TEST users) and the seed script was removed. Final counts: users=1; vendors, orders, vendor_orders, shipments, pickup_slots, notification_log, shipping_methods, order_events, carts and payments all 0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The server clock is Oct 23 2026 01:20 UTC (Thu evening CDT). Run the full test_phase08_fulfillment.py, not just -k test_12 (it needs S['c8'] from earlier tests). Its cleanup deletes shipping_methods matching ^TEST8, so don't run it while TEST8UI data is seeded. Booking-slot data-testids contain '+' and ':' (e.g. pickup-slot-2026-10-26T15:00:00+00:00); use attribute selectors. Day testids look like pickup-day-Mon-Oct-26. Emails return 429, so notification_log is status failed with attempts incrementing."
+}

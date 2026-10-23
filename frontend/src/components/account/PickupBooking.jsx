@@ -26,7 +26,9 @@ export const PickupBooking = ({ orderId, vo, onChange }) => {
     return acc;
   }, {});
   const days = Object.keys(byDay);
-  const current = day && byDay[day] ? day : days[0];
+  const bookedDay = booking && fmt(booking.start, tz, { weekday: "short", month: "short", day: "numeric" });
+  const current = day && byDay[day] ? day : (bookedDay && byDay[bookedDay] ? bookedDay : days[0]);
+  const zone = byDay[current] ? fmt(byDay[current][0].start, tz, { timeZoneName: "short" }).split(" ").pop() : "";
   const run = async (fn, msg) => {
     setBusy(true);
     try {
@@ -43,14 +45,14 @@ export const PickupBooking = ({ orderId, vo, onChange }) => {
   };
   return (
     <div className="space-y-2 rounded-xl bg-av-sand p-3 text-xs" data-testid={`pickup-booking-${vo.vendor_slug}`}>
-      <p className="font-semibold text-av-ink">{booking ? "Your pickup time" : "Choose a pickup time"} <span className="font-normal text-av-muted">(times shown in the shop's time zone, {fmt(new Date().toISOString(), tz, { timeZoneName: "short" }).split(" ").pop()})</span></p>
+      <p className="font-semibold text-av-ink">{booking ? "Your pickup time" : "Choose a pickup time"} <span className="font-normal text-av-muted">(times shown in the shop's local time{zone ? `, ${zone}` : ""})</span></p>
       {booking && <p data-testid={`pickup-booked-${vo.vendor_slug}`}><b>{fmt(booking.start, tz, { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}–{fmt(booking.end, tz, { hour: "numeric", minute: "2-digit" })}</b>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => api.delete(`${base}/pickup-booking`), "Pickup time cancelled")} data-testid={`pickup-cancel-${vo.vendor_slug}`}>Cancel time</Button></p>}
       {days.length === 0 ? <p className="text-av-muted" data-testid={`pickup-no-slots-${vo.vendor_slug}`}>No open pickup times in the next two weeks — please contact the seller.</p> : <>
         <div className="flex gap-1 overflow-x-auto">{days.map((k) => <Button key={k} size="sm" variant={k === current ? "default" : "outline"} className="shrink-0" onClick={() => setDay(k)} data-testid={`pickup-day-${k.replace(/[\s,]+/g, "-")}`}>{k}</Button>)}</div>
         <div className="flex flex-wrap gap-1">{byDay[current].map((s) => (
-          <Button key={s.start} size="sm" variant={s.mine ? "default" : "outline"} disabled={busy || s.mine || s.remaining === 0} onClick={() => run(() => api.post(`${base}/pickup-booking`, { start: s.start }), booking ? "Pickup time changed" : "Pickup time booked")}
-            data-testid={`pickup-slot-${s.start}`}>{fmt(s.start, tz, { hour: "numeric", minute: "2-digit" })}{s.remaining === 0 && !s.mine ? " · full" : ""}</Button>))}</div></>}
+          <Button key={s.start} size="sm" variant={s.mine ? "default" : "outline"} disabled={busy || s.remaining === 0} aria-pressed={s.mine} onClick={() => !s.mine && run(() => api.post(`${base}/pickup-booking`, { start: s.start }), booking ? "Pickup time changed" : "Pickup time booked")}
+            data-testid={`pickup-slot-${s.start}`}>{fmt(s.start, tz, { hour: "numeric", minute: "2-digit" })}{s.mine ? " ✓" : ""}{s.remaining === 0 && !s.mine ? " · full" : ""}</Button>))}</div></>}
     </div>
   );
 };

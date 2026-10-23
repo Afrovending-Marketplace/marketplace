@@ -182,11 +182,13 @@ async def _once(key: str, vo: dict, kind: str) -> bool:
     """Claims the right to send. One record per key ever; a failed record can be re-claimed atomically."""
     try:
         await db.notification_log.insert_one({"key": key, "kind": kind, "vendor_order_id": vo["_id"], "vendor_id": vo["vendor_id"],
-                                              "status": "sending", "attempts": 0, "created_at": utcnow()})
+                                              "status": "sending", "attempts": 0, "created_at": utcnow(), "claimed_at": utcnow()})
         return True
     except DuplicateKeyError:
+        stale = utcnow() - timedelta(minutes=30)
         return bool(await db.notification_log.find_one_and_update(
-            {"key": key, "status": "failed", "attempts": {"$lt": MAX_SEND_ATTEMPTS}}, {"$set": {"status": "sending"}}))
+            {"key": key, "attempts": {"$lt": MAX_SEND_ATTEMPTS}, "$or": [{"status": "failed"}, {"status": "sending", "claimed_at": {"$lt": stale}}]},
+            {"$set": {"status": "sending", "claimed_at": utcnow()}}))
 
 
 async def notify_pickup_ready(vo: dict, stage: str = "ready", kind: str = "pickup_ready") -> None:
@@ -274,12 +276,22 @@ async def cancel_pickup_booking(vo: dict, user_id: str) -> dict:
     old = vo.get("pickup_booking")
     if not old:
         return vo
-    res = await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "pickup_booking.key": old["key"]}, {"$unset": {"pickup_booking": ""}},
+    if vo["status"] != "ready_for_pickup":
+        raise APIError(409, "invalid_state", "This pickup time can no longer be changed.")
+    res = await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "status": "ready_for_pickup", "pickup_booking.key": old["key"]}, {"$unset": {"pickup_booking": ""}},
                                                      return_document=ReturnDocument.AFTER)
     if res:
         await _release(old["key"])
         await event(res, "pickup_booking_cancelled", "Pickup time cancelled", "customer", user_id)
     return res or vo
+
+
+async def release_on_collect(vo: dict) -> None:
+    """Collected early: free the slot for others but keep the booking on the order for history."""
+    b = vo.get("pickup_booking")
+    if b and not b.get("released") and (await db.vendor_orders.update_one(
+            {"_id": vo["_id"], "pickup_booking.key": b["key"], "pickup_booking.released": {"$ne": True}}, {"$set": {"pickup_booking.released": True}})).modified_count:
+        await _release(b["key"])
 
 
 def _day(d: datetime) -> str:

@@ -411,6 +411,10 @@ def test_12_pickup_booking_capacity_and_collection_reminders(w):  # noqa: F811
     run_cron("handling-alerts")
     assert logs(v1["id"], "collect_reminder_3") == 1 and logs(v1["id"], "collect_reminder_7") == 1 and logs(v1["id"], "collect_vendor_7") == 1
     assert a.post(f"/vendor/orders/{v1['id']}/status", json={"to": "delivered"}).status_code == 200
+    key_second = f"{m['id']}:{datetime.fromisoformat(second).isoformat()}"
+    assert mongo.pickup_slots.find_one({"key": key_second})["count"] == 0  # released on collection
+    assert mongo.vendor_orders.find_one({"_id": ObjectId(v1["id"])})["pickup_booking"]["released"] is True
+    assert c.delete(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking").status_code == 409
     assert c.post(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking", json={"start": first}).status_code == 409
     from afrovending.core import email as mail
     vo = mongo.vendor_orders.find_one({"_id": ObjectId(v1["id"])})
