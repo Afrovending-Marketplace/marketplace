@@ -1,0 +1,44 @@
+{
+  "summary": "Phase 09 Vendor Dashboard tested on the backend and frontend. Backend: tests/test_phase09_dashboard.py passes 5/5. An extra seeded scenario passed 53/54 API checks; the one failure was a mistake in my own assertion (audit entity_id is an ObjectId), not an app bug. Scenario: multi-vendor paid order through Stripe test mode, vendor B's suborder cancelled with a full refund, vendor A accepted and shipped, plus a second pending order for A. Results: A net item sales = sum of A's item lines ($135, later $180) = independent ledger recomputation; commission is 10% of items. B net = 0 (gross $45 minus item refunds $45), refunds_minor = -5000 (items and shipping), cancelled_orders = 1, earnings = ledger. Neither vendor's queue or transactions CSV contains the other vendor's orders. The summary, orders, products and transactions CSVs match the dashboard JSON for the same range (net, earnings, order count, per-order earnings sum, top products). Security: customer and admin-without-vendor get 403 on /vendor/dashboard and all 4 /vendor/reports/*.csv; anonymous gets 401; vendor and customer get 403 on PUT /admin/vendors/{id}/plan; an invalid plan gives 422 and an unknown vendor gives 404. After admin sets growth, A's new order item is commission_bps 700 with source plan:growth, B stays at 1000, historic items are unchanged, and the dashboard shows Growth $24.99. Inventory: low stock (1 left, 2 reserved) and out of stock (forced available 0) produce the low_stock and out_of_stock alerts. Frontend (/vendor/dashboard): all 4 tabs render. Range presets 7/30/90/month and custom from/to send the correct from/to query and reload the data (30 and 90 bars). range-tz reads 'US Eastern time'. The default range ends on the ET date (Oct 22), not the UTC date (Oct 23). KPIs match the API ($180.00 / 3 / $174.94; for B $15.00, $60 paid minus $45 refunded, refunds $50.00). Alerts, open-order chips, queue, top products and reviews (0 / — / 'No reviews yet') all show. Breakdown rows and plan text are correct, payout balances match vendor_summary, and dash-payouts-empty shows. All 4 CSV buttons download files with the correct filenames and content. Store settings: rename + save shows the toast 'Store saved' and survives a reload; the publish toggle unpublish/republish works and the store_unpublished alert appears. Mobile 390px: no page-level horizontal overflow on any tab (scrollWidth == clientWidth).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "core/ledger.rate_for via payments.build_plan", "issue": "A vendor with no 'plan' field (every existing or new starter vendor) gets commission_source 'default', which is the marketplace default rule, not 'plan:starter'. The dashboard (_plan) always shows 'Starter 10%'. If admins change the default rule, the dashboard shows a commission rate that doesn't match what is charged. Fix: pass vendor.get('plan') or 'starter' to rate_for, or show the default rule's rate in _plan."},
+      {"endpoint": "core/reports.top_products vs reports.sales", "issue": "The two use different period bases. top_products/products.csv select vendor_orders created in the range, while net_item_sales uses ledger entry dates. A refund dated after the order's period lowers the KPI in the refund period but lowers products.csv in the order's period, so the two CSVs can disagree for the same range. Also, the cancelled quantity is shown as 'refunded' ('1 sold · 3 refunded'). Document this or align the bases."},
+      {"endpoint": "core/reports.entries / export", "issue": "Lists are silently capped (to_list(50000) / 20000 / 5000). If a cap is hit, totals are truncated with no error."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DashboardCards Alerts (backed by reports.alerts)", "issue": "The vendor_suspended and store_unpublished alerts link to '/vendor', which has no route, so clicking 'Open' shows the 404 page. The dashboard route is /vendor/dashboard. Confirmed in the UI.", "selector": "[data-testid='alert-store_unpublished'] a", "priority": "MEDIUM"},
+      {"component": "SalesKpis", "issue": "Negative zero is formatted as '-$0.00'. With no refunds, kpi-refunds shows '-$0.00' and the net hint reads '$180.00 paid − -$0.00 refunded'. money(-0) comes from money(-t.refunds_minor) / money(-t.item_refunds_minor). Normalise with (x || 0) or Math.abs.", "selector": "[data-testid='kpi-refunds'], [data-testid='kpi-net-item-sales']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "OrdersCard queue / PayoutsCard history", "issues": ["Dates use the browser's local time zone (toLocaleDateString), not US Eastern. Example: the queue showed 10/23/2026 while the ET range ended 10/22. Use timeZone: 'America/New_York' to be consistent with the 'US Eastern' choice."]},
+      {"screen": "Mobile 390px tabs", "issues": ["There is no page overflow, but the 'Store settings' tab sits off-screen (right edge at about 500px) inside the overflow-x-auto TabsList, with no scroll hint. Consider wrapping or a 2x2 grid on mobile."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase09_dashboard.py", "/app/test_reports/pytest/iter13_phase09.xml"],
+  "action_items": [
+    "Change the alert links '/vendor' to '/vendor/dashboard' in core/reports.alerts (vendor_suspended, store_unpublished)",
+    "Fix '-$0.00' rendering in SalesKpis (kpi-refunds and the net-sales hint)",
+    "Make starter commission consistent: pass plan or 'starter' to rate_for, or make the dashboard plan rate reflect the default rule",
+    "Optional: format queue and payout dates in America/New_York; improve tab wrapping on mobile; align the top_products period basis with the sales KPI"
+  ],
+  "critical_code_review_comments": [
+    "reports.alerts: two links point to the non-existent route /vendor",
+    "payments.build_plan passes vendor.get('plan'), which is None for starter vendors, so 'default' is used instead of 'plan:starter' (latent mismatch with the dashboard)",
+    "In the seeded multi-vendor order, the first payment had no processing_fee_allocation entries, while single-vendor orders did (payments.fee_minor was None for all). This is Phase 07 Stripe fee-reporting timing, not a dashboard bug, but the dashboard fee total may lag until Stripe reports the fee",
+    "average_order_minor = ledger-dated net / vendor_orders created in range minus cancelled. The two parts use different bases, so this is approximate across periods",
+    "The vendor_dashboard export handler is a long if-chain. It's acceptable, but per-kind builder functions would be cleaner"
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (5/5 pytest + 53/53 valid extra API checks)", "frontend": "~92% (all flows work; 1 broken alert link, 1 formatting bug)"},
+  "test_credentials": "Super admin from /app/memory/test_credentials.md works. Vendors and buyer were created at runtime (TEST8UI_ prefix, TestPass12345) and deleted afterwards.",
+  "seed_data_creation": "Temporary tests/seed_iter13.py and tests/iter13_checks.py reused seed_phase08_ui helpers: 2 vendors, 1 buyer, 3 paid orders, cancel/ship, plan change to growth, forced out-of-stock (restored). All removed with seed_phase08_ui cleanup, plus plan_changed audit entries for the test vendors (3 deleted). Both scripts and the /tmp state were deleted. Final counts: users=1; vendors, stores, orders, vendor_orders, ledger, refunds, payouts, shipments, products, variants, inventory, order_items, payments, statements, shipping_methods, order_events, carts, order_requests all 0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The dashboard route is /vendor/dashboard (not /vendor). The server clock is Oct 23 2026 ~01:45 UTC, which is Oct 22 ET, so the default range ends on Oct 22. A vendor_order's order_number is shared by the suborders of one parent order (A and B both AV-261023-C03578). test_phase09 cleans up after itself. Use seed_phase08_ui helpers (vendor/account/live) together with test_phase08_fulfillment.paid to seed.",
+  "rca of the issue": "Alert 404: reports.alerts hardcodes link '/vendor', but App.js only defines vendor/dashboard, vendor/orders, vendor/products and vendor/earnings. '-$0.00': SalesKpis negates zero minor values (-0), and formatPrice renders the sign."
+}

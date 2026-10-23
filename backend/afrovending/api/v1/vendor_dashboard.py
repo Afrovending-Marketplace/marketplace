@@ -21,8 +21,11 @@ ADMIN = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
 DATE = r"^\d{4}-\d{2}-\d{2}$"
 
 
-def _plan(vendor: dict) -> dict:
-    key = vendor.get("plan") or "starter"
+def _plan(vendor: dict, default_bps: int | None = None) -> dict:
+    key = vendor.get("plan")
+    if not key and default_bps is not None:
+        return {"key": "starter", **ledger.PLANS["starter"], "rate_bps": default_bps, "note": "marketplace default rate"}
+    key = key or "starter"
     return {"key": key, **ledger.PLANS[key]}
 
 
@@ -42,9 +45,10 @@ async def dashboard(from_: Optional[str] = Query(default=None, alias="from", pat
     account = await db.connected_accounts.find_one({"vendor_id": vid})
     rules = await ledger.active_rules()
     override = rules.get(("vendor", str(vid)))
+    default = rules.get(("default", "None"))
     return {"vendor": {"id": str(vid), "name": vendor["name"], "status": vendor["status"]},
             "store": {"display_name": store.get("display_name", vendor["name"]), "slug": store.get("slug"), "status": store.get("status", "draft")},
-            "plan": _plan(vendor) | {"override_bps": override["rate_bps"] if override else None},
+            "plan": _plan(vendor, default["rate_bps"] if default else None) | {"override_bps": override["rate_bps"] if override else None},
             "sales": await reports.sales(vid, start, end), "top_products": await reports.top_products(vid, start, end),
             "inventory": inv, "operations": ops, "payouts": pay, "reviews": await _reviews(vid),
             "alerts": reports.alerts(vendor, store, inv, ops, pay, account)}
@@ -80,7 +84,9 @@ async def export(kind: Literal["summary", "transactions", "orders", "products"],
                  _usd(e["amount_minor"]), e["currency"], e["entry_key"]] for e in es]
         return _csv(["date_et", "order", "account", "type", "amount_usd", "currency", "ledger_entry"], rows, f"afrovending-transactions-{tag}.csv")
     a, b = reports.et_bounds(start, end)
-    vos = await db.vendor_orders.find({"vendor_id": vid, "created_at": {"$gte": a, "$lt": b}}).sort("created_at", 1).to_list(20000)
+    vos = await db.vendor_orders.find({"vendor_id": vid, "created_at": {"$gte": a, "$lt": b}}).sort("created_at", 1).to_list(20001)
+    if len(vos) > 20000:
+        raise APIError(422, "range_too_large", "This date range has too many orders. Choose a shorter range.")
     if kind == "orders":
         per = {}
         async for e in db.commission_ledger.find({"account": "vendor", "vendor_order_id": {"$in": [v["_id"] for v in vos]}}):
@@ -95,7 +101,7 @@ async def export(kind: Literal["summary", "transactions", "orders", "products"],
         return _csv(["date_et", "order", "status", "fulfillment", "items_usd", "shipping_usd", "tax_usd", "charged_usd", "refunded_usd",
                      "commission_usd", "processing_fee_usd", "vendor_earnings_usd", "earning_status"], rows, f"afrovending-orders-{tag}.csv")
     top = await reports.top_products(vid, start, end, limit=10000)
-    return _csv(["product", "units_sold", "units_refunded", "net_item_sales_usd"],
+    return _csv(["product (orders placed in range)", "units_sold", "units_refunded_after_sale", "net_item_sales_usd"],
                 [[p["title"], p["units"], p["refunded_units"], _usd(p["net_item_sales_minor"])] for p in top], f"afrovending-products-{tag}.csv")
 
 

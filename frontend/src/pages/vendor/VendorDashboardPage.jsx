@@ -94,7 +94,7 @@ export default function VendorDashboardPage() {
       </div>
       {store.vendor.status !== "active" && <StatusAlert tone="error" title="Vendor account suspended" testId="vendor-suspended-alert">{store.vendor.status_reason || "Contact info@afrovending.com."}</StatusAlert>}
       <Tabs defaultValue="overview">
-        <TabsList className="flex w-full justify-start overflow-x-auto">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:flex sm:w-auto sm:justify-start">
           <TabsTrigger value="overview" data-testid="dash-tab-overview">Overview</TabsTrigger>
           <TabsTrigger value="operations" data-testid="dash-tab-operations">Orders & stock</TabsTrigger>
           <TabsTrigger value="money" data-testid="dash-tab-money">Earnings & payouts</TabsTrigger>

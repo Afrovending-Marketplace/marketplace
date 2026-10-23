@@ -4,7 +4,8 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { formatPrice } from "@/lib/catalog";
 import { download } from "@/components/vendor/Statements";
 
-const money = (m) => formatPrice(m ?? 0);
+const money = (m) => formatPrice((m ?? 0) || 0);
+const etDate = (iso) => new Date(iso).toLocaleDateString("en-US", { timeZone: "America/New_York" });
 const label = (s) => s.replace(/_/g, " ");
 
 export const Card = ({ title, testId, action, children, className = "" }) => (
@@ -54,7 +55,7 @@ export const Breakdown = ({ s, plan }) => {
     ["Chargebacks & adjustments", t.dispute_adjustments_minor, "disputes"], ["Your earnings", t.vendor_earnings_minor, "earnings"]];
   return (
     <Card title="Earnings & commission" testId="dash-breakdown">
-      <p className="text-xs text-av-muted" data-testid="dash-plan">Plan: <b>{plan.name}</b> ({plan.monthly_fee_minor ? `${money(plan.monthly_fee_minor)}/month` : "$0/month"}) · {(plan.override_bps ?? plan.rate_bps) / 100}% commission{plan.override_bps != null && " (approved override)"}. Category rules may apply to some items.</p>
+      <p className="text-xs text-av-muted" data-testid="dash-plan">Plan: <b>{plan.name}</b> ({plan.monthly_fee_minor ? `${money(plan.monthly_fee_minor)}/month` : "$0/month"}) · {(plan.override_bps ?? plan.rate_bps) / 100}% commission{plan.override_bps != null && " (approved override)"}{plan.note && ` (${plan.note})`}. Category rules may apply to some items.</p>
       <dl className="divide-y divide-av-line text-sm">{rows.map(([n, v, k]) => <div key={k} className={`flex justify-between py-1.5 ${k === "earnings" ? "font-semibold" : ""}`} data-testid={`breakdown-${k}`}><dt>{n}</dt><dd>{money(v)}</dd></div>)}</dl>
       <p className="text-xs text-av-muted">Sales tax collected ({money(t.tax_collected_minor + t.tax_refunded_minor)} net) is held for remittance and isn't part of your earnings.</p>
     </Card>
@@ -78,7 +79,7 @@ export const OrdersCard = ({ ops }) => (
     {ops.queue.length === 0 ? <p className="text-sm text-av-muted">No open orders.</p> :
       <ul className="divide-y divide-av-line text-sm">{ops.queue.map((o) => <li key={o.id} className="flex flex-wrap justify-between gap-2 py-1.5" data-testid={`dash-queue-${o.order_number}`}>
         <span><b>{o.order_number}</b> · {label(o.status)} · {o.fulfillment_type === "pickup" ? "pickup" : "delivery"}</span>
-        <span className="text-xs text-av-muted">{o.deadline_at ? `due ${new Date(o.deadline_at).toLocaleDateString()}` : new Date(o.created_at).toLocaleDateString()} · {money(o.charged_minor)}</span></li>)}</ul>}
+        <span className="text-xs text-av-muted">{o.deadline_at ? `due ${etDate(o.deadline_at)}` : etDate(o.created_at)} · {money(o.charged_minor)}</span></li>)}</ul>}
   </Card>
 );
 
@@ -98,7 +99,7 @@ export const PayoutsCard = ({ pay }) => {
       <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">{[["Pending (7-day hold)", b.pending_minor, "pending"], ["Ready to transfer", b.eligible_minor, "eligible"], ["On hold", b.held_minor, "held"],
         ["Transferred", b.transferred_minor, "transferred"], ["Paid out", b.paid_minor, "paid"], ["Owed", b.owed_minor, "owed"]].map(([n, v, k]) => <div key={k} data-testid={`dash-balance-${k}`}><p className="text-xs text-av-muted">{n}</p><p className="font-semibold">{money(v)}</p></div>)}</div>
       {pay.history.length === 0 ? <p className="text-sm text-av-muted" data-testid="dash-payouts-empty">No payouts yet.</p> :
-        <ul className="divide-y divide-av-line text-xs">{pay.history.slice(0, 6).map((p) => <li key={p.id} className="flex justify-between gap-2 py-1.5" data-testid={`dash-payout-${p.id}`}><span>{p.order_number} · {new Date(p.created_at).toLocaleDateString()}{p.transfer_ref && ` · ${p.transfer_ref}`}</span><span>{money(p.amount_minor)} · <b>{p.status}</b></span></li>)}</ul>}
+        <ul className="divide-y divide-av-line text-xs">{pay.history.slice(0, 6).map((p) => <li key={p.id} className="flex justify-between gap-2 py-1.5" data-testid={`dash-payout-${p.id}`}><span>{p.order_number} · {etDate(p.created_at)}{p.transfer_ref && ` · ${p.transfer_ref}`}</span><span>{money(p.amount_minor)} · <b>{p.status}</b></span></li>)}</ul>}
     </Card>
   );
 };

@@ -47,7 +47,10 @@ def et_day(d: datetime) -> str:
 
 async def entries(vendor_id, start: date, end: date) -> list[dict]:
     a, b = et_bounds(start, end)
-    return await db.commission_ledger.find({"vendor_id": vendor_id, "account": {"$in": [VENDOR, TAX]}, "created_at": {"$gte": a, "$lt": b}}).sort("created_at", 1).to_list(50000)
+    es = await db.commission_ledger.find({"vendor_id": vendor_id, "account": {"$in": [VENDOR, TAX]}, "created_at": {"$gte": a, "$lt": b}}).sort("created_at", 1).to_list(50001)
+    if len(es) > 50000:
+        raise APIError(422, "range_too_large", "This date range has too many transactions. Choose a shorter range.")
+    return es
 
 
 async def sales(vendor_id, start: date, end: date) -> dict:
@@ -112,7 +115,7 @@ async def top_products(vendor_id, start: date, end: date, limit: int = 10) -> li
         p = out[str(i["product_id"])]
         p["title"] = i["title"]
         p["units"] += i["quantity"] - i.get("cancelled_qty", 0)
-        p["refunded_units"] += i.get("refunded_qty", 0)
+        p["refunded_units"] += max(0, i.get("refunded_qty", 0) - i.get("cancelled_qty", 0))
         p["net_item_sales_minor"] += i["line_total_minor"] - i.get("refunded_minor", 0)
     return sorted(({"product_id": k, **v} for k, v in out.items()), key=lambda r: -r["net_item_sales_minor"])[:limit]
 
@@ -166,9 +169,9 @@ def alerts(vendor: dict, store: dict, inv: dict, ops: dict, pay: dict, account: 
     a = []
     add = lambda level, code, text, link: a.append({"level": level, "code": code, "text": text, "link": link})  # noqa: E731
     if vendor.get("status") != "active":
-        add("error", "vendor_suspended", "Your vendor account is not active. Contact info@afrovending.com.", "/vendor")
+        add("error", "vendor_suspended", "Your vendor account is not active. Contact info@afrovending.com.", "/vendor/dashboard")
     if store.get("status") != "published":
-        add("warning", "store_unpublished", "Your store is not published, so customers can't see it.", "/vendor")
+        add("warning", "store_unpublished", "Your store is not published, so customers can't see it.", "/vendor/dashboard")
     if ops["overdue_orders"]:
         add("error", "orders_overdue", f"{ops['overdue_orders']} order(s) passed their handling deadline.", "/vendor/orders")
     if ops["requests_overdue"]:
