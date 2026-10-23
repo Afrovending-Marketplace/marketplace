@@ -18,7 +18,7 @@ DEFAULT_CONFIG = {"return_window_days": 14, "response_hours": 48, "escalate_to_a
                   "default_handling_days": 3, "min_handling_days": 1, "max_handling_days": 10, "non_business_days": [],
                   "reminder_hours_before": 24, "admin_escalation_hours": 48, "vendor_reminder": True,
                   "customer_overdue_email": True, "vendor_overdue_email": True, "escalate_overdue_to_admin": True}
-HANDLING_ACTIVE = ("accepted", "processing")
+HANDLING_ACTIVE = ("accepted", "processing", "partially_shipped")
 TRANSITIONS = {
     "pending": {"accepted", "cancelled"},
     "accepted": {"processing", "partially_shipped", "shipped", "ready_for_pickup", "cancelled"},
@@ -60,17 +60,17 @@ async def event(vo: dict, type: str, message: str, role: str, actor_id=None, cus
     await audit(f"order.{type}", "vendor_orders", entity_id=str(vo["_id"]), role=role, message=message[:200])
 
 
-async def notify_user(user_id, headline: str, text: str, path: str) -> None:
+async def notify_user(user_id, headline: str, text: str, path: str) -> bool:
     u = await db.users.find_one({"_id": user_id})
-    if u:
-        subject, html = mail.payment_notice_email(u.get("first_name") or u.get("name") or "there", headline, text, path)
-        await mail.try_send(to=u["email"], subject=subject, html=html)
+    if not u:
+        return True
+    subject, html = mail.payment_notice_email(u.get("first_name") or u.get("name") or "there", headline, text, path)
+    return await mail.try_send(to=u["email"], subject=subject, html=html)
 
 
-async def notify_vendor(vendor_id, headline: str, text: str) -> None:
+async def notify_vendor(vendor_id, headline: str, text: str) -> bool:
     v = await db.vendors.find_one({"_id": vendor_id})
-    if v:
-        await notify_user(v["owner_user_id"], headline, text, "/vendor/orders")
+    return await notify_user(v["owner_user_id"], headline, text, "/vendor/orders") if v else True
 
 
 async def transition(vo: dict, to: str, role: str, actor_id=None, note: str = "", **sets) -> dict:
@@ -168,21 +168,35 @@ def handling_snapshot(vo: dict, cfg: dict, now: datetime) -> dict:
             "overdue": False, "extensions": []}
 
 
+MAX_SEND_ATTEMPTS = 5
+
+
+async def _sent(key: str, ok: bool) -> None:
+    """Failed sends stay as status=failed and are retried on the next hourly run (max 5 attempts)."""
+    await db.notification_log.update_one({"key": key}, {"$set": {"status": "sent" if ok else "failed", "sent_at" if ok else "failed_at": utcnow()},
+                                                        "$inc": {"attempts": 1}})
+
+
 async def _once(key: str, vo: dict, kind: str) -> bool:
+    """Claims the right to send. One record per key ever; a failed record can be re-claimed atomically."""
     try:
-        await db.notification_log.insert_one({"key": key, "kind": kind, "vendor_order_id": vo["_id"], "vendor_id": vo["vendor_id"], "sent_at": utcnow()})
+        await db.notification_log.insert_one({"key": key, "kind": kind, "vendor_order_id": vo["_id"], "vendor_id": vo["vendor_id"],
+                                              "status": "sending", "attempts": 0, "created_at": utcnow()})
         return True
     except DuplicateKeyError:
-        return False
+        return bool(await db.notification_log.find_one_and_update(
+            {"key": key, "status": "failed", "attempts": {"$lt": MAX_SEND_ATTEMPTS}}, {"$set": {"status": "sending"}}))
 
 
 def _day(d: datetime) -> str:
     return d.strftime("%a %b %d, %Y")
 
 
-async def notify_admins(headline: str, text: str, path: str) -> None:
+async def notify_admins(headline: str, text: str, path: str) -> bool:
+    ok = True
     async for admin in db.users.find({"roles": {"$in": ["marketplace_admin", "super_admin"]}, "status": "active"}):
-        await notify_user(admin["_id"], headline, text, path)
+        ok = await notify_user(admin["_id"], headline, text, path) and ok
+    return ok
 
 
 async def handling_alerts() -> dict:
@@ -196,8 +210,8 @@ async def handling_alerts() -> dict:
         tag, task = dl.isoformat(), ("get it ready for pickup" if h["kind"] == "pickup" else "ship it")
         if now < dl:
             if cfg["vendor_reminder"] and dl - now <= timedelta(hours=cfg["reminder_hours_before"]) and await _once(f"{vid}:reminder:{tag}", vo, "reminder"):
-                await notify_vendor(vo["vendor_id"], "Handling deadline approaching",
-                                    f"Order {vo['order_number']} must be {'ready for pickup' if pickup else 'shipped'} by {_day(dl)}. Please {task} or update its status.")
+                await _sent(f"{vid}:reminder:{tag}", await notify_vendor(vo["vendor_id"], "Handling deadline approaching",
+                                    f"Order {vo['order_number']} must be {'ready for pickup' if pickup else 'shipped'} by {_day(dl)}. Please {task} or update its status."))
                 out["reminders"] += 1
             continue
         if not h.get("overdue"):
@@ -212,14 +226,14 @@ async def handling_alerts() -> dict:
             else:
                 text = (f"We're sorry — {vo['vendor_name']} hasn't shipped your items from order {vo['order_number']} yet. They were expected to ship by "
                         f"{_day(dl)}. Current status: {status}. We've asked the seller to ship right away or send you an update. You can track the order here.")
-            await notify_user(vo["customer_id"], "Pickup delayed" if pickup else "Your order is delayed", text, f"/account/orders/{vo['order_id']}")
+            await _sent(f"{vid}:overdue_customer:{tag}", await notify_user(vo["customer_id"], "Pickup delayed" if pickup else "Your order is delayed", text, f"/account/orders/{vo['order_id']}"))
         if cfg["vendor_overdue_email"] and await _once(f"{vid}:overdue_vendor:{tag}", vo, "overdue_vendor"):
-            await notify_vendor(vo["vendor_id"], "Order overdue", f"Order {vo['order_number']} passed its handling deadline ({_day(dl)}). The customer has been told. "
-                                f"Please {task} now or update the order status.")
+            await _sent(f"{vid}:overdue_vendor:{tag}", await notify_vendor(vo["vendor_id"], "Order overdue", f"Order {vo['order_number']} passed its handling deadline ({_day(dl)}). The customer has been told. "
+                                f"Please {task} now or update the order status."))
         if cfg["escalate_overdue_to_admin"] and now - dl >= timedelta(hours=cfg["admin_escalation_hours"]) \
                 and await _once(f"{vid}:overdue_admin:{tag}", vo, "overdue_admin"):
-            await notify_admins("Overdue order escalation", f"Order {vo['order_number']} from {vo['vendor_name']} has been overdue for more than "
-                                f"{cfg['admin_escalation_hours']} hours ({'pickup preparation' if pickup else 'shipment'}).", "/admin/fulfillment")
+            await _sent(f"{vid}:overdue_admin:{tag}", await notify_admins("Overdue order escalation", f"Order {vo['order_number']} from {vo['vendor_name']} has been overdue for more than "
+                                f"{cfg['admin_escalation_hours']} hours ({'pickup preparation' if pickup else 'shipment'}).", "/admin/fulfillment"))
             out["escalations"] += 1
     return out
 

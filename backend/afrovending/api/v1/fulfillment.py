@@ -465,7 +465,7 @@ async def admin_extend(vo_id: str, body: ExtendIn, admin: User = Depends(ADMIN))
     if not vo or not vo.get("handling"):
         raise APIError(409, "invalid_state", "Only accepted orders that haven't shipped can get an extension.")
     h = vo["handling"]
-    new = add_business_days(h["deadline_at"], body.business_days, set(h.get("non_business_days") or []))
+    new = add_business_days(max(h["deadline_at"], utcnow()), body.business_days, set(h.get("non_business_days") or []))
     ext = {"business_days": body.business_days, "reason": body.reason.strip(), "by": admin.id, "previous_deadline_at": h["deadline_at"], "new_deadline_at": new, "at": utcnow()}
     vo = await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "handling.deadline_at": h["deadline_at"]},
                                                     {"$set": {"handling.deadline_at": new, "handling.overdue": False}, "$push": {"handling.extensions": ext}},

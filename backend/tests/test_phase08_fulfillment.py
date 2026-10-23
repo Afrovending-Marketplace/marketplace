@@ -156,7 +156,9 @@ def run_cron(name: str) -> None:
 
 
 def logs(vo_id, kind):
-    return mongo.notification_log.count_documents({"vendor_order_id": ObjectId(vo_id), "kind": kind})
+    docs = list(mongo.notification_log.find({"vendor_order_id": ObjectId(vo_id), "kind": kind}))
+    assert all(d["status"] in ("sent", "failed") and d["attempts"] <= 5 for d in docs)
+    return len(docs)
 
 
 def test_06_handling_deadline_snapshot_alerts_extension(w):  # noqa: F811

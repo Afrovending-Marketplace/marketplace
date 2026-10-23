@@ -9,32 +9,40 @@ import { formatPrice } from "@/lib/catalog";
 const TABS = ["", "pending", "accepted", "partially_shipped", "shipped", "ready_for_pickup", "delivered", "cancelled"];
 const label = (s) => (s ? s.replace(/_/g, " ") : "all");
 const day = (d) => new Date(d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-const openSlip = async (vo, shipmentId, print) => {
+const openSlip = async (vo, shipment, print) => {
   try {
-    const r = await api.get(`/vendor/orders/${vo.id}/packing-slip`, { params: shipmentId ? { shipment_id: shipmentId } : {}, responseType: "blob" });
+    const r = await api.get(`/vendor/orders/${vo.id}/packing-slip`, { params: shipment ? { shipment_id: shipment.id } : {}, responseType: "blob" });
     const url = URL.createObjectURL(new Blob([r.data], { type: "application/pdf" }));
     if (print) {
-      const w = window.open(url, "_blank");
-      if (w) w.addEventListener("load", () => w.print());
+      const frame = document.createElement("iframe");
+      frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+      frame.src = url;
+      frame.onload = () => {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        setTimeout(() => { frame.remove(); URL.revokeObjectURL(url); }, 60000);
+      };
+      document.body.appendChild(frame);
       return;
     }
     const a = document.createElement("a");
     a.href = url;
-    a.download = `packing-slip-${vo.order_number}.pdf`;
+    a.download = `packing-slip-${vo.order_number}${shipment ? `-${shipment.tracking_number}` : ""}.pdf`.replace(/\s/g, "");
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   } catch (err) {
     toast.error(getErrorMessage(err));
   }
 };
-const SlipButtons = ({ vo, shipmentId, tid }) => (
+const SlipButtons = ({ vo, shipment, tid }) => (
   <span className="inline-flex gap-1">
-    <Button size="sm" variant="ghost" onClick={() => openSlip(vo, shipmentId, false)} data-testid={`slip-download-${tid}`}>Download packing slip</Button>
-    <Button size="sm" variant="ghost" onClick={() => openSlip(vo, shipmentId, true)} data-testid={`slip-print-${tid}`}>Print</Button>
+    <Button size="sm" variant="ghost" onClick={() => openSlip(vo, shipment, false)} data-testid={`slip-download-${tid}`}>{shipment ? "Slip for this package" : "Download packing slip"}</Button>
+    <Button size="sm" variant="ghost" onClick={() => openSlip(vo, shipment, true)} data-testid={`slip-print-${tid}`}>Print</Button>
   </span>
 );
 const Deadline = ({ vo }) => {
   const h = vo.handling;
-  if (!h || !["accepted", "processing"].includes(vo.status)) return null;
+  if (!h || !["accepted", "processing", "partially_shipped"].includes(vo.status)) return null;
   const late = new Date(h.deadline_at) < new Date();
   return <span className={`text-xs ${late ? "font-semibold text-av-clay" : "text-av-muted"}`} data-testid={`vo-deadline-${vo.order_number}`}>
     {h.kind === "pickup" ? "Ready for pickup by" : "Ship by"} {day(h.deadline_at)}{late ? " — overdue" : ""}{h.extensions?.length ? " (extended)" : ""}</span>;
@@ -88,7 +96,7 @@ const Order = ({ vo, reload }) => {
       <div className="flex flex-wrap items-center gap-2"><b>{vo.order_number}</b><StatusBadge tone={vo.status === "pending" ? "gold" : "neutral"}>{label(vo.status)}</StatusBadge><Deadline vo={vo} />
         <span className="text-xs text-av-muted">{vo.fulfillment_type === "pickup" ? "Local pickup" : `${a.full_name}, ${a.line1}, ${a.city} ${a.postal_code} ${a.country}`}</span></div>
       <p className="text-xs">{vo.items.map((i) => `${i.title} × ${i.quantity} (${i.shipped_qty} ${vo.fulfillment_type === "pickup" ? "handed over" : "shipped"})`).join(" · ")} · {formatPrice(vo.charged_minor)}</p>
-      {vo.shipments.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-2 text-xs">{s.carrier_name} {s.tracking_number} · {label(s.status)}<SlipButtons vo={vo} shipmentId={s.id} tid={s.id} />
+      {vo.shipments.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-2 text-xs">{s.carrier_name} {s.tracking_number} · {label(s.status)}<SlipButtons vo={vo} shipment={s} tid={s.id} />
         {s.status !== "delivered" && ["in_transit", "out_for_delivery", "delivered"].filter((st) => s.status === "exception" || ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(st) > ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(s.status)).map((st) => <Button key={st} size="sm" variant="ghost" onClick={() => act(() => api.post(`/vendor/shipments/${s.id}/status`, { status: st }), "Updated", reload)} data-testid={`vo-shipment-${st}-${s.id}`}>{label(st)}</Button>)}</div>)}
       {vo.requests.map((r) => <Request key={r.id} r={r} vo={vo} reload={reload} />)}
       <div className="flex flex-wrap gap-2">
@@ -112,12 +120,21 @@ const Methods = () => {
     load();
   }, [load]);
   const save = () => act(() => api.post("/vendor/shipping-methods", { name: f.name, type: f.type, amount_minor: Math.round(Number(f.amount || 0) * 100), eta: f.eta || "", pickup_address: f.pickup || "", handling_days: f.days === undefined || f.days === "" ? null : Number(f.days) }), "Shipping option added", () => { setF({ type: "ship" }); load(); });
-  const setDays = (m, v) => act(() => api.put(`/vendor/shipping-methods/${m.id}`, { ...m, handling_days: Number(v) }), "Handling time updated", load);
+  const setDays = async (m, input) => {
+    try {
+      await api.put(`/vendor/shipping-methods/${m.id}`, { ...m, handling_days: Number(input.value) });
+      toast.success("Handling time updated");
+      load();
+    } catch (err) {
+      input.value = m.handling_days ?? 3;
+      toast.error(getErrorMessage(err));
+    }
+  };
   return (
     <section className="space-y-3 rounded-2xl border border-av-line bg-white p-5" data-testid="vendor-shipping-methods">
       <h2 className="text-xl font-semibold">Your shipping & pickup options</h2>
       <ul className="space-y-1 text-sm">{rows.map((m) => <li key={m.id} className="flex flex-wrap items-center gap-2" data-testid={`method-row-${m.id}`}>{m.name} · {m.type === "pickup" ? `pickup at ${m.pickup_address}` : formatPrice(m.amount_minor)} · {m.status} ·
-        <Input className="h-8 w-16" type="number" min="0" defaultValue={m.handling_days ?? 3} onBlur={(e) => Number(e.target.value) !== m.handling_days && setDays(m, e.target.value)} data-testid={`method-days-${m.id}`} /> business days to {m.type === "pickup" ? "prepare" : "ship"}</li>)}</ul>
+        <Input className="h-8 w-16" type="number" min="0" defaultValue={m.handling_days ?? 3} onBlur={(e) => Number(e.target.value) !== m.handling_days && setDays(m, e.target)} data-testid={`method-days-${m.id}`} /> business days to {m.type === "pickup" ? "prepare" : "ship"}</li>)}</ul>
       <div className="flex flex-wrap gap-2">
         <select className="h-9 rounded border border-av-line bg-white px-2 text-sm" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} data-testid="method-type"><option value="ship">Delivery</option><option value="pickup">Local pickup</option></select>
         <Input className="h-9 w-40" placeholder="Name" value={f.name || ""} onChange={(e) => setF({ ...f, name: e.target.value })} data-testid="method-name" />

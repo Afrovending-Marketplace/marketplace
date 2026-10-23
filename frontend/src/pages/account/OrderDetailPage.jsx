@@ -55,11 +55,11 @@ const VendorOrder = ({ orderId, vo, reload }) => (
     <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold">Sold by {vo.vendor_name}</h2>
       <StatusBadge tone={tone(vo.status)} testId={`order-status-${vo.vendor_slug}`}>{label(vo.status)}</StatusBadge>
       <span className="text-xs text-av-muted">{vo.fulfillment_type === "pickup" ? `Local pickup · ${vo.shipping_method?.pickup_address || ""}` : vo.shipping_method?.name}</span></div>
-    {vo.handling && ["accepted", "processing"].includes(vo.status) && <p className={`text-xs ${vo.handling.overdue ? "text-av-clay" : "text-av-muted"}`} data-testid={`order-expected-${vo.vendor_slug}`}>
+    {vo.handling && ["accepted", "processing", "partially_shipped"].includes(vo.status) && <p className={`text-xs ${vo.handling.overdue ? "text-av-clay" : "text-av-muted"}`} data-testid={`order-expected-${vo.vendor_slug}`}>
       {vo.handling.kind === "pickup" ? "Expected ready for pickup by" : "Expected to ship by"} {new Date(vo.handling.deadline_at).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
       {vo.handling.overdue && (vo.handling.kind === "pickup" ? " — preparation is running late; we've asked the seller to hurry." : " — running late; we've asked the seller to ship right away.")}</p>}
     {!vo.handling && vo.status === "pending" && vo.shipping_method?.handling_days != null && <p className="text-xs text-av-muted" data-testid={`order-handling-${vo.vendor_slug}`}>
-      {vo.fulfillment_type === "pickup" ? "Ready for pickup" : "Ships"} within {vo.shipping_method.handling_days} business days after the seller accepts.</p>}
+      {vo.fulfillment_type === "pickup" ? "Ready for pickup" : "Ships"} within {vo.shipping_method.handling_days} business day{vo.shipping_method.handling_days === 1 ? "" : "s"} after the seller accepts.</p>}
     <ul className="divide-y divide-av-line">{vo.items.map((i) => <li key={i.id} className="flex justify-between gap-3 py-2"><span>{i.title}{i.label !== "Default" && ` (${i.label})`} × {i.quantity}
       <span className="block text-xs text-av-muted">{i.shipped_qty} {vo.fulfillment_type === "pickup" ? "picked up" : "shipped"}{i.cancelled_qty ? ` · ${i.cancelled_qty} cancelled` : ""}{i.returned_qty ? ` · ${i.returned_qty} returned` : ""}</span></span><span>{formatPrice(i.line_total_minor)}</span></li>)}</ul>
     {vo.shipments.map((s) => <p key={s.id} data-testid={`order-shipment-${s.tracking_number}`}>{s.carrier_name} · {s.tracking_url ? <a href={s.tracking_url} target="_blank" rel="noreferrer" className="underline">{s.tracking_number}</a> : s.tracking_number} · {label(s.status)}</p>)}
