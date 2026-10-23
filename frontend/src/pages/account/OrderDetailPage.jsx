@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { StatusAlert } from "@/components/common/StatusAlert";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { PickupHours } from "@/components/common/PickupHours";
+import { PickupBooking } from "@/components/account/PickupBooking";
 import { api, getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
 
@@ -57,6 +58,7 @@ const VendorOrder = ({ orderId, vo, reload }) => (
       <StatusBadge tone={tone(vo.status)} testId={`order-status-${vo.vendor_slug}`}>{label(vo.status)}</StatusBadge>
       <span className="text-xs text-av-muted">{vo.fulfillment_type === "pickup" ? `Local pickup · ${vo.shipping_method?.pickup_address || ""}` : vo.shipping_method?.name}</span></div>
     {vo.fulfillment_type === "pickup" && <PickupHours hours={vo.shipping_method?.pickup_hours} testId={`order-pickup-hours-${vo.vendor_slug}`} />}
+    {vo.fulfillment_type === "pickup" && (vo.status === "ready_for_pickup" || vo.pickup_booking) && <PickupBooking orderId={orderId} vo={vo} onChange={reload} />}
     {vo.handling && ["accepted", "processing", "partially_shipped"].includes(vo.status) && <p className={`text-xs ${vo.handling.overdue ? "text-av-clay" : "text-av-muted"}`} data-testid={`order-expected-${vo.vendor_slug}`}>
       {vo.handling.kind === "pickup" ? "Expected ready for pickup by" : "Expected to ship by"} {new Date(vo.handling.deadline_at).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
       {vo.handling.overdue && (vo.handling.kind === "pickup" ? " — preparation is running late; we've asked the seller to hurry." : " — running late; we've asked the seller to ship right away.")}</p>}

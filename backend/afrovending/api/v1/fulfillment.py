@@ -74,12 +74,24 @@ class MethodIn(BaseModel):
     pickup_address: str = Field(default="", max_length=200)
     handling_days: Optional[int] = Field(default=None, ge=0, le=60)
     pickup_hours: Optional[dict] = None
+    slot_minutes: Optional[int] = Field(default=None, ge=15, le=240)
+    slot_capacity: Optional[int] = Field(default=None, ge=1, le=50)
     status: Literal["active", "inactive"] = "active"
 
     @model_validator(mode="after")
     def _hours(self):
         self.pickup_hours = ph.validate(self.pickup_hours) if self.type == "pickup" and self.pickup_hours else None
+        if self.type == "pickup":
+            self.slot_minutes, self.slot_capacity = self.slot_minutes or 30, self.slot_capacity or 3
+            if self.slot_minutes % 5:
+                raise ValueError("Slot length must be in 5-minute steps.")
+        else:
+            self.slot_minutes = self.slot_capacity = None
         return self
+
+
+class BookIn(BaseModel):
+    start: str = Field(min_length=16, max_length=40)
 
 
 class BulkSlipsIn(BaseModel):
@@ -131,7 +143,7 @@ async def _detail(vo: dict, customer: bool) -> dict:
     q = {"vendor_order_id": vo["_id"], **({"customer_visible": True} if customer else {})}
     events = await db.order_events.find(q).sort("at", 1).to_list(200)
     keys = ("order_number", "vendor_name", "vendor_slug", "status", "fulfillment_type", "shipping_method", "shipping_address", "items_net_minor",
-            "shipping_minor", "tax_minor", "charged_minor", "refunded_minor", "created_at", "delivered_at", "cancelled_at", "order_id", "handling")
+            "shipping_minor", "tax_minor", "charged_minor", "refunded_minor", "created_at", "delivered_at", "cancelled_at", "order_id", "handling", "pickup_booking", "ready_at")
     return {"id": str(vo["_id"]), **ser({k: vo.get(k) for k in keys}),
             "items": [ser({k: i.get(k) for k in ("_id", "title", "label", "sku", "quantity", "unit_price_minor", "line_total_minor", "shipped_qty",
                                                   "cancelled_qty", "returned_qty", "refunded_qty", "product_id")}) for i in items],
@@ -146,6 +158,29 @@ async def _customer_vo(order_id: str, vo_id: str, user: User) -> dict:
     if not vo:
         raise APIError(404, "not_found", "Order not found.")
     return vo
+
+
+@router.get("/orders/{order_id}/vendor-orders/{vo_id}/pickup-slots")
+async def pickup_slots(order_id: str, vo_id: str, user: User = Depends(get_current_user)):
+    vo = await _customer_vo(order_id, vo_id, user)
+    if vo["fulfillment_type"] != "pickup":
+        raise APIError(409, "invalid_state", "This isn't a pickup order.")
+    h, slots = await ff.available_slots(vo) if vo["status"] == "ready_for_pickup" else (None, [])
+    return {"bookable": vo["status"] == "ready_for_pickup" and bool(h), "timezone": (h or {}).get("timezone"),
+            "slots": [{"start": s["start"].isoformat(), "end": s["end"].isoformat(), "remaining": s["remaining"], "mine": s["mine"]} for s in slots],
+            "booking": ser(vo.get("pickup_booking"))}
+
+
+@router.post("/orders/{order_id}/vendor-orders/{vo_id}/pickup-booking")
+async def book_pickup(order_id: str, vo_id: str, body: BookIn, user: User = Depends(get_current_user)):
+    vo = await ff.book_pickup(await _customer_vo(order_id, vo_id, user), body.start, user.id)
+    return {"vendor_order": await _detail(vo, True)}
+
+
+@router.delete("/orders/{order_id}/vendor-orders/{vo_id}/pickup-booking")
+async def cancel_pickup(order_id: str, vo_id: str, user: User = Depends(get_current_user)):
+    vo = await ff.cancel_pickup_booking(await _customer_vo(order_id, vo_id, user), user.id)
+    return {"vendor_order": await _detail(vo, True)}
 
 
 @router.get("/orders/{order_id}/detail")
@@ -252,6 +287,8 @@ async def vendor_status(vo_id: str, body: StatusIn, user: User = Depends(get_cur
                 await ff.fulfil(it["variant_id"], left, vo["order_number"])
                 await db.order_items.update_one({"_id": it["_id"]}, {"$inc": {"shipped_qty": left}})
     sets = {"handling": ff.handling_snapshot(vo, await ff.get_config(), utcnow())} if body.to == "accepted" else {}
+    if body.to == "ready_for_pickup":
+        sets["ready_at"] = utcnow()
     vo = await ff.transition(vo, body.to, "vendor", user.id, body.note, **sets)
     msgs = {"accepted": "was accepted by", "processing": "is being prepared by", "delivered": "was picked up from"}
     if body.to == "ready_for_pickup":

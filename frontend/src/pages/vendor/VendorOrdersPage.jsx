@@ -98,7 +98,8 @@ const Order = ({ vo, reload }) => {
   return (
     <li className="space-y-2 py-4 text-sm" data-testid={`vo-${vo.order_number}`}>
       <div className="flex flex-wrap items-center gap-2"><b>{vo.order_number}</b><StatusBadge tone={vo.status === "pending" ? "gold" : "neutral"}>{label(vo.status)}</StatusBadge><Deadline vo={vo} />
-        <span className="text-xs text-av-muted">{vo.fulfillment_type === "pickup" ? "Local pickup" : `${a.full_name}, ${a.line1}, ${a.city} ${a.postal_code} ${a.country}`}</span></div>
+        <span className="text-xs text-av-muted">{vo.fulfillment_type === "pickup" ? "Local pickup" : `${a.full_name}, ${a.line1}, ${a.city} ${a.postal_code} ${a.country}`}</span>
+        {vo.pickup_booking && <span className="text-xs font-semibold" data-testid={`vo-pickup-booking-${vo.order_number}`}>Pickup booked: {new Intl.DateTimeFormat("en-US", { timeZone: vo.shipping_method?.pickup_hours?.timezone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(vo.pickup_booking.start))}</span>}</div>
       <p className="text-xs">{vo.items.map((i) => `${i.title} × ${i.quantity} (${vo.fulfillment_type === "pickup" ? (vo.status === "delivered" ? `${i.shipped_qty} collected` : vo.status === "ready_for_pickup" ? `${i.shipped_qty} waiting for collection` : "not ready yet") : `${i.shipped_qty} shipped`})`).join(" · ")} · {formatPrice(vo.charged_minor)}</p>
       {vo.shipments.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-2 text-xs">{s.carrier_name} {s.tracking_number} · {label(s.status)}<SlipButtons vo={vo} shipment={s} tid={s.id} />
         {s.status !== "delivered" && ["in_transit", "out_for_delivery", "delivered"].filter((st) => s.status === "exception" || ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(st) > ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(s.status)).map((st) => <Button key={st} size="sm" variant="ghost" onClick={() => act(() => api.post(`/vendor/shipments/${s.id}/status`, { status: st }), "Updated", reload)} data-testid={`vo-shipment-${st}-${s.id}`}>{label(st)}</Button>)}</div>)}
@@ -124,7 +125,7 @@ const Methods = () => {
     load();
   }, [load]);
   const [editing, setEditing] = useState(null);
-  const save = () => act(() => api.post("/vendor/shipping-methods", { name: f.name, type: f.type, amount_minor: f.type === "pickup" ? 0 : Math.round(Number(f.amount || 0) * 100), eta: f.eta || "", pickup_address: f.pickup || "", handling_days: f.days === undefined || f.days === "" ? null : Number(f.days), pickup_hours: f.type === "pickup" ? (f.hours || emptyHours()) : null }), "Shipping option added", () => { setF({ type: "ship" }); load(); });
+  const save = () => act(() => api.post("/vendor/shipping-methods", { name: f.name, type: f.type, amount_minor: f.type === "pickup" ? 0 : Math.round(Number(f.amount || 0) * 100), eta: f.eta || "", pickup_address: f.pickup || "", handling_days: f.days === undefined || f.days === "" ? null : Number(f.days), pickup_hours: f.type === "pickup" ? (f.hours || emptyHours()) : null, slot_minutes: f.type === "pickup" && f.slotMin ? Number(f.slotMin) : null, slot_capacity: f.type === "pickup" && f.slotCap ? Number(f.slotCap) : null }), "Shipping option added", () => { setF({ type: "ship" }); load(); });
   const saveHours = () => act(() => api.put(`/vendor/shipping-methods/${editing.id}`, editing), "Pickup hours saved", () => { setEditing(null); load(); });
   const setDays = async (m, input) => {
     try {
@@ -143,7 +144,10 @@ const Methods = () => {
         <Input className="h-8 w-16" type="number" min="0" defaultValue={m.handling_days ?? 3} onBlur={(e) => Number(e.target.value) !== m.handling_days && setDays(m, e.target)} data-testid={`method-days-${m.id}`} /> business days to {m.type === "pickup" ? "prepare" : "ship"}
         {m.type === "pickup" && <Button size="sm" variant="ghost" onClick={() => setEditing({ ...m, pickup_hours: m.pickup_hours || emptyHours() })} data-testid={`method-hours-edit-${m.id}`}>{m.pickup_hours ? "Edit pickup hours" : "Set pickup hours"}</Button>}
         {m.type === "pickup" && editing?.id !== m.id && <PickupHours hours={m.pickup_hours} compact testId={`method-hours-${m.id}`} />}
+        {m.type === "pickup" && editing?.id !== m.id && <span className="text-xs text-av-muted" data-testid={`method-slots-${m.id}`}>{m.slot_minutes ?? 30}-min slots · {m.slot_capacity ?? 3} per slot</span>}
         {editing?.id === m.id && <><PickupHoursEditor value={editing.pickup_hours} onChange={(v) => setEditing({ ...editing, pickup_hours: v })} />
+          <label className="text-xs">Slot length (min)<Input className="h-8 w-20" type="number" min="15" step="5" value={editing.slot_minutes ?? 30} onChange={(e) => setEditing({ ...editing, slot_minutes: Number(e.target.value) })} data-testid="edit-slot-minutes" /></label>
+          <label className="text-xs">Customers per slot<Input className="h-8 w-20" type="number" min="1" value={editing.slot_capacity ?? 3} onChange={(e) => setEditing({ ...editing, slot_capacity: Number(e.target.value) })} data-testid="edit-slot-capacity" /></label>
           <Button size="sm" onClick={saveHours} data-testid="method-hours-save">Save hours</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)} data-testid="method-hours-cancel">Cancel</Button></>}</li>)}</ul>
       <div className="flex flex-wrap gap-2">
         <select className="h-9 rounded border border-av-line bg-white px-2 text-sm" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} data-testid="method-type"><option value="ship">Delivery</option><option value="pickup">Local pickup</option></select>
@@ -151,6 +155,8 @@ const Methods = () => {
         {f.type === "ship" ? <Input className="h-9 w-28" placeholder="Fee ($)" value={f.amount || ""} onChange={(e) => setF({ ...f, amount: e.target.value })} data-testid="method-amount" />
           : <Input className="h-9 w-64" placeholder="Pickup address" value={f.pickup || ""} onChange={(e) => setF({ ...f, pickup: e.target.value })} data-testid="method-pickup" />}
         <Input className="h-9 w-36" type="number" min="0" placeholder="Handling days (3)" value={f.days ?? ""} onChange={(e) => setF({ ...f, days: e.target.value })} data-testid="method-days" />
+        {f.type === "pickup" && <><Input className="h-9 w-32" type="number" min="15" step="5" placeholder="Slot min (30)" value={f.slotMin ?? ""} onChange={(e) => setF({ ...f, slotMin: e.target.value })} data-testid="method-slot-minutes" />
+          <Input className="h-9 w-36" type="number" min="1" placeholder="Per slot (3)" value={f.slotCap ?? ""} onChange={(e) => setF({ ...f, slotCap: e.target.value })} data-testid="method-slot-capacity" /></>}
         <Button size="sm" onClick={save} disabled={!f.name} data-testid="method-save">Add</Button>
         {f.type === "pickup" && !editing && <PickupHoursEditor value={f.hours} onChange={(v) => setF({ ...f, hours: v })} />}
         {f.type === "pickup" && editing && <p className="text-xs text-av-muted">Finish editing the hours above first.</p>}

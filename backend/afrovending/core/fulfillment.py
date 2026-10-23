@@ -7,6 +7,7 @@ from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from afrovending.core import email as mail
+from afrovending.core import pickup_hours as ph
 from afrovending.core.audit import audit
 from afrovending.core.business_days import add_business_days
 from afrovending.core.catalog import refresh_stock_flag
@@ -188,19 +189,97 @@ async def _once(key: str, vo: dict, kind: str) -> bool:
             {"key": key, "status": "failed", "attempts": {"$lt": MAX_SEND_ATTEMPTS}}, {"$set": {"status": "sending"}}))
 
 
-async def notify_pickup_ready(vo: dict) -> None:
-    """Uses the pickup details snapshotted on the order, so later vendor edits don't change this arrangement."""
-    from afrovending.core import pickup_hours as ph
-    key = f"{vo['_id']}:pickup_ready"
-    if not await _once(key, vo, "pickup_ready"):
+async def notify_pickup_ready(vo: dict, stage: str = "ready", kind: str = "pickup_ready") -> None:
+    """Address/instructions come from the order snapshot; hours shown are the location's current ones (fallback: snapshot)."""
+    key = f"{vo['_id']}:{kind}"
+    if not await _once(key, vo, kind):
         return
     u = await db.users.find_one({"_id": vo["customer_id"]})
     if not u:
         return await _sent(key, True)
-    h = (vo.get("shipping_method") or {}).get("pickup_hours")
+    h, _, _, _ = await pickup_context(vo)
     hours, exc = (ph.weekly_lines(h), ph.upcoming_exceptions(h, utcnow())) if h else ([], [])
-    subject, html = mail.pickup_ready_email(u.get("first_name") or "there", vo, hours, exc, (h or {}).get("timezone", ""), f"/account/orders/{vo['order_id']}")
+    b = vo.get("pickup_booking")
+    booking = ph.local_label(h, b["start"]) if b and h else ""
+    subject, html = mail.pickup_ready_email(u.get("first_name") or "there", vo, hours, exc, (h or {}).get("timezone", ""),
+                                            f"/account/orders/{vo['order_id']}", stage, booking)
     await _sent(key, await mail.try_send(to=u["email"], subject=subject, html=html))
+
+
+async def pickup_context(vo: dict) -> tuple[dict | None, int, int, str | None]:
+    """Live pickup location settings (hours, slot length, capacity), falling back to the order snapshot."""
+    m = vo.get("shipping_method") or {}
+    live = await db.shipping_methods.find_one({"_id": ObjectId(m["id"])}) if ObjectId.is_valid(m.get("id") or "") else None
+    live = live or {}
+    h = live.get("pickup_hours") or m.get("pickup_hours")
+    return h, int(live.get("slot_minutes") or m.get("slot_minutes") or 30), int(live.get("slot_capacity") or m.get("slot_capacity") or 3), m.get("id")
+
+
+async def available_slots(vo: dict) -> tuple[dict | None, list[dict]]:
+    h, minutes, cap, mid = await pickup_context(vo)
+    if not h:
+        return None, []
+    sl = ph.slots(h, utcnow(), minutes)
+    used = {d["start"]: d["count"] async for d in db.pickup_slots.find({"method_id": mid, "start": {"$in": [s for s, _ in sl]}})}
+    mine = (vo.get("pickup_booking") or {}).get("start")
+    return h, [{"start": s, "end": e, "remaining": max(0, cap - used.get(s, 0)), "mine": s == mine} for s, e in sl]
+
+
+async def _reserve(key: str, mid: str, vo: dict, start, end, cap: int) -> bool:
+    try:
+        await db.pickup_slots.update_one({"key": key}, {"$setOnInsert": {"key": key, "method_id": mid, "vendor_id": vo["vendor_id"], "start": start,
+                                                                          "end": end, "count": 0}}, upsert=True)
+    except DuplicateKeyError:
+        pass
+    return bool(await db.pickup_slots.find_one_and_update({"key": key, "count": {"$lt": cap}}, {"$inc": {"count": 1}}))
+
+
+async def _release(key: str) -> None:
+    await db.pickup_slots.update_one({"key": key, "count": {"$gt": 0}}, {"$inc": {"count": -1}})
+
+
+async def book_pickup(vo: dict, start_iso: str, user_id: str) -> dict:
+    if vo["status"] != "ready_for_pickup":
+        raise APIError(409, "invalid_state", "You can book a pickup time once the seller marks the order ready.")
+    try:
+        start = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+    except ValueError:
+        raise APIError(422, "validation_error", "Choose a pickup time from the list.") from None
+    h, slots = await available_slots(vo)
+    slot = next((s for s in slots if s["start"] == start), None)
+    if not h or not slot or not ph.is_open_at(h, start):
+        raise APIError(422, "validation_error", "That time isn't available. Choose one of the open times shown.")
+    old = vo.get("pickup_booking")
+    if old and old["start"] == start:
+        return vo
+    _, _, cap, mid = await pickup_context(vo)
+    key = f"{mid}:{start.isoformat()}"
+    if not await _reserve(key, mid, vo, start, slot["end"], cap):
+        raise APIError(409, "slot_full", "That time just filled up. Please choose another.")
+    booking = {"key": key, "start": start, "end": slot["end"], "method_id": mid, "booked_at": utcnow(), "by": user_id}
+    res = await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "status": "ready_for_pickup", "pickup_booking.key": old["key"] if old else None},
+                                                     {"$set": {"pickup_booking": booking}}, return_document=ReturnDocument.AFTER)
+    if not res:
+        await _release(key)
+        raise APIError(409, "conflict", "Your booking changed at the same time. Refresh and try again.")
+    if old:
+        await _release(old["key"])
+    label = ph.local_label(h, start)
+    await event(res, "pickup_booked", f"Pickup {'rescheduled' if old else 'booked'} for {label}", "customer", user_id)
+    await notify_vendor(vo["vendor_id"], "Pickup time booked", f"The customer for order {vo['order_number']} will collect on {label}.")
+    return res
+
+
+async def cancel_pickup_booking(vo: dict, user_id: str) -> dict:
+    old = vo.get("pickup_booking")
+    if not old:
+        return vo
+    res = await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "pickup_booking.key": old["key"]}, {"$unset": {"pickup_booking": ""}},
+                                                     return_document=ReturnDocument.AFTER)
+    if res:
+        await _release(old["key"])
+        await event(res, "pickup_booking_cancelled", "Pickup time cancelled", "customer", user_id)
+    return res or vo
 
 
 def _day(d: datetime) -> str:
@@ -223,6 +302,17 @@ async def handling_alerts() -> dict:
         vo = await db.vendor_orders.find_one({"_id": log["vendor_order_id"], "status": "ready_for_pickup"})
         if vo:
             await notify_pickup_ready(vo)
+    async for vo in db.vendor_orders.find({"status": "ready_for_pickup"}):
+        age = now - (vo.get("ready_at") or vo.get("updated_at") or vo["created_at"])
+        if age >= timedelta(days=3):
+            await notify_pickup_ready(vo, "reminder", "collect_reminder_3")
+        if age >= timedelta(days=7):
+            await notify_pickup_ready(vo, "final", "collect_reminder_7")
+            k = f"{vo['_id']}:collect_vendor_7"
+            if await _once(k, vo, "collect_vendor_7"):
+                await _sent(k, await notify_vendor(vo["vendor_id"], "Pickup order not collected",
+                                                   f"Order {vo['order_number']} has been ready for pickup for 7 days and hasn't been collected. "
+                                                   "Consider contacting the customer."))
     async for vo in db.vendor_orders.find({"status": {"$in": list(HANDLING_ACTIVE)}, "handling.deadline_at": {"$ne": None}}):
         h = vo["handling"]
         dl, pickup, vid = h["deadline_at"], h["kind"] == "pickup", str(vo["_id"])

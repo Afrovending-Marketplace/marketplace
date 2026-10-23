@@ -1,5 +1,5 @@
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, available_timezones
 
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -69,6 +69,29 @@ def is_open_at(h: dict, moment: datetime) -> bool:
     local = moment.astimezone(ZoneInfo(h["timezone"]))
     t = local.strftime("%H:%M")
     return any(iv["open"] <= t < iv["close"] for iv in intervals_on(h, local.date()))
+
+
+def slots(h: dict, now: datetime, minutes: int, days: int = 14, lead_minutes: int = 60) -> list[tuple[datetime, datetime]]:
+    """Bookable (start, end) UTC pairs that fit fully inside an opening period, from lead time up to `days` ahead."""
+    tz = ZoneInfo(h["timezone"])
+    earliest, step = now + timedelta(minutes=lead_minutes), timedelta(minutes=minutes)
+    today = now.astimezone(tz).date()
+    out = []
+    for n in range(days):
+        d = today + timedelta(days=n)
+        for iv in intervals_on(h, d):
+            start = datetime.combine(d, time.fromisoformat(iv["open"]), tz)
+            close = datetime.combine(d, time.fromisoformat(iv["close"]), tz)
+            while start + step <= close:
+                if start >= earliest:
+                    out.append((start.astimezone(timezone.utc), (start + step).astimezone(timezone.utc)))
+                start += step
+    return out
+
+
+def local_label(h: dict, moment: datetime) -> str:
+    loc = moment.astimezone(ZoneInfo(h["timezone"]))
+    return f"{loc.strftime('%a %b %d')}, {_fmt(loc.strftime('%H:%M'))} ({loc.tzname()})"
 
 
 def _fmt(t: str) -> str:

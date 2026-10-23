@@ -196,16 +196,25 @@ def payment_notice_email(name: str, headline: str, text: str, path: str) -> tupl
     return f"AfroVending: {headline}", _layout(headline, body)
 
 
-def pickup_ready_email(name: str, vo: dict, hours: list[str], exceptions: list[str], tz: str, path: str) -> tuple[str, str]:
+def pickup_ready_email(name: str, vo: dict, hours: list[str], exceptions: list[str], tz: str, path: str,
+                       stage: str = "ready", booking: str = "") -> tuple[str, str]:
     m = vo.get("shipping_method") or {}
     hrs = "".join(f"<li>{escape(x)}</li>" for x in hours) or "<li>Contact the seller for opening hours.</li>"
     exc = f"<p><b>Upcoming closures / special hours</b></p><ul>{''.join(f'<li>{escape(x)}</li>' for x in exceptions)}</ul>" if exceptions else ""
     ins = f"<p><b>Pickup instructions</b><br/>{escape((m.get('pickup_hours') or {}).get('instructions', ''))}</p>" if (m.get("pickup_hours") or {}).get("instructions") else ""
-    body = (f"<p>Hi {escape(name)},</p><p>Good news — your order <b>{escape(vo['order_number'])}</b> from <b>{escape(vo['vendor_name'])}</b> is ready to collect.</p>"
+    num, ven = escape(vo["order_number"]), escape(vo["vendor_name"])
+    intro = {"ready": f"Good news — your order <b>{num}</b> from <b>{ven}</b> is ready to collect. You can choose a pickup time on your order page.",
+             "reminder": f"A friendly reminder — your order <b>{num}</b> from <b>{ven}</b> is still waiting for you. Please collect it soon.",
+             "final": f"Final reminder — your order <b>{num}</b> from <b>{ven}</b> has been waiting for a week. We've let the seller know. "
+                      "If you can't collect it, please contact the seller or reply to this email."}[stage]
+    slot = f"<p><b>Your booked pickup time</b><br/>{escape(booking)}</p>" if booking else ""
+    body = (f"<p>Hi {escape(name)},</p><p>{intro}</p>{slot}"
             f"<p><b>Pickup address</b><br/>{escape(m.get('pickup_address') or 'See your order page')}</p>"
             f"<p><b>Opening hours</b>{f' ({escape(tz)})' if tz else ''}</p><ul>{hrs}</ul>{exc}{ins}"
-            f"<p>Please bring your order number. </p>{_button(settings.frontend_url + path, 'View order')}")
-    return f"AfroVending: Order {vo['order_number']} is ready for pickup", _layout("Ready for pickup", body)
+            f"<p>Please bring your order number.</p>{_button(settings.frontend_url + path, 'Book or view pickup time' if not booking else 'View order')}")
+    subject = {"ready": f"Order {vo['order_number']} is ready for pickup", "reminder": f"Reminder: order {vo['order_number']} is waiting for pickup",
+               "final": f"Final reminder: collect order {vo['order_number']}"}[stage]
+    return f"AfroVending: {subject}", _layout({"ready": "Ready for pickup", "reminder": "Waiting for you", "final": "Please collect your order"}[stage], body)
 
 
 def receipt_email(name: str, order: dict, payment: dict) -> tuple[str, str]:

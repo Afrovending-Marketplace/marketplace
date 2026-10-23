@@ -343,3 +343,79 @@ def test_10_bulk_packing_slips(w):  # noqa: F811
     pdf = build_slips([(vo, [(i, i["quantity"] - i["shipped_qty"]) for i in items], None)] * 2, "t")
     assert pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page ") >= 2 or pdf.count(b"PACKING SLIP") == 2
     assert b"$" not in pdf
+
+
+def test_11_slot_generation_timezones_holidays():
+    from datetime import timezone
+    from afrovending.core import pickup_hours as ph
+    h = ph.validate(HOURS)
+    mon = ph.slots(h, datetime(2026, 12, 21, 13, 0, tzinfo=timezone.utc), 60, days=1)
+    assert len(mon) == 7 and mon[0][0] == datetime(2026, 12, 21, 15, 0, tzinfo=timezone.utc)
+    assert mon[3][0] == datetime(2026, 12, 21, 20, 0, tzinfo=timezone.utc) and mon[-1][1] == datetime(2026, 12, 22, 0, 0, tzinfo=timezone.utc)
+    assert all(ph.is_open_at(h, s) for s, _ in mon)
+    assert ph.slots(h, datetime(2026, 10, 26, 12, 0, tzinfo=timezone.utc), 60, days=1)[0][0] == datetime(2026, 10, 26, 14, 0, tzinfo=timezone.utc)  # CDT
+    assert ph.slots(h, datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc), 60, days=1)[0][0] == datetime(2026, 11, 2, 15, 0, tzinfo=timezone.utc)  # CST
+    assert ph.slots(h, datetime(2026, 12, 24, 6, 0, tzinfo=timezone.utc), 60, days=1) == []
+    assert len(ph.slots(h, datetime(2026, 12, 31, 6, 0, tzinfo=timezone.utc), 60, days=1)) == 3
+    assert len(ph.slots(h, datetime(2026, 12, 21, 13, 0, tzinfo=timezone.utc), 45, days=1)) == 4 + 5
+    late = ph.slots(h, datetime(2026, 12, 21, 21, 30, tzinfo=timezone.utc), 60, days=1)  # 15:30 local + 60 min lead
+    assert [s for s, _ in late] == [datetime(2026, 12, 21, 22, 30, tzinfo=timezone.utc) - __import__("datetime").timedelta(minutes=30)] or len(late) == 1
+    assert ph.local_label(h, mon[0][0]) == "Mon Dec 21, 9:00 AM (CST)"
+
+
+def test_12_pickup_booking_capacity_and_collection_reminders(w):  # noqa: F811
+    from datetime import timedelta, timezone
+    a, c = w["a"], S["c8"]
+    mongo.inventory.update_one({"variant_id": ObjectId(w["scarf"][1])}, {"$inc": {"quantity_on_hand": 10}})
+    assert a.post("/vendor/shipping-methods", json={"name": "TEST8 Bad slots", "type": "pickup", "amount_minor": 0, "pickup_address": "12 Market St",
+                                                     "pickup_hours": HOURS, "slot_minutes": 17}).status_code == 422
+    m = a.post("/vendor/shipping-methods", json={"name": "TEST8 Slots", "type": "pickup", "amount_minor": 0, "pickup_address": "12 Market St, Boston",
+                                                  "pickup_hours": HOURS, "slot_minutes": 60, "slot_capacity": 1}).json()
+    assert m["slot_minutes"] == 60 and m["slot_capacity"] == 1
+    o1, v1 = _pickup_order(c, w, m["id"])
+    o2, v2 = _pickup_order(c, w, m["id"])
+    assert v1["shipping_method"]["slot_capacity"] == 1
+    assert c.post(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking", json={"start": "2026-12-21T15:00:00+00:00"}).status_code == 409
+    for o, v in ((o1, v1), (o2, v2)):
+        assert a.post(f"/vendor/orders/{v['id']}/status", json={"to": "accepted"}).status_code == 200
+        assert a.post(f"/vendor/orders/{v['id']}/status", json={"to": "ready_for_pickup"}).status_code == 200
+    s1 = c.get(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-slots").json()
+    assert s1["bookable"] and s1["timezone"] == "America/Chicago" and s1["slots"] and all(s["remaining"] == 1 for s in s1["slots"])
+    first, second = s1["slots"][0]["start"], s1["slots"][1]["start"]
+    assert c.post(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking", json={"start": "2026-12-23T16:00:00+00:00"}).status_code == 422  # Wednesday closed
+    assert c.post(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking", json={"start": first.replace(":00:00", ":07:00")}).status_code == 422
+    r = c.post(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking", json={"start": first})
+    assert r.status_code == 200 and r.json()["vendor_order"]["pickup_booking"]["start"].startswith(first[:16])
+    assert c.post(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking", json={"start": first}).status_code == 200  # idempotent
+    s2 = c.get(f"/orders/{o2}/vendor-orders/{v2['id']}/pickup-slots").json()
+    assert next(s for s in s2["slots"] if s["start"] == first)["remaining"] == 0
+    assert c.post(f"/orders/{o2}/vendor-orders/{v2['id']}/pickup-booking", json={"start": first}).json()["error"]["code"] == "slot_full"
+    other = buyer()
+    assert other.get(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-slots").status_code == 404
+    assert other.post(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking", json={"start": second}).status_code == 404
+    assert c.post(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking", json={"start": second}).status_code == 200  # reschedule frees first
+    assert c.post(f"/orders/{o2}/vendor-orders/{v2['id']}/pickup-booking", json={"start": first}).status_code == 200
+    key_first = f"{m['id']}:{datetime.fromisoformat(first).isoformat()}"
+    assert mongo.pickup_slots.find_one({"key": key_first})["count"] == 1
+    assert c.delete(f"/orders/{o2}/vendor-orders/{v2['id']}/pickup-booking").status_code == 200
+    assert mongo.pickup_slots.find_one({"key": key_first})["count"] == 0
+    assert any(e["type"] == "pickup_booked" for e in c.get(f"/orders/{o1}/detail").json()["vendor_orders"][0]["events"])
+    now = datetime.now(timezone.utc)
+    mongo.vendor_orders.update_one({"_id": ObjectId(v1["id"])}, {"$set": {"ready_at": now - timedelta(days=4)}})
+    run_cron("handling-alerts")
+    run_cron("handling-alerts")
+    assert logs(v1["id"], "collect_reminder_3") == 1 and logs(v1["id"], "collect_reminder_7") == 0 and logs(v1["id"], "collect_vendor_7") == 0
+    assert logs(v2["id"], "collect_reminder_3") == 0
+    mongo.vendor_orders.update_one({"_id": ObjectId(v1["id"])}, {"$set": {"ready_at": now - timedelta(days=8)}})
+    run_cron("handling-alerts")
+    run_cron("handling-alerts")
+    assert logs(v1["id"], "collect_reminder_3") == 1 and logs(v1["id"], "collect_reminder_7") == 1 and logs(v1["id"], "collect_vendor_7") == 1
+    assert a.post(f"/vendor/orders/{v1['id']}/status", json={"to": "delivered"}).status_code == 200
+    assert c.post(f"/orders/{o1}/vendor-orders/{v1['id']}/pickup-booking", json={"start": first}).status_code == 409
+    from afrovending.core import email as mail
+    vo = mongo.vendor_orders.find_one({"_id": ObjectId(v1["id"])})
+    subject, html = mail.pickup_ready_email("Ada", vo, ["Mon: 9:00 AM–12:00 PM"], [], "America/Chicago", "/account/orders/x", "final", "Mon Dec 21, 9:00 AM (CST)")
+    assert "Final reminder" in subject and "Mon Dec 21, 9:00 AM (CST)" in html and "12 Market St, Boston" in html
+    mongo.pickup_slots.delete_many({"method_id": m["id"]})
+    mongo.shipping_methods.delete_many({"name": {"$regex": "^TEST8"}})
+

@@ -29,6 +29,7 @@ def cleanup7():
     for coll, field in (("payouts", "vendor_order_id"), ("order_items", "vendor_order_id"), ("shipments", "vendor_order_id"),
                         ("order_requests", "vendor_order_id"), ("order_events", "vendor_order_id"), ("notification_log", "vendor_order_id")):
         mongo[coll].delete_many({field: {"$in": vos}})
+    mongo.pickup_slots.delete_many({"vendor_id": {"$in": S.get("vendor_ids", [])}})
     for coll in ("refunds", "disputes"):
         mongo[coll].delete_many({"payment_id": {"$in": pays}})
     mongo.vendor_orders.delete_many({"_id": {"$in": vos}})
