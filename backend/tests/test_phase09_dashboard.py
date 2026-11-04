@@ -120,3 +120,5 @@ def test_05_plan_commission_applies_to_new_orders_only(w):  # noqa: F811
         assert plan["name"] == "Growth" and plan["monthly_fee_minor"] == 2499
     finally:
         mongo.vendors.update_one({"_id": B}, {"$unset": {"plan": ""}})
+        mongo.audit_logs.delete_many({"action": "vendor.plan_changed", "metadata.reason": "TEST upgrade"})
+        mongo.audit_logs.delete_many({"action": "vendor.plan_changed", "entity_id": str(B)})

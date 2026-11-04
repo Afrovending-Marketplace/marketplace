@@ -1,0 +1,21 @@
+{
+  "summary": "Retest of the Phase 09 Vendor Dashboard fixes made after iteration 13. All 7 items PASS. (1) The alert Open links now go to /vendor/dashboard. The API returns that link for store_unpublished. In the UI, clicking Open on alert-store_unpublished lands on /vendor/dashboard with the dashboard visible and no 404. (2) No '-$0.00': vendor A with no refunds shows kpi-refunds '$0.00' and the hint '$90.00 paid − $0.00 refunded'. No '-$0.00' appears on the overview, ops or money tabs. Vendor B (fully cancelled) shows Refunds $50.00 and '$45.00 paid − $45.00 refunded'. (3) Dates use US Eastern time. The browser timezone was UTC. A queue order created 2026-10-23T01:51Z shows 10/22/2026, and a temporary payout dated 2026-10-23T02:00Z shows 10/22/2026 in dash-payout-*. (4) Mobile 390px: the 4 tabs sit in a 2x2 grid (x 20/197, y 294/326, all inside 390px), and scrollWidth == clientWidth == 390 on every tab. (5) dash-plan: a vendor with no plan shows 'Starter ($0/month) · 10% commission (marketplace default rate)'. The default rule is 1000 bps. After the admin PUT plan growth (200), it shows 'Growth ($24.99/month) · 7% commission' with no default note. (6) products.csv header is 'product (orders placed in range),units_sold,units_refunded_after_sale,net_item_sales_usd'. After the customer fully cancelled B's suborder (qty 3, cancelled_qty 3, refunded_qty 3), the CSV row is '0,0,0.00' and top_products refunded_units = 0, so cancelled units are not counted as refunded. (7) Regression: tests/test_phase09_dashboard.py passes 5/5.",
+  "backend_issues": {"critical": [], "minor": [
+    {"endpoint": "tests/test_phase09_dashboard.py cleanup", "issue": "The test leaves orphaned 'vendor.plan_changed' audit_logs entries (2 per run, entity_id = deleted vendor). I removed them manually. Add audit_logs cleanup to the test teardown."}
+  ]},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_phase09_dashboard.py"],
+  "action_items": ["Optional: test_phase09_dashboard teardown should delete vendor.plan_changed audit_logs for its test vendors"],
+  "critical_code_review_comments": [
+    "_plan(): when the default rule is missing (default_bps None), it falls back to the hardcoded Starter rate without a note. That is acceptable.",
+    "set_plan returns _plan() without the default/override context. That is fine for the admin response."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (5/5 pytest + all ad-hoc API checks)", "frontend": "100% (7/7 retest items)"},
+  "test_credentials": "Super admin from /app/memory/test_credentials.md works. Vendors and buyer were created at runtime with seed_phase08_ui (TEST8UI_, TestPass12345) and deleted afterwards.",
+  "seed_data_creation": "Seeded with 'python -m tests.seed_phase08_ui seed' (2 vendors, buyer, 1 paid multi-vendor order). The customer cancelled B's suborder, B's store was unpublished, and A's plan was set to growth. One fake payout was inserted for A. Everything was removed with seed_phase08_ui cleanup, plus 3 orphaned plan_changed audit logs. The temporary scripts tests/iter14_checks.py and iter14_cancel.py and /tmp/seed8ui.json were deleted, and no XML was generated. Final counts: users=1, all commerce collections 0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The customer cancel endpoint POST /orders/{id}/vendor-orders/{vo}/cancel requires an Idempotency-Key header. The Playwright browser timezone is UTC, which makes ET date checks meaningful. The server clock is about Oct 23 2026 01:50 UTC (Oct 22 ET).",
+  "rca of the issue": "N/A. All previously reported issues are fixed."
+}
