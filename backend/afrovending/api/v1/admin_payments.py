@@ -2,6 +2,7 @@ from typing import Literal, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Header, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from afrovending.api.v1.vendors import ser
@@ -10,15 +11,15 @@ from afrovending.core import payments as pay
 from afrovending.core.audit import audit
 from afrovending.core.catalog import oid
 from afrovending.core.db import db
-from afrovending.core.deps import require_roles
+from afrovending.core.permissions import COMMISSION, FIN_MANAGE, FIN_VIEW, require_perm
 from afrovending.core.errors import APIError
 from afrovending.core.models import User, utcnow
-from afrovending.core.roles import Role
 from afrovending.core.stripe_client import MODE, get_config, guard
 
 router = APIRouter(prefix="/admin/payments", tags=["admin-payments"])
-READ = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
-FINANCE = require_roles(Role.SUPER_ADMIN)
+READ = require_perm(FIN_VIEW)
+FINANCE = require_perm(FIN_MANAGE)
+COMMISSION_ADMIN = require_perm(COMMISSION)
 
 
 class ConfigIn(BaseModel):
@@ -69,7 +70,7 @@ async def get_cfg(_: User = Depends(READ)):
 
 
 @router.put("/config")
-async def put_cfg(body: ConfigIn, request: Request, admin: User = Depends(FINANCE)):
+async def put_cfg(body: ConfigIn, request: Request, admin: User = Depends(COMMISSION_ADMIN)):
     before = await get_config()
     await db.platform_settings.update_one({"key": "payments.config"}, {"$set": {"value.hold_days": body.hold_days, "updated_at": utcnow()}}, upsert=True)
     await audit("admin.payments_config_updated", "platform_settings", request=request, actor=admin, before=before["hold_days"], after=body.hold_days)
@@ -97,7 +98,7 @@ async def rules(_: User = Depends(READ)):
 
 
 @router.post("/commission-rules", status_code=201)
-async def set_rule(body: RuleIn, request: Request, admin: User = Depends(FINANCE)):
+async def set_rule(body: RuleIn, request: Request, admin: User = Depends(COMMISSION_ADMIN)):
     """Rules are versioned: a change supersedes the previous rule; historical order items keep their recorded rate."""
     if not 0 <= body.rate_bps <= 5000:
         raise APIError(422, "validation_error", "Rate must be between 0% and 50%.")
@@ -114,7 +115,7 @@ async def set_rule(body: RuleIn, request: Request, admin: User = Depends(FINANCE
 
 
 @router.delete("/commission-rules/{rule_id}")
-async def end_rule(rule_id: str, request: Request, admin: User = Depends(FINANCE)):
+async def end_rule(rule_id: str, request: Request, admin: User = Depends(COMMISSION_ADMIN)):
     r = await db.commission_rules.find_one({"_id": oid(rule_id), "status": "active"})
     if not r:
         raise APIError(404, "not_found", "Rule not found.")
@@ -163,6 +164,19 @@ async def refund(vo_id: str, body: RefundIn, request: Request, idempotency_key: 
     vo = await db.vendor_orders.find_one({"_id": oid(vo_id)})
     if not vo:
         raise APIError(404, "not_found", "Vendor order not found.")
+    from afrovending.api.v1.admin_ops import approval_cfg
+    items = {i["_id"]: i async for i in db.order_items.find({"vendor_order_id": vo["_id"]})}
+    estimate = sum(items[oid(rl.order_item_id)]["line_total_minor"] * rl.quantity // max(1, items[oid(rl.order_item_id)]["quantity"])
+                   for rl in body.lines if oid(rl.order_item_id) in items) + (vo.get("shipping_minor", 0) if body.include_shipping else 0)
+    if estimate > (await approval_cfg())["refund_threshold_minor"] and "super_admin" not in admin.roles:
+        if await db.admin_approvals.find_one({"payload.key": idempotency_key}):
+            raise APIError(409, "conflict", "This refund is already waiting for approval.")
+        ap = {"action": "refund", "amount_minor": estimate, "status": "pending", "requested_by": oid(admin.id), "requested_by_name": admin.name, "created_at": utcnow(),
+              "payload": {"vo_id": vo_id, "lines": [[rl.order_item_id, rl.quantity] for rl in body.lines], "include_shipping": body.include_shipping,
+                          "reason": body.reason, "key": idempotency_key}}
+        ap["_id"] = (await db.admin_approvals.insert_one(ap)).inserted_id
+        await audit("admin.refund_approval_requested", "admin_approvals", request=request, actor=admin, entity_id=str(ap["_id"]), amount=estimate)
+        return JSONResponse(status_code=202, content={"approval_id": str(ap["_id"]), "status": "pending_approval", "amount_minor": estimate})
     doc = await pay.create_refund(vo, [(oid(rl.order_item_id), rl.quantity) for rl in body.lines], include_shipping=body.include_shipping,
                                   reason=body.reason, key=idempotency_key, actor_id=admin.id)
     await audit("admin.refund_requested", "refunds", request=request, actor=admin, entity_id=str(doc["_id"]), amount=doc["amount_minor"], reason=body.reason)

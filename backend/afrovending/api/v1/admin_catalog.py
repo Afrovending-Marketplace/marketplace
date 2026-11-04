@@ -12,13 +12,12 @@ from afrovending.core import email as mail
 from afrovending.core.audit import audit
 from afrovending.core.catalog import load_parts, oid, slugify
 from afrovending.core.db import db
-from afrovending.core.deps import require_roles
+from afrovending.core.permissions import CATALOG, SETTINGS, require_perm
 from afrovending.core.errors import APIError
 from afrovending.core.models import User, utcnow
-from afrovending.core.roles import Role
 
 router = APIRouter(prefix="/admin", tags=["admin-catalog"])
-MODERATOR = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
+MODERATOR = require_perm(CATALOG)
 LIVE = ["active", "pending_review"]
 
 
@@ -163,7 +162,7 @@ async def search_analytics(days: int = 30, _: User = Depends(MODERATOR)):
 
 
 @router.delete("/search-analytics")
-async def purge_search_analytics(request: Request, admin: User = Depends(require_roles(Role.SUPER_ADMIN))):
+async def purge_search_analytics(request: Request, admin: User = Depends(require_perm(SETTINGS))):
     n = (await db.search_queries.delete_many({})).deleted_count
     await audit("admin.search_analytics_purged", "search_queries", request=request, actor=admin, deleted=n)
     return {"deleted": n}

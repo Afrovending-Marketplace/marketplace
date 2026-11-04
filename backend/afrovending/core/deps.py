@@ -25,6 +25,7 @@ async def get_current_user(request: Request) -> User:
     if not doc or doc["status"] in INACTIVE:
         raise APIError(401, "unauthorized", "Please sign in to continue.")
     request.state.session_id = payload["sid"]
+    request.state.mfa_verified = bool(session.get("mfa_verified"))
     return User.from_mongo(doc)
 
 

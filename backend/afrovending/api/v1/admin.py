@@ -6,16 +6,14 @@ from pydantic import BaseModel, EmailStr, Field
 
 from afrovending.core.audit import audit
 from afrovending.core.db import db
-from afrovending.core.deps import require_roles
+from afrovending.core.permissions import AUDIT, CUST_MANAGE, CUST_VIEW, require_perm
 from afrovending.core.errors import APIError
 from afrovending.core.models import PrivacyRequest, User, utcnow
-from afrovending.core.roles import Role
-from afrovending.core.security import hash_password, require_valid_password
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-ANY_ADMIN = require_roles(Role.SUPPORT_ADMIN, Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
-PRIVACY_ADMIN = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
-SUPER = require_roles(Role.SUPER_ADMIN)
+ANY_ADMIN = require_perm(CUST_VIEW)
+PRIVACY_ADMIN = require_perm(CUST_MANAGE)
+SUPER = require_perm(AUDIT)
 
 
 class StaffIn(BaseModel):
@@ -44,15 +42,8 @@ async def list_users(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1
 
 @router.post("/staff", status_code=201)
 async def create_staff(body: StaffIn, request: Request, admin: User = Depends(SUPER)):
-    require_valid_password(body.password, strong=True)
-    email = body.email.lower()
-    if await db.users.find_one({"email": email}):
-        raise APIError(409, "conflict", "An account with this email already exists.")
-    staff = User(email=email, name=body.name, password_hash=hash_password(body.password), roles=[body.role], status="active",
-                 email_verified_at=utcnow(), auth_providers=[{"provider": "password", "linked_at": utcnow()}])
-    staff.id = str((await db.users.insert_one(staff.to_mongo())).inserted_id)
-    await audit("admin.staff_created", "users", request=request, actor=admin, entity_id=staff.id, role=body.role)
-    return {"user": staff.public()}
+    """Retired in Phase 10: direct admin account creation bypassed invites and MFA. Use POST /admin/team/invites."""
+    raise APIError(410, "gone", "Admins are now added by invitation from the Team page.")
 
 
 @router.get("/privacy-requests")

@@ -115,8 +115,12 @@ class TestAuthorization:
         with _client() as c:
             mongo.rate_limits.delete_many({"key": {"$regex": "afrovending.online"}})
             assert c.post("/auth/login", json=ADMIN).status_code == 200
-            assert c.get("/admin/users").status_code == 200
-            assert c.get("/admin/audit-logs").status_code == 200
+            r = c.get("/admin/users")
+            assert r.status_code == 403 and r.json()["error"]["code"] == "mfa_required"  # Phase 10: admin tools need TOTP first
+        from tests.test_phase03_vendors import admin_client
+        c = admin_client()
+        assert c.get("/admin/users").status_code == 200
+        assert c.get("/admin/audit-logs").status_code == 200
 
     def test_addresses_are_owner_scoped(self):
         addr = {"full_name": "TEST2_A", "line1": "1 Main St", "city": "Boston", "country": "us"}

@@ -14,16 +14,16 @@ from afrovending.core import ledger
 from afrovending.core import pickup_hours as ph
 from afrovending.core.catalog import adjust_stock, oid
 from afrovending.core.db import db
-from afrovending.core.deps import get_current_user, require_roles
+from afrovending.core.deps import get_current_user
+from afrovending.core.permissions import ORDERS_MANAGE, require_perm
 from afrovending.core.errors import APIError
 from afrovending.core.business_days import add_business_days
 from afrovending.core.models import User, utcnow
 from afrovending.core.packing_slip import build_slip, build_slips
 from afrovending.core.payments import create_refund
-from afrovending.core.roles import Role
 
 router = APIRouter(tags=["fulfillment"])
-ADMIN = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
+ADMIN = require_perm(ORDERS_MANAGE)
 OPEN_REQ = ("requested", "approved")
 
 

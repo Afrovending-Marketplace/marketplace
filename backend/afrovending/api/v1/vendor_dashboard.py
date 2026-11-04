@@ -11,13 +11,13 @@ from afrovending.core import ledger, reports
 from afrovending.core.audit import audit
 from afrovending.core.catalog import oid
 from afrovending.core.db import db
-from afrovending.core.deps import get_current_user, require_roles
+from afrovending.core.deps import get_current_user
+from afrovending.core.permissions import COMMISSION, require_perm
 from afrovending.core.errors import APIError
 from afrovending.core.models import User
-from afrovending.core.roles import Role
 
 router = APIRouter(tags=["vendor-dashboard"])
-ADMIN = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
+ADMIN = require_perm(COMMISSION)
 DATE = r"^\d{4}-\d{2}-\d{2}$"
 
 

@@ -9,13 +9,12 @@ from afrovending.api.v1.vendors import ser
 from afrovending.core.audit import audit
 from afrovending.core.catalog import oid
 from afrovending.core.db import db
-from afrovending.core.deps import require_roles
+from afrovending.core.permissions import COMMERCE, require_perm
 from afrovending.core.errors import APIError
 from afrovending.core.models import User, utcnow
-from afrovending.core.roles import Role
 
 router = APIRouter(prefix="/admin/commerce", tags=["admin-commerce"])
-ADMIN = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
+ADMIN = require_perm(COMMERCE)
 Status = Literal["active", "inactive"]
 
 

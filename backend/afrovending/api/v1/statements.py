@@ -15,14 +15,14 @@ from afrovending.api.v1.vendors import my_vendor
 from afrovending.core import ledger
 from afrovending.core.catalog import oid
 from afrovending.core.db import db
-from afrovending.core.deps import get_current_user, require_roles
+from afrovending.core.deps import get_current_user
+from afrovending.core.permissions import FIN_VIEW, require_perm
 from afrovending.core.errors import APIError
 from afrovending.core.models import User, utcnow
 from afrovending.core.reports import ET, et_month
-from afrovending.core.roles import Role
 
 router = APIRouter(tags=["statements"])
-ADMIN = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
+ADMIN = require_perm(FIN_VIEW)
 GROUPS = {"Gross item sales": ("gross_sale",), "Shipping collected": ("shipping",), "Refunds": ("refund",),
           "Commission": ("commission", "commission_reversal"), "Card processing fees": ("processing_fee_allocation", "fee_return"),
           "Chargebacks": ("dispute_debit", "dispute_fee"), "Adjustments": ("liability_recovery",),

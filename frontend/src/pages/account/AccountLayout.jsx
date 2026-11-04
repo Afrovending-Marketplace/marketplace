@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, User, MapPin, ShieldCheck, LogOut, Receipt } from "lucide-react";
+import { LayoutDashboard, User, MapPin, ShieldCheck, LogOut, Receipt, LifeBuoy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, isAdmin } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ const LINKS = [
   ["/account/profile", "Profile & password", User, "profile"],
   ["/account/addresses", "Address book", MapPin, "addresses"],
   ["/account/privacy", "Privacy & account", ShieldCheck, "privacy"],
+  ["/account/support", "Help & support", LifeBuoy, "support"],
 ];
 
 export default function AccountLayout() {

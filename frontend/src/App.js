@@ -3,6 +3,10 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AuthProvider } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import HomePage from "@/pages/HomePage";
+import AdminHomePage, { AcceptInvitePage, AdminTeamPage } from "@/pages/admin/AdminHomePage";
+import AdminMfaPage from "@/pages/admin/AdminMfaPage";
+import AdminTicketsPage, { SupportPage, SupportTicketPage } from "@/pages/admin/AdminTicketsPage";
+import AdminContentPage from "@/pages/admin/AdminContentPage";
 import ShopPage from "@/pages/ShopPage";
 import SearchPage from "@/pages/SearchPage";
 import CategoriesPage from "@/pages/CategoriesPage";
@@ -52,7 +56,7 @@ import ComingSoonPage from "@/pages/ComingSoonPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 import { FUTURE_ROUTES } from "@/config/site";
 
-const ADMIN_ROLES = ["support_admin", "marketplace_admin", "super_admin"];
+const ADMIN_ROLES = ["support_admin", "content_admin", "finance_admin", "marketplace_admin", "super_admin"];
 
 function App() {
   return (
@@ -94,13 +98,21 @@ function App() {
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="addresses" element={<AddressesPage />} />
                 <Route path="privacy" element={<PrivacySettingsPage />} />
+                <Route path="support" element={<SupportPage />} />
+                <Route path="support/:id" element={<SupportTicketPage />} />
               </Route>
               <Route path="vendor/apply" element={<VendorApplyPage />} />
             </Route>
+            <Route path="admin/invite" element={<AcceptInvitePage />} />
             <Route element={<ProtectedRoute roles={ADMIN_ROLES} />}>
-              <Route path="admin" element={<AdminConsolePage />} />
+              <Route path="admin" element={<AdminHomePage />} />
+              <Route path="admin/console" element={<AdminConsolePage />} />
+              <Route path="admin/mfa" element={<AdminMfaPage />} />
+              <Route path="admin/team" element={<AdminTeamPage />} />
+              <Route path="admin/tickets" element={<AdminTicketsPage />} />
+              <Route path="admin/content" element={<AdminContentPage />} />
             </Route>
-            <Route element={<ProtectedRoute roles={["marketplace_admin", "super_admin"]} />}>
+            <Route element={<ProtectedRoute roles={ADMIN_ROLES} />}>
               <Route path="admin/vendors" element={<AdminVendorsPage />} />
               <Route path="admin/products" element={<AdminProductsPage />} />
               <Route path="admin/categories" element={<AdminCategoriesPage />} />

@@ -14,5 +14,8 @@ export const ProtectedRoute = ({ roles }) => {
   }
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
   if (roles && !roles.some((r) => user.roles.includes(r))) return <Navigate to="/forbidden" replace />;
+  if (roles && user.is_admin && !user.mfa_verified && roles.some((r) => r.endsWith("_admin")) && location.pathname !== "/admin/mfa") {
+    return <Navigate to={`/admin/mfa?next=${encodeURIComponent(location.pathname)}`} replace />;
+  }
   return <Outlet />;
 };

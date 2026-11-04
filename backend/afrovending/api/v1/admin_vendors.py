@@ -9,13 +9,12 @@ from afrovending.api.v1.vendors import ser
 from afrovending.core import email as mail
 from afrovending.core.audit import audit
 from afrovending.core.db import db
-from afrovending.core.deps import require_roles
+from afrovending.core.permissions import VENDORS, require_perm
 from afrovending.core.errors import APIError
 from afrovending.core.models import User, utcnow
-from afrovending.core.roles import Role
 
 router = APIRouter(prefix="/admin", tags=["admin-vendors"])
-REVIEWER = require_roles(Role.MARKETPLACE_ADMIN, Role.SUPER_ADMIN)
+REVIEWER = require_perm(VENDORS)
 REVIEWABLE = {"submitted", "under_review"}
 
 

@@ -1,4 +1,5 @@
 import { HeroSection } from "@/components/home/HeroSection";
+import { HomepageContent } from "@/pages/admin/AdminContentPage";
 import { ShopByCategory, TrendingCategories } from "@/components/home/CategorySections";
 import { FeaturedVendors } from "@/components/home/FeaturedVendors";
 import { HowItWorks } from "@/components/home/HowItWorks";
@@ -12,6 +13,7 @@ export default function HomePage() {
   return (
     <div data-testid={HOME.page}>
       <HeroSection />
+      <HomepageContent />
       <div className="av-container"><DevDataNotice /></div>
       <ShopByCategory />
       <ProductRail testId="home-featured-products" eyebrow="Featured" title="Featured products"

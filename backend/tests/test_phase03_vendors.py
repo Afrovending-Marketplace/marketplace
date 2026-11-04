@@ -50,8 +50,17 @@ def application(slug):
 
 
 def admin_client():
+    """Signs in as the preview super admin and completes the authenticator (TOTP) step using the stored secret."""
+    import pyotp
     c = httpx.Client(base_url=BASE, timeout=60)
     assert c.post("/auth/login", json=ADMIN).status_code == 200
+    u = mongo.users.find_one({"email": ADMIN["email"]})
+    if not u.get("mfa_secret"):
+        secret = c.post("/auth/mfa/setup").json()["secret"]
+        assert c.post("/auth/mfa/enable", json={"code": pyotp.TOTP(secret).now()}).status_code == 200
+        return c
+    mongo.users.update_one({"_id": u["_id"]}, {"$unset": {"mfa_last_step": ""}})
+    assert c.post("/auth/mfa/verify", json={"code": pyotp.TOTP(u["mfa_secret"]).now()}).status_code == 200, "admin MFA verify failed"
     return c
 
 

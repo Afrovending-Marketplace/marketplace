@@ -126,8 +126,9 @@ async def refresh(request: Request, response: Response):
 
 
 @router.get("/me")
-async def me(user: User = Depends(get_current_user)):
-    return {"user": user.public()}
+async def me(request: Request, user: User = Depends(get_current_user)):
+    from afrovending.core.permissions import is_admin, perms_of
+    return {"user": {**user.public(), "permissions": sorted(perms_of(user.roles)), "is_admin": is_admin(user), "mfa_verified": request.state.mfa_verified}}
 
 
 @router.post("/verify-email")
