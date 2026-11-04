@@ -1,0 +1,27 @@
+{
+  "summary": "RETEST of iteration_15 fixes: all 6 items verified fixed. Backend: new tests/test_phase10_retest_fixes.py 3/3 pass (cta_url rejects //evil.com, /\\evil.com, javascript:, JavaScript:, http://, data:, leading-space //; accepts '', '/', '/shop', 'https://x.com'; PUT with bad URL 422; invalid ObjectIds -> DELETE invite 404, PUT/DELETE banner 404, GET tickets?assigned_to=notanid 422, assigned_to=none 200, PATCH ticket 404, decide 404, refund bad vo 422, team user 404 — no 500s; cumulative refund threshold: threshold 6750, first 4500 refund executes, second 4500 on same vendor order -> 202 pending_approval, only 1 refund row). Regression test_phase10_admin.py 4/4 + test_phase10_t1_extended.py 5/5 pass serially (-n 0), including the previously failing test_05. UI: /login?next=/admin as super admin -> redirected to /admin/mfa?next=/admin directly (SPA, no reload), wrong code stays on page, valid TOTP -> /admin with admin-home. Customer /account/support/<nonexistent valid id> and /account/support/notanid both show data-testid=ticket-not-found with working 'Back to support' link.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/v1/admin/content/banners/{id}", "issue": "Route is PUT-only; PATCH returns 405 (not an error per se, the review request mentioned PATCH). Fine if intended."},
+      {"endpoint": "POST/PUT /api/v1/admin/content/banners", "issue": "422 details still surface raw regex text \"String should match pattern '^(|/|/[^/\\\\\\s][^\\s]*|https://[^\\s]+)$'\" — use a friendly message (carried over from iteration 15)."},
+      {"endpoint": "POST /api/v1/admin/payments/vendor-orders/{id}/refunds", "issue": "Cumulative check sums existing refunds only; concurrent sub-threshold requests could still race past the threshold (no lock). Low risk."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin dashboard (1920px)", "issues": ["Still present from iteration 15: nav pill 'Payments, refunds, disputes & payouts' text overflows and overlaps 'Support tickets'; 'Orders, cancellations & returns' overflows its pill. Allow wrapping (h-auto whitespace-normal) or reduce columns."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase10_retest_fixes.py", "/app/backend/tests/test_phase10_admin.py", "/app/backend/tests/test_phase10_t1_extended.py", "/app/test_reports/pytest/pytest_results_iter16.xml"],
+  "action_items": ["Fix admin dashboard nav pill text overflow at 1920px", "Optional: friendly cta_url validation message; optional PATCH alias for banners"],
+  "critical_code_review_comments": ["admin_payments.refund: cumulative sum excludes pending approvals and is not atomic (race)", "LoginPage default next '/account' means admins logging in without ?next are not prompted for MFA until they visit /admin (acceptable)"],
+  "updated_files": ["/app/backend/tests/test_phase10_retest_fixes.py"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (all retest flows)"},
+  "seed_data_creation": "Created a TEST_T16 customer (delivered+t166b5583@resend.dev) for the UI not-found check; deleted afterwards with its audit rows. All test10_ users/invites, TEST banners, approvals, tickets and admin.approvals setting cleaned by teardowns (verified 0 leftovers).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run phase10 tests serially: pytest tests/test_phase10_admin.py tests/test_phase10_t1_extended.py tests/test_phase10_retest_fixes.py -n 0. For UI MFA, unset users.mfa_last_step then compute TOTP inline with hmac/base64 (secret from users.mfa_secret). Login->MFA redirect now works in SPA without reload."
+}

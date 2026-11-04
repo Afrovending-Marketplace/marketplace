@@ -26,7 +26,7 @@ export default function AdminHomePage() {
     <div className="av-container max-w-6xl space-y-6 py-12" data-testid="admin-home">
       <div><p className="av-eyebrow">Marketplace administration</p><h1 className="mt-2 text-4xl font-bold text-av-ink">Admin dashboard</h1>
         <p className="mt-1 text-xs text-av-muted" data-testid="admin-roles">Signed in as: {d.roles.join(", ").replace(/_/g, " ")}</p></div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{LINKS.filter(([p]) => has(p)).map(([, to, n]) => <Button key={to} asChild variant="outline" className="justify-start"><Link to={to} data-testid={`admin-link-${to.split("/").pop()}`}>{n}</Link></Button>)}</div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{LINKS.filter(([p]) => has(p)).map(([, to, n]) => <Button key={to} asChild variant="outline" className="h-auto min-w-0 justify-start whitespace-normal py-2 text-left"><Link to={to} data-testid={`admin-link-${to.split("/").pop()}`}>{n}</Link></Button>)}</div>
       {d.operations && <section className="grid grid-cols-2 gap-2 lg:grid-cols-4" data-testid="ov-operations">{Object.entries(d.operations).map(([k, v]) => <Stat key={k} k={k} v={v} />)}</section>}
       {d.tickets && <section className="grid grid-cols-3 gap-2" data-testid="ov-tickets">{Object.entries(d.tickets).map(([k, v]) => <Stat key={k} k={`${k}_tickets_open`} v={v} />)}</section>}
       {d.finance && <section className="space-y-2" data-testid="ov-finance"><p className="text-xs text-av-muted">Finance · {d.finance.period}</p>

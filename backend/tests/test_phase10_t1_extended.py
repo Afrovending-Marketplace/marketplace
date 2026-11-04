@@ -62,7 +62,7 @@ def test_02_invite_revoke():
 
 
 # Refund above threshold needs a second finance admin
-def test_03_refund_second_approval(w):
+def test_03_refund_second_approval(w):  # noqa: F811
     sup = admin_client()
     assert sup.put("/admin/approvals/config", json={"refund_threshold_minor": 1000}).status_code == 200
     c = buyer()
@@ -104,7 +104,7 @@ def test_03_refund_second_approval(w):
 
 
 # Support ticket linked to own order; other customer's order number rejected
-def test_04_ticket_with_own_order(w):
+def test_04_ticket_with_own_order(w):  # noqa: F811
     c = buyer()
     oid, _ = paid(c, [(w["shea"][1], 1)])
     num = mongo.orders.find_one({"_id": ObjectId(oid)})["order_number"]

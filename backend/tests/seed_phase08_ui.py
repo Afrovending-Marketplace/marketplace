@@ -4,7 +4,7 @@ import sys
 import uuid
 
 import httpx
-from bson import ObjectId
+from bson import ObjectId  # noqa: F401
 
 from tests.test_phase03_vendors import BASE, admin_client, mongo, submit
 from tests.test_phase04_catalog import jpeg
