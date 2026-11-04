@@ -130,6 +130,8 @@ async def staff_list(status: Optional[Status] = None, category: Optional[Categor
     from afrovending.core.reports import et_bounds
     q = {k: v for k, v in (("status", status), ("category", category), ("priority", priority), ("queue", queue)) if v}
     if assigned_to:
+        if assigned_to != "none" and not ObjectId.is_valid(assigned_to):
+            raise APIError(422, "validation_error", "Unknown administrator.")
         q["assigned_to"] = None if assigned_to == "none" else ObjectId(assigned_to)
     if created_from or created_to:
         a, _b = et_bounds(datetime.fromisoformat(created_from or "2000-01-01").date(), datetime.fromisoformat(created_to or "2100-01-01").date())

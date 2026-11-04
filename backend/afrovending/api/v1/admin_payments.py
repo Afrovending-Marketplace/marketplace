@@ -168,7 +168,8 @@ async def refund(vo_id: str, body: RefundIn, request: Request, idempotency_key: 
     items = {i["_id"]: i async for i in db.order_items.find({"vendor_order_id": vo["_id"]})}
     estimate = sum(items[oid(rl.order_item_id)]["line_total_minor"] * rl.quantity // max(1, items[oid(rl.order_item_id)]["quantity"])
                    for rl in body.lines if oid(rl.order_item_id) in items) + (vo.get("shipping_minor", 0) if body.include_shipping else 0)
-    if estimate > (await approval_cfg())["refund_threshold_minor"] and "super_admin" not in admin.roles:
+    prior = sum(r.get("amount_minor", 0) for r in await db.refunds.find({"vendor_order_id": vo["_id"], "status": {"$in": ["pending", "succeeded"]}}).to_list(200))
+    if prior + estimate > (await approval_cfg())["refund_threshold_minor"] and "super_admin" not in admin.roles:
         if await db.admin_approvals.find_one({"payload.key": idempotency_key}):
             raise APIError(409, "conflict", "This refund is already waiting for approval.")
         ap = {"action": "refund", "amount_minor": estimate, "status": "pending", "requested_by": oid(admin.id), "requested_by_name": admin.name, "created_at": utcnow(),

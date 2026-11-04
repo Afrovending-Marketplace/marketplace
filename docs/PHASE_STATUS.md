@@ -12,7 +12,8 @@
 | 07 Marketplace payments & commission accounting (+ save for later) | ✅ Complete (Stripe TEST mode; vendor accounts SIMULATED) — awaiting owner approval | 2026-10-22 |
 | 08 Order fulfilment (+ monthly payout statements) | ✅ Complete (manual tracking only; no paid carrier APIs) — awaiting owner approval | 2026-10-22 |
 | 09 Vendor dashboard (control center) | ✅ Complete — awaiting owner approval | 2026-10-23 |
-| 10–14 | ⏸ Not started | — |
+| 10 Marketplace administration | ✅ Complete — awaiting owner approval | 2026-10-23 |
+| 11–14 | ⏸ Not started | — |
 
 ## Phase 09 deliverables
 - `/vendor` control center (tabs: Overview, Orders & stock, Earnings & payouts, Store settings), responsive.

@@ -1,0 +1,50 @@
+{
+  "summary": "Phase 10 Marketplace Administration tested end-to-end (API + UI). Backend: test_phase10_admin.py 4/4 pass; new tests/test_phase10_t1_extended.py 4/5 pass (MFA gate, /admin/staff 410, no ledger edit, invite create/list/revoke + revoked token 410, refund > threshold -> 202 pending_approval, requester 403 on own approval, support_admin 403, 2nd finance admin approves -> real Stripe refund created, double-decide 404, ticket linked to own order / other customer's order rejected / closed ticket reply 409, banner hide removes from homepage, content_admin 403 on all non-content endpoints & exports). FAIL: banner cta_url accepts protocol-relative '//evil.com' and '/\\evil.com' (open redirect). Probes found 4 endpoints returning 500 on malformed ids. UI (1920 + 390): super admin login -> /admin -> /admin/mfa, wrong code rejected, TOTP -> admin-home with all 10 links + 7 exports, tickets CSV downloads; team page invite (link prompt shown since email not sent), revoke invite, self role change blocked with toast; /admin/vendors, /admin/payments, /admin/fulfillment, /admin/tickets, /admin/content render for super admin. Content admin sees only admin-link-content, no exports, no ops/finance/tickets stats; banner add/hide/delete works and shows on homepage; javascript: URL rejected; featured unpublished id rejected. Support admin sees only tickets link + tickets export; filters, status/priority/queue/assign-me, internal note + public reply work; customer sees public reply only, status waiting_for_customer -> open after customer reply; other customer cannot open ticket. Mobile 390: no horizontal overflow on /admin, /admin/tickets, /account/support. One significant frontend bug: after SPA login an admin is NOT redirected to MFA (blank /admin).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST/PUT /api/v1/admin/content/banners", "issue": "cta_url regex ^(|/[^\\s]*|https://[^\\s]+)$ accepts protocol-relative '//evil.com' and '/\\evil.com'. HomepageContent renders these via <Link to> (startsWith('/')) which React Router treats as external -> open redirect / phishing link on homepage. Fix pattern e.g. ^(|/(?![/\\\\])[^\\s]*|https://[^\\s]+)$."},
+      {"endpoint": "GET /api/v1/admin/support/tickets?assigned_to=bad", "issue": "500 internal_error (ObjectId(assigned_to) without is_valid check)"},
+      {"endpoint": "DELETE /api/v1/admin/team/invites/{bad}", "issue": "500 internal_error on non-ObjectId id"},
+      {"endpoint": "PUT/DELETE /api/v1/admin/content/banners/{bad}", "issue": "500 internal_error on non-ObjectId id"},
+      {"endpoint": "POST /api/v1/admin/approvals/{id}/decide", "issue": "If pay.create_refund raises after claim, approval stays in 'processing' forever (no rollback/error state); also threshold is per-request so a finance admin can split a large refund into several sub-threshold refunds to bypass second approval (consider cumulative per vendor order)."},
+      {"endpoint": "Banner validation error", "issue": "422 message surfaces raw pydantic text \"String should match pattern '^(|/[^\\s]*|https://[^\\s]+)$'\" to the content admin — use a friendly message."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AuthContext.login / ProtectedRoute", "issue": "After logging in via /login?next=/admin the admin lands on /admin with a BLANK page instead of /admin/mfa. RCA: POST /auth/login returns user without is_admin/mfa_verified (only /auth/me adds them, auth.py:131), so ProtectedRoute's `user.is_admin && !user.mfa_verified` check is false; /admin/overview then 403 mfa_required and AdminHomePage renders null. Works only after a full reload. Fix: in AuthContext.login call fetchMe() after login (or return the same fields from /auth/login). Also plain /login (no next) sends admins to /account, never prompting MFA.", "selector": "[data-testid='admin-mfa-page']", "priority": "HIGH"},
+      {"component": "SupportTicketPage", "issue": "Opening another customer's ticket (API 404) renders an empty area with no 'Ticket not found' message (no .catch on load).", "selector": "[data-testid='ticket-page']", "priority": "LOW"},
+      {"component": "Admin route guards", "issue": "Admin pages are guarded only by 'any admin role'; e.g. content_admin can open /admin/vendors, /admin/tickets, /admin/team directly and sees empty shells (API correctly 403s). Consider permission-based route guard / forbidden message.", "selector": "ProtectedRoute roles={ADMIN_ROLES}", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin dashboard (1920px)", "issues": ["Nav link buttons in lg:grid-cols-5 grid overflow: 'Payments, refunds, disputes & payouts' text spills over and overlaps 'Support tickets'; 'Orders, cancellations & returns' overflows its pill. Use fewer columns, allow wrapping (whitespace-normal, h-auto) or shorter labels."]},
+      {"screen": "/admin/team", "issues": ["suspend/reactivate/revoke all shown for every admin regardless of status (reactivate shown for active users) and on own row; uses window.prompt for password (no masking) — consider a proper dialog with password input."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase10_admin.py", "/app/backend/tests/test_phase10_t1_extended.py"],
+  "action_items": [
+    "HIGH: AuthContext.login should refetch /auth/me (or /auth/login should include is_admin + mfa_verified) so admins are redirected to /admin/mfa right after SPA login; consider routing admins to /admin/mfa after login when next is absent.",
+    "Tighten banner cta_url pattern to reject '//' and '/\\' protocol-relative URLs (open redirect).",
+    "Validate ObjectIds (return 404/422) in support staff_list assigned_to, revoke_invite, banner_update, banner_delete.",
+    "Fix /admin dashboard nav button text overflow at desktop widths.",
+    "Friendly validation message for banner URL; 'Ticket not found' state on SupportTicketPage.",
+    "Consider: approval stuck in 'processing' on refund failure; cumulative threshold to prevent split-refund bypass; admin MFA session never expires within the 7-day refresh session."
+  ],
+  "critical_code_review_comments": [
+    "permissions.py: clean least-privilege mapping; require_perm checks MFA after perm (good). Matches the 5-role spec.",
+    "admin_team.py: hashed single-use invites, 72h TTL, last-super-admin guard, no self-change, re-auth and session revocation all verified. invite_link returned in API response when email fails (only to super admin) — acceptable for preview but ensure email works in prod.",
+    "mfa.py: replay protection via mfa_last_step, 5-try lockout; GET /auth/mfa exposes permission list (fine).",
+    "admin_ops export: CSV values (customer names, ticket subjects) not escaped against spreadsheet formula injection (=, +, -, @ prefixes).",
+    "seed_admin gated by ALLOW_ENV_ADMIN_SEED and never alters existing accounts; bootstrap_admin refuses when an active super admin exists. bcrypt $2b$, credentials CORS with explicit origin, httpOnly cookies confirmed.",
+    "tests/test_phase10_admin.py teardown deletes content_banners by '^TEST' title regex — should delete by created ids only."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase10_t1_extended.py"],
+  "success_rate": {"backend": "89% (8/9 pytest; plus 4 malformed-id 500s found by probe)", "frontend": "90% (all flows work; MFA redirect after SPA login broken)"},
+  "seed_data_creation": "Temporary TEST admins (content/support/finance via invites), TEST customers, tickets, banners, approvals, paid TEST7 orders (phase07/08 fixtures) — all removed by id/email; approval threshold setting temporarily set to 1000 and deleted afterwards (none existed). Pre-existing leftover NOT created by me: support ticket AVT-9BA7DC ('Refund please', from an earlier main-agent run of test_phase10_admin test_03). Real super admin and its mfa_secret untouched (only mfa_last_step unset before verifies).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run phase10 tests serially: pytest tests/test_phase10_admin.py tests/test_phase10_t1_extended.py -n 0 (parallel workers race on super admin mfa_last_step). For UI MFA: unset users.mfa_last_step via mongosh, compute TOTP inline (pymongo/pyotp not available in browser tool env) using secret from users.mfa_secret. Login testids: #login-email, #login-password, login-submit-button. After login use page.goto('/admin') (full reload) until the AuthContext bug is fixed. test_05 of t1_extended is expected to fail until banner URL pattern is tightened.",
+  "rca of the issue": "Admin MFA redirect: LoginPage -> AuthContext.login sets user = /auth/login response.user (user.public() without is_admin/mfa_verified). ProtectedRoute requires user.is_admin to trigger /admin/mfa redirect, so it renders AdminHomePage, whose /admin/overview gets 403 mfa_required -> d stays null -> blank page. Repro: log out, open /login?next=/admin, sign in as any admin. Mitigation: after login call fetchMe()/reload(), or add is_admin & mfa_verified to login response."
+}

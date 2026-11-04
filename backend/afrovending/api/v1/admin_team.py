@@ -106,6 +106,8 @@ async def invite(body: InviteIn, request: Request, admin: User = Depends(SUPER))
 
 @router.delete("/admin/team/invites/{invite_id}")
 async def revoke_invite(invite_id: str, request: Request, admin: User = Depends(SUPER)):
+    if not ObjectId.is_valid(invite_id):
+        raise APIError(404, "not_found", "Invite not found.")
     r = await db.admin_invites.update_one({"_id": ObjectId(invite_id), "status": "pending"}, {"$set": {"status": "revoked", "revoked_at": utcnow()}})
     if not r.modified_count:
         raise APIError(404, "not_found", "Invite not found.")

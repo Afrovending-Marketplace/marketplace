@@ -55,10 +55,12 @@ export function SupportPage() {
 export function SupportTicketPage() {
   const { id } = useParams();
   const [t, setT] = useState(null);
+  const [missing, setMissing] = useState(false);
   const [body, setBody] = useState("");
   useEffect(() => {
-    api.get(`/support/tickets/${id}`).then((r) => setT(r.data));
+    api.get(`/support/tickets/${id}`).then((r) => setT(r.data)).catch(() => setMissing(true));
   }, [id]);
+  if (missing) return <p className="text-sm text-av-muted" data-testid="ticket-not-found">Ticket not found. <Link className="underline" to="/account/support">Back to support</Link></p>;
   if (!t) return null;
   return (
     <div className="space-y-4" data-testid="ticket-page">

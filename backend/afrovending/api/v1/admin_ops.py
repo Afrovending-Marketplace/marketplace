@@ -25,7 +25,7 @@ class BannerIn(BaseModel):
     title: str = Field(min_length=2, max_length=120)
     body: str = Field(default="", max_length=400)
     cta_label: str = Field(default="", max_length=40)
-    cta_url: str = Field(default="", max_length=300, pattern=r"^(|/[^\s]*|https://[^\s]+)$")
+    cta_url: str = Field(default="", max_length=300, pattern=r"^(|/|/[^/\\\s][^\s]*|https://[^\s]+)$")
     placement: Literal["home_hero", "home_strip"] = "home_strip"
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
@@ -80,6 +80,8 @@ async def banner_create(body: BannerIn, request: Request, admin: User = Depends(
 
 @router.put("/admin/content/banners/{banner_id}")
 async def banner_update(banner_id: str, body: BannerIn, request: Request, admin: User = Depends(require_perm(CONTENT))):
+    if not ObjectId.is_valid(banner_id):
+        raise APIError(404, "not_found", "Banner not found.")
     r = await db.content_banners.update_one({"_id": ObjectId(banner_id)}, {"$set": {**body.model_dump(), "updated_at": utcnow()}})
     if not r.matched_count:
         raise APIError(404, "not_found", "Banner not found.")
@@ -89,6 +91,8 @@ async def banner_update(banner_id: str, body: BannerIn, request: Request, admin:
 
 @router.delete("/admin/content/banners/{banner_id}")
 async def banner_delete(banner_id: str, request: Request, admin: User = Depends(require_perm(CONTENT))):
+    if not ObjectId.is_valid(banner_id):
+        raise APIError(404, "not_found", "Banner not found.")
     if not (await db.content_banners.delete_one({"_id": ObjectId(banner_id)})).deleted_count:
         raise APIError(404, "not_found", "Banner not found.")
     await audit("content.banner_deleted", "content_banners", request=request, actor=admin, entity_id=banner_id)
@@ -225,8 +229,13 @@ async def decide(approval_id: str, body: DecideIn, request: Request, admin: User
     if body.decision == "approve":
         p = ap["payload"]
         vo = await db.vendor_orders.find_one({"_id": ObjectId(p["vo_id"])})
-        doc = await pay.create_refund(vo, [(ObjectId(i), q) for i, q in p["lines"]], include_shipping=p["include_shipping"], reason=p["reason"],
-                                      key=p["key"], actor_id=str(ap["requested_by"]))
+        try:
+            doc = await pay.create_refund(vo, [(ObjectId(i), q) for i, q in p["lines"]], include_shipping=p["include_shipping"], reason=p["reason"],
+                                          key=p["key"], actor_id=str(ap["requested_by"]))
+        except Exception as exc:
+            await db.admin_approvals.update_one({"_id": ap["_id"]}, {"$set": {"status": "failed", "error": str(exc)[:300]}})
+            await audit("admin.approval_failed", "admin_approvals", request=request, actor=admin, entity_id=approval_id)
+            raise
         result = str(doc["_id"])
         await db.admin_approvals.update_one({"_id": ap["_id"]}, {"$set": {"status": "approved", "result_id": result}})
     await audit(f"admin.approval_{body.decision}d", "admin_approvals", request=request, actor=admin, entity_id=approval_id, amount=ap["amount_minor"], result=result)
