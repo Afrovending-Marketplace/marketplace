@@ -57,7 +57,7 @@ async def start(request: Request, idempotency_key: str = Header(default="", alia
     order = {"order_number": f"AV-{now:%y%m%d}-{secrets.token_hex(3).upper()}", "customer_id": uid, "cart_id": cart["_id"],
              "status": "draft", "payment_status": "not_started", "idempotency_key": idempotency_key, "cart_fingerprint": fingerprint,
              "currency": "USD", "shipping_address": {k: address.get(k, "") for k in ADDRESS_FIELDS},
-             "vendor_groups": [{**{k: g[k] for k in ("vendor_id", "vendor_name", "vendor_slug", "subtotal_minor", "discount_minor",
+             "vendor_groups": [{**{k: g[k] for k in ("vendor_id", "vendor_name", "vendor_slug", "subtotal_minor", "discount_minor", "platform_discount_minor",
                                                       "shipping_minor", "shipping_status", "tax_estimate_minor")},
                                 "shipping_method": next(m for m in g["shipping_methods"] if m["id"] == g["shipping_method_id"]),
                                 "items": [{k: line[k] for k in ("variant_id", "product_id", "title", "label", "sku", "quantity", "unit_price_minor", "line_total_minor")}

@@ -47,3 +47,9 @@
 | D-050 | 2026-11-06 | Seller service rating is separate from product ratings: one per completed vendor suborder; never combined into one score. | Owner choice |
 | D-051 | 2026-11-06 | Vendors get one editable public response per review, filtered like reviews; vendors can report but never edit or delete reviews. | Owner choice |
 | D-052 | 2026-11-06 | Order messages: contact details and outside links are masked and flagged; payment redirection and threats are held until a Marketplace/Support Admin reviews them; originals visible to moderators only. | Owner choice |
+| D-053 | 2026-11-06 | Coupon funding: admin coupons are AfroVending-funded (platform promo expense; commission before marketplace discount; vendor earnings unchanged); vendor coupons are vendor-funded (reduce commission base). One coupon per cart. | Owner choice |
+| D-054 | 2026-11-06 | Abandoned-cart reminders at 1h and 24h, opted-in customers only, admin switch OFF by default until domain verification and approval. | Owner choice |
+| D-055 | 2026-11-06 | Referrals are tracking-only: attribution at signup, one referrer per customer, self-referrals rejected, first paid order counted once; rewards locked off. | Owner choice |
+| D-056 | 2026-11-06 | Analytics: first-party events after cookie consent; GA4 prepared but inactive until Measurement ID provided and approved; no PII sent. | Owner choice |
+| D-057 | 2026-11-06 | Paid vendor subscriptions and sponsored listings are locked off in code until pricing and billing rules are approved; sponsored results always separate and labelled. | Owner instruction |
+| D-058 | 2026-11-06 | Review photos: up to 3 per product review, each checked by an admin before it is shown. | Owner choice |

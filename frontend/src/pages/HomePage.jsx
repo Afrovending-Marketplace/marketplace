@@ -1,5 +1,6 @@
 import { HeroSection } from "@/components/home/HeroSection";
 import { HomepageContent } from "@/pages/admin/AdminContentPage";
+import { CampaignStrip } from "@/components/home/CampaignStrip";
 import { ShopByCategory, TrendingCategories } from "@/components/home/CategorySections";
 import { FeaturedVendors } from "@/components/home/FeaturedVendors";
 import { HowItWorks } from "@/components/home/HowItWorks";
@@ -13,6 +14,7 @@ export default function HomePage() {
   return (
     <div data-testid={HOME.page}>
       <HeroSection />
+      <CampaignStrip />
       <HomepageContent />
       <div className="av-container"><DevDataNotice /></div>
       <ShopByCategory />

@@ -37,6 +37,10 @@ class CouponIn(BaseModel):
     ends_at: Optional[datetime] = None
     vendor_slug: Optional[str] = None
     status: Literal["draft", "active", "paused", "expired"] = "active"
+    max_discount_minor: Optional[int] = Field(default=None, ge=1)
+    budget_minor: Optional[int] = Field(default=None, ge=1)
+    per_customer_limit: Optional[int] = Field(default=None, ge=1, le=100)
+    first_order_only: bool = False
 
     @field_validator("code")
     @classmethod
@@ -98,7 +102,7 @@ async def _coupon(b: CouponIn) -> dict:
         raise APIError(422, "validation_error", "Percent coupons are in basis points (max 10000 = 100%).")
     if b.starts_at and b.ends_at and b.starts_at >= b.ends_at:
         raise APIError(422, "validation_error", "End date must be after start date.")
-    return {**b.model_dump(exclude={"vendor_slug"}), "vendor_id": await _vendor_id(b.vendor_slug)}
+    return {**b.model_dump(exclude={"vendor_slug"}), "vendor_id": await _vendor_id(b.vendor_slug), "funded_by": "marketplace"}
 
 
 async def _tax(b: TaxIn) -> dict:

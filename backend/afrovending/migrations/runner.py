@@ -65,6 +65,13 @@ async def m0011_phase11_trust(db) -> None:
     await ensure_indexes(db, phase=11)
 
 
+async def m0012_phase12_marketing(db) -> None:
+    await db.coupons.update_many({"funded_by": {"$exists": False}, "vendor_id": None}, {"$set": {"funded_by": "marketplace"}})
+    await db.coupons.update_many({"funded_by": {"$exists": False}}, {"$set": {"funded_by": "vendor"}})
+    await db.users.create_index("referral_code", unique=True, partialFilterExpression={"referral_code": {"$type": "string"}})
+    await ensure_indexes(db, phase=12)
+
+
 async def m0005_phase05_search(db) -> None:
     for idx in await db.products.list_indexes().to_list(50):
         if "textIndexVersion" in idx and "weights" in idx and idx["weights"].get("title") != 10:
@@ -102,6 +109,7 @@ MIGRATIONS = (
     ("0009", "handling_times", m0009_handling_times),
     ("0010", "pickup_slots", m0010_pickup_slots),
     ("0011", "phase11_trust_communication", m0011_phase11_trust),
+    ("0012", "phase12_marketing", m0012_phase12_marketing),
 )
 
 

@@ -13,8 +13,20 @@
 | 08 Order fulfilment (+ monthly payout statements) | ✅ Complete (manual tracking only; no paid carrier APIs) — awaiting owner approval | 2026-10-22 |
 | 09 Vendor dashboard (control center) | ✅ Complete — awaiting owner approval | 2026-10-23 |
 | 10 Marketplace administration | ✅ Complete — awaiting owner approval | 2026-10-23 |
-| 11 Customer trust & communication | ✅ Complete — awaiting owner approval | 2026-11-06 |
-| 12–14 | ⏸ Not started | — |
+| 11 Customer trust & communication | ✅ Complete — approved | 2026-11-06 |
+| 12 Marketing & monetization | ✅ Complete — awaiting owner approval | 2026-11-06 |
+| 13–14 | ⏸ Not started | — |
+
+## Phase 12 deliverables
+- SEO: per-page title/description/canonical/Open Graph/Twitter tags (`components/common/Seo.jsx`), Product + Store JSON-LD, `/api/v1/seo/sitemap.xml`, `/robots.txt` (static) + `/api/v1/seo/robots.txt` (blocks indexing outside production), crawler share pages `/api/v1/seo/share/products/{slug}` and `/share/stores/{slug}`.
+- Coupons: admin coupons are AfroVending-funded (promo_expense on platform ledger; vendor earnings and commission base unchanged); vendor coupons are vendor-funded (reduce commission base). Budgets, max discount, per-customer limit, first-order-only, one coupon per cart (no stacking). Redemptions recorded once per order; refunds reverse promo expense without double counting; vendor orders whose platform discount exceeds commission get a `promo_funding` hold before transfer.
+- Homepage campaigns (scheduled, optional marketplace coupon), featured vendors/products (Phase 10) reused.
+- Sponsored listings: data model + admin create (inactive only) + `/sponsored` endpoint returning a separate "Sponsored" block — locked off in code.
+- Subscriptions: plan catalog (Starter/Growth/Premium), vendor "register interest" requests; no billing, plan unchanged — locked off in code.
+- Wishlists, referral links/dashboard/admin analytics (tracking only, no rewards), marketing opt-in at signup/account, signed unsubscribe links, abandoned-cart reminders (1h/24h, opted-in only, idempotent, weekly cap, admin switch default OFF, cron every 15 min).
+- Analytics: cookie consent banner (Accept / Reject / Manage); first-party events only after consent; purchase events server-side once per order; admin + vendor reports in US Eastern Time; GA4 prepared but off until `GA4_MEASUREMENT_ID` is set and enabled.
+- Review photos: up to 3 per product review, private until an admin approves each photo.
+- Tests: `tests/test_phase12_marketing.py` (9 passing), phase07 regression 7/7.
 
 ## Phase 11 deliverables
 - Product reviews (`PUT /reviews/items/{order_item_id}`): only the buyer, only after the item's shipment is delivered or the pickup is collected; one per order item (unique index), editable; Verified Purchase label.

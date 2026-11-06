@@ -16,7 +16,7 @@ router = APIRouter(tags=["files"])
 IMAGE_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 DOC_TYPES = {**IMAGE_TYPES, "application/pdf": "pdf"}
 PUBLIC_PURPOSES = {"logo", "banner", "product_main", "product_thumb"}
-LIMITS = {"logo": 2_000_000, "banner": 5_000_000, "verification_doc": 10_000_000}
+LIMITS = {"logo": 2_000_000, "banner": 5_000_000, "verification_doc": 10_000_000, "review_photo": 5_000_000}
 
 
 def file_out(doc: dict) -> dict:

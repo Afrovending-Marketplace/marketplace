@@ -55,6 +55,14 @@ async def check_coupon(code: str, groups: list[dict], user_id=None) -> tuple[Opt
         return None, "This coupon doesn't apply to the items in your cart."
     if base < c.get("min_subtotal_minor", 0):
         return None, f"Spend at least ${c['min_subtotal_minor'] / 100:.2f} on eligible items to use this coupon."
+    if c.get("budget_minor") is not None and c.get("spent_minor", 0) >= c["budget_minor"]:
+        return None, "This promotion has ended."
+    if (c.get("per_customer_limit") or c.get("first_order_only")) and not user_id:
+        return None, "Sign in to use this coupon."
+    if c.get("per_customer_limit") and await db.coupon_redemptions.count_documents({"coupon_id": c["_id"], "customer_id": user_id}) >= c["per_customer_limit"]:
+        return None, "You've already used this coupon."
+    if c.get("first_order_only") and await db.orders.find_one({"customer_id": user_id, "payment_status": "paid"}, {"_id": 1}):
+        return None, "This coupon is for first orders only."
     return c, ""
 
 
@@ -118,17 +126,25 @@ async def evaluate(cart: dict, address: Optional[dict] = None) -> dict:
     sellable = [g for g in group_list if g["vendor_id"] and g["subtotal_minor"]]
     discount, coupon_out = 0, None
     if cart.get("coupon_code"):
-        coupon, error = await check_coupon(cart["coupon_code"], sellable)
+        coupon, error = await check_coupon(cart["coupon_code"], sellable, cart.get("user_id"))
+        funded = None
         if coupon:
+            funded = coupon.get("funded_by") or ("vendor" if coupon.get("vendor_id") else "marketplace")
             eligible = [g for g in sellable if not coupon.get("vendor_id") or g["vendor_id"] == str(coupon["vendor_id"])]
             base = sum(g["subtotal_minor"] for g in eligible)
             discount = min(base, _bps(base, coupon["value"]) if coupon["type"] == "percent" else coupon["value"])
+            if coupon.get("max_discount_minor"):
+                discount = min(discount, coupon["max_discount_minor"])
+            if coupon.get("budget_minor") is not None:
+                discount = min(discount, max(0, coupon["budget_minor"] - coupon.get("spent_minor", 0)))
             for g, share in zip(eligible, _allocate(discount, [g["subtotal_minor"] for g in eligible])):
                 g["discount_minor"] = share
-        coupon_out = {"code": cart["coupon_code"], "applied": bool(coupon), "message": error or "Coupon applied.", "discount_minor": discount}
+                g["platform_discount_minor"] = share if funded == "marketplace" else 0
+        coupon_out = {"code": cart["coupon_code"], "applied": bool(coupon), "message": error or "Coupon applied.", "discount_minor": discount, "funded_by": funded}
     rate = await tax_rate(address)
     for g in group_list:
         g.setdefault("discount_minor", 0)
+        g.setdefault("platform_discount_minor", 0)
         g["tax_estimate_minor"] = _bps(g["subtotal_minor"] - g["discount_minor"], rate["rate_bps"]) if rate and g["subtotal_minor"] else None
     subtotal = sum(g["subtotal_minor"] for g in sellable)
     ship_values = [g["shipping_minor"] for g in sellable]

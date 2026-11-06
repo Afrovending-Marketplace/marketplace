@@ -47,9 +47,11 @@ async def build_plan(order: dict) -> list[dict]:
         if g["shipping_minor"] is None:
             raise APIError(409, "shipping_unconfirmed", f"Shipping for {g['vendor_name']} isn't confirmed yet, so payment can't be taken. Contact us or choose another option.")
         weights = [line["line_total_minor"] for line in g["items"]]
-        discounts = ledger.split(g["discount_minor"], weights)
+        pdisc = g.get("platform_discount_minor", 0)
+        vdisc = g["discount_minor"] - pdisc
+        discounts, pshares = ledger.split(vdisc, weights), ledger.split(pdisc, weights)
         lines = []
-        for line, disc in zip(g["items"], discounts):
+        for line, disc, pshare in zip(g["items"], discounts, pshares):
             v = await db.product_variants.find_one({"_id": ObjectId(line["variant_id"]), "status": "active"})
             p = await db.products.find_one({"_id": ObjectId(line["product_id"]), "status": "active", "vendor_id": vendor["_id"]})
             if not v or not p or v["price_minor"] != line["unit_price_minor"]:
@@ -58,13 +60,13 @@ async def build_plan(order: dict) -> list[dict]:
                 raise APIError(409, "checkout_changed", f"“{line['title']}” no longer has enough stock. Return to your cart.")
             eligible = line["line_total_minor"] - disc
             bps, source = ledger.rate_for(rules, vendor["_id"], p.get("category_id"), vendor.get("plan"))
-            lines.append({**line, "discount_minor": disc, "eligible_minor": eligible, "commission_bps": bps, "commission_source": source,
+            lines.append({**line, "discount_minor": disc, "platform_discount_minor": pshare, "eligible_minor": eligible, "commission_bps": bps, "commission_source": source,
                           "commission_minor": ledger.commission(eligible, bps)})
-        items_net = g["subtotal_minor"] - g["discount_minor"]
+        items_net = g["subtotal_minor"] - vdisc
         tax = g["tax_estimate_minor"] or 0
         plan.append({"vendor_id": g["vendor_id"], "vendor_name": g["vendor_name"], "vendor_slug": g["vendor_slug"], "items_minor": g["subtotal_minor"],
-                     "discount_minor": g["discount_minor"], "items_net_minor": items_net, "shipping_minor": g["shipping_minor"], "tax_minor": tax,
-                     "charged_minor": items_net + g["shipping_minor"] + tax, "commission_minor": sum(x["commission_minor"] for x in lines), "lines": lines})
+                     "discount_minor": vdisc, "platform_discount_minor": pdisc, "items_net_minor": items_net, "shipping_minor": g["shipping_minor"], "tax_minor": tax,
+                     "charged_minor": items_net - pdisc + g["shipping_minor"] + tax, "commission_minor": sum(x["commission_minor"] for x in lines), "lines": lines})
     return plan
 
 

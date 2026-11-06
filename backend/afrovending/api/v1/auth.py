@@ -24,6 +24,8 @@ class RegisterIn(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
     password: str
+    marketing_opt_in: bool = False
+    referral_code: str = Field(default="", max_length=20)
 
 
 class LoginIn(BaseModel):
@@ -65,6 +67,10 @@ async def register(body: RegisterIn, request: Request, response: Response):
     user = User(email=email, name=body.name.strip(), password_hash=hash_password(body.password),
                 auth_providers=[{"provider": "password", "linked_at": utcnow()}])
     user.id = str((await db.users.insert_one(user.to_mongo())).inserted_id)
+    from afrovending.core import marketing as mk
+    if body.marketing_opt_in:
+        await mk.set_consent(ObjectId(user.id), True, "registration")
+    await mk.attribute_signup(ObjectId(user.id), body.referral_code, email)
     sent = await _send_verification(user)
     await start_session(response, user, request)
     await audit("auth.register", "users", request=request, actor=user, entity_id=user.id, verification_email_sent=sent)

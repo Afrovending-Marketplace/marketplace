@@ -28,6 +28,16 @@ const Decide = ({ r, part, reload }) => {
   );
 };
 
+const PhotoMod = ({ r, p, reload }) => (
+  <div className="space-y-1 text-xs" data-testid={`mod-photo-${p.id}`}>
+    <img src={`${process.env.REACT_APP_BACKEND_URL}/api/v1/admin/reviews/photos/${p.id}`} alt="Review upload" className="h-24 w-24 rounded-lg object-cover" />
+    <p>{p.status}</p>
+    {p.status === "pending" && <div className="flex gap-1">{["approve", "reject"].map((a) => <Button key={a} size="sm" variant="outline" className="h-7"
+      onClick={() => act(() => api.post(`/admin/reviews/product/${r.id}/photos/${p.id}`, { action: a, reason: a === "approve" ? "Meets photo policy" : "Doesn't meet photo policy" }), `Photo ${a}d`, reload)}
+      data-testid={`mod-photo-${a}-${p.id}`}>{a}</Button>)}</div>}
+  </div>
+);
+
 const ReviewsQueue = () => {
   const [kind, setKind] = useState("product");
   const [rows, setRows] = useState([]);
@@ -44,6 +54,7 @@ const ReviewsQueue = () => {
       <ul className="divide-y divide-av-line">{rows.map((r) => <li key={r.id} className="space-y-2 py-3 text-sm" data-testid={`mod-review-${r.id}`}>
         <p className="text-xs text-av-muted">{r.order_number} · {r.kind === "seller" ? r.vendor_name : r.product_title} · status <b>{r.status}</b>{r.flags.length > 0 && ` · flags: ${r.flags.join(", ")}`}</p>
         <Stars value={r.rating} /><p className="font-semibold">{r.title}</p><p className="whitespace-pre-line">{r.comment}</p>
+        {r.photos?.length > 0 && <div className="flex flex-wrap gap-3">{r.photos.map((p) => <PhotoMod key={p.id} r={r} p={p} reload={load} />)}</div>}
         {r.reports.length > 0 && <p className="text-xs text-av-clay" data-testid={`mod-reports-${r.id}`}>Reports: {r.reports.map((x) => `${x.part} · ${x.reason} (${x.reporter_role}, ${x.status})`).join("; ")}</p>}
         <Decide r={r} part="review" reload={load} />
         {r.response && <div className="ml-4 space-y-1 rounded-lg bg-av-sand p-2"><p className="text-xs">Vendor response · <b>{r.response.status}</b>{r.response.flags.length > 0 && ` · flags: ${r.response.flags.join(", ")}`}</p>

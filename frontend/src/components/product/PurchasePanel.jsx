@@ -23,7 +23,7 @@ export const PurchasePanel = ({ product, vendor }) => {
   const add = async () => {
     setBusy(true);
     try {
-      await cart.add(variant.id, qty);
+      await cart.add(variant.id, qty, product.slug);
       toast.success(`Added to cart`, { action: { label: "View cart", onClick: () => nav("/cart") } });
     } catch (err) {
       toast.error(getErrorMessage(err));

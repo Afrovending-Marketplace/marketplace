@@ -48,6 +48,10 @@ import VendorOrdersPage from "@/pages/vendor/VendorOrdersPage";
 import VendorReviewsPage from "@/pages/vendor/VendorReviewsPage";
 import NotificationsPage, { MyReviewsPage } from "@/pages/account/NotificationsPage";
 import AdminModerationPage from "@/pages/admin/AdminModerationPage";
+import AdminMarketingPage from "@/pages/admin/AdminMarketingPage";
+import VendorMarketingPage from "@/pages/vendor/VendorMarketingPage";
+import { WishlistPage, ReferralsPage, UnsubscribePage } from "@/pages/account/MarketingPages";
+import { CookieConsent, RouteTracker } from "@/components/common/CookieConsent";
 import AdminFulfillmentPage from "@/pages/admin/AdminFulfillmentPage";
 import { CartProvider } from "@/context/CartContext";
 import VendorProductsPage from "@/pages/vendor/VendorProductsPage";
@@ -67,6 +71,8 @@ function App() {
       <CatalogProvider>
       <CartProvider>
       <BrowserRouter>
+        <RouteTracker />
+        <CookieConsent />
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<HomePage />} />
@@ -86,6 +92,7 @@ function App() {
             {POLICY_PAGES.map((p) => <Route key={p.path} path={p.path} element={p.element} />)}
             <Route path="login" element={<LoginPage />} />
             <Route path="register" element={<RegisterPage />} />
+            <Route path="unsubscribe" element={<UnsubscribePage />} />
             <Route path="forgot-password" element={<ForgotPasswordPage />} />
             <Route path="reset-password" element={<ResetPasswordPage />} />
             <Route path="verify-email" element={<VerifyEmailPage />} />
@@ -105,6 +112,8 @@ function App() {
                 <Route path="support/:id" element={<SupportTicketPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="reviews" element={<MyReviewsPage />} />
+                <Route path="wishlist" element={<WishlistPage />} />
+                <Route path="referrals" element={<ReferralsPage />} />
               </Route>
               <Route path="vendor/apply" element={<VendorApplyPage />} />
             </Route>
@@ -117,6 +126,7 @@ function App() {
               <Route path="admin/tickets" element={<AdminTicketsPage />} />
               <Route path="admin/content" element={<AdminContentPage />} />
               <Route path="admin/moderation" element={<AdminModerationPage />} />
+              <Route path="admin/marketing" element={<AdminMarketingPage />} />
             </Route>
             <Route element={<ProtectedRoute roles={ADMIN_ROLES} />}>
               <Route path="admin/vendors" element={<AdminVendorsPage />} />
@@ -133,6 +143,7 @@ function App() {
               <Route path="vendor/earnings" element={<VendorEarningsPage />} />
               <Route path="vendor/orders" element={<VendorOrdersPage />} />
               <Route path="vendor/reviews" element={<VendorReviewsPage />} />
+              <Route path="vendor/marketing" element={<VendorMarketingPage />} />
               <Route path="vendor/products" element={<VendorProductsPage />} />
               <Route path="vendor/products/import" element={<ProductImportPage />} />
               <Route path="vendor/products/:id" element={<ProductEditorPage />} />

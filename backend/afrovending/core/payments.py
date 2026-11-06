@@ -56,11 +56,14 @@ async def mark_paid(payment: dict, pi_id: str, amount_total: int, currency: str,
         vo = {"order_id": order["_id"], "order_number": order["order_number"], "vendor_id": vid, "customer_id": order["customer_id"],
               "payment_id": payment["_id"], "vendor_name": g["vendor_name"], "vendor_slug": g["vendor_slug"], "currency": payment["currency"],
               **{k: g[k] for k in ("items_minor", "discount_minor", "items_net_minor", "shipping_minor", "tax_minor", "charged_minor", "commission_minor")},
+              "platform_discount_minor": g.get("platform_discount_minor", 0), "platform_discount_refunded_minor": 0,
               "fee_minor": None, "fee_allocated": False, "refunded_minor": 0, "items_refunded_minor": 0, "shipping_refunded_minor": 0,
               "tax_refunded_minor": 0, "commission_refunded_minor": 0, "status": "pending", "earning_status": "pending",
               "eligible_at": now + timedelta(days=cfg["hold_days"]), "holds": [], "shipping_method": method,
               "fulfillment_type": "pickup" if method.get("type") == "pickup" else "ship", "shipping_address": order["shipping_address"],
               "created_at": now, "updated_at": now}
+        if vo["platform_discount_minor"] > vo["commission_minor"]:
+            vo["holds"] = [ledger.hold("Marketplace-funded promotion exceeds commission: confirm the platform funding before transfer", "promo_funding")]
         try:
             vo["_id"] = (await db.vendor_orders.insert_one(vo)).inserted_id
         except DuplicateKeyError:
@@ -70,6 +73,7 @@ async def mark_paid(payment: dict, pi_id: str, amount_total: int, currency: str,
                 "order_id": order["_id"], "vendor_id": vid, "customer_id": order["customer_id"], "product_id": ObjectId(line["product_id"]),
                 **{k: line[k] for k in ("title", "label", "sku", "quantity", "unit_price_minor", "line_total_minor", "discount_minor", "eligible_minor",
                                         "commission_bps", "commission_source", "commission_minor")},
+                "platform_discount_minor": line.get("platform_discount_minor", 0), "platform_discount_refunded_minor": 0,
                 "refunded_qty": 0, "refunded_minor": 0, "commission_refunded_minor": 0, "shipped_qty": 0, "cancelled_qty": 0, "returned_qty": 0,
                 "created_at": now}}, upsert=True)
         k, ids = f"pay:{payment['_id']}:{vo['_id']}", dict(vendor_id=vid, vendor_order_id=vo["_id"], order_id=order["_id"], payment_id=payment["_id"])
@@ -80,13 +84,27 @@ async def mark_paid(payment: dict, pi_id: str, amount_total: int, currency: str,
             await ledger.post(f"{k}:tax", account=TAX, type="tax_collected", amount_minor=g["tax_minor"], **ids)
         await ledger.post(f"{k}:comm", account=VENDOR, type="commission", amount_minor=-g["commission_minor"], **ids)
         await ledger.post(f"{k}:comm_rev", account=PLATFORM, type="commission", amount_minor=g["commission_minor"], **ids)
+        if g.get("platform_discount_minor"):
+            await ledger.post(f"{k}:promo", account=PLATFORM, type="promo_expense", amount_minor=-g["platform_discount_minor"], **ids)
         for line in g["lines"]:
             if not await reserve(ObjectId(line["variant_id"]), line["quantity"]):
                 await db.vendor_orders.update_one({"_id": vo["_id"]}, {"$set": {"stock_issue": True}})
         await _notify_vendor(vid, "New paid order", f"Order {order['order_number']} was paid: {g['items_net_minor'] / 100:.2f} USD in items. "
                                                      f"Earnings become eligible for payout after {cfg['hold_days']} days.")
     if order.get("coupon_code"):
-        await db.coupons.update_one({"code": order["coupon_code"]}, {"$inc": {"redemptions": 1}})
+        c = await db.coupons.find_one({"code": order["coupon_code"]})
+        pf = sum(g.get("platform_discount_minor", 0) for g in payment["plan"])
+        vf = sum(g["discount_minor"] for g in payment["plan"])
+        if c:
+            try:
+                await db.coupon_redemptions.insert_one({"coupon_id": c["_id"], "code": c["code"], "order_id": order["_id"], "customer_id": order["customer_id"],
+                                                        "discount_minor": pf + vf, "platform_funded_minor": pf, "vendor_funded_minor": vf, "created_at": now})
+                await db.coupons.update_one({"_id": c["_id"]}, {"$inc": {"redemptions": 1, "spent_minor": pf + vf}})
+                await audit("coupon.redeemed", "coupons", entity_id=str(c["_id"]), order_id=str(order["_id"]), platform_funded=pf, vendor_funded=vf)
+            except DuplicateKeyError:
+                pass
+    from afrovending.core.marketing import on_paid
+    await on_paid(order, payment)
     await db.carts.update_one({"_id": order.get("cart_id"), "status": "active"}, {"$set": {"status": "converted", "updated_at": now}})
     await finalize_fee(claimed)
     for vo in await db.vendor_orders.find({"payment_id": payment["_id"]}).to_list(100):
@@ -139,10 +157,14 @@ async def apply_refund(refund: dict) -> bool:
     if refund["commission_returned_minor"]:
         await ledger.post(f"{k}:comm", account=VENDOR, type="commission_reversal", amount_minor=refund["commission_returned_minor"], **ids)
         await ledger.post(f"{k}:comm_plat", account=PLATFORM, type="commission_reversal", amount_minor=-refund["commission_returned_minor"], **ids)
+    if refund.get("promo_reversal_minor"):
+        await ledger.post(f"{k}:promo", account=PLATFORM, type="promo_expense_reversal", amount_minor=refund["promo_reversal_minor"], **ids)
     for line in refund["lines"]:
         await db.order_items.update_one({"_id": line["order_item_id"]}, {"$inc": {"refunded_qty": line["quantity"], "refunded_minor": line["amount_minor"],
-                                                                                 "commission_refunded_minor": line["commission_minor"]}})
+                                                                                 "commission_refunded_minor": line["commission_minor"],
+                                                                                 "platform_discount_refunded_minor": line.get("promo_minor", 0)}})
     vo = await db.vendor_orders.find_one_and_update({"_id": vo["_id"]}, {"$inc": {
+        "platform_discount_refunded_minor": refund.get("promo_reversal_minor", 0),
         "refunded_minor": refund["amount_minor"], "items_refunded_minor": refund["items_minor"], "shipping_refunded_minor": refund["shipping_minor"],
         "tax_refunded_minor": refund["tax_minor"], "commission_refunded_minor": refund["commission_returned_minor"]}}, return_document=ReturnDocument.AFTER)
     if vo["earning_status"] in ("transferred", "paid"):
@@ -359,7 +381,7 @@ async def create_refund(vo: dict, lines: list, *, include_shipping: bool, reason
     if await db.refunds.find_one({"vendor_order_id": vo["_id"], "status": {"$in": ["processing", "pending"]}}):
         raise APIError(409, "refund_in_progress", "Another refund for this vendor order is still processing.")
     vo = await db.vendor_orders.find_one({"_id": vo["_id"]})
-    out, items_part, comm_part = [], 0, 0
+    out, items_part, comm_part, promo_part = [], 0, 0, 0
     for item_id, qty in lines:
         it = await db.order_items.find_one({"_id": item_id, "vendor_order_id": vo["_id"]})
         if not it:
@@ -369,19 +391,22 @@ async def create_refund(vo: dict, lines: list, *, include_shipping: bool, reason
             raise APIError(422, "validation_error", f"Only {remaining} of “{it['title']}” can still be refunded.")
         amt = _part(it["eligible_minor"], it["refunded_minor"], qty, remaining, it["quantity"])
         comm = _part(it["commission_minor"], it["commission_refunded_minor"], qty, remaining, it["quantity"])
-        out.append({"order_item_id": it["_id"], "quantity": qty, "amount_minor": amt, "commission_minor": comm})
+        promo = _part(it.get("platform_discount_minor", 0), it.get("platform_discount_refunded_minor", 0), qty, remaining, it["quantity"])
+        out.append({"order_item_id": it["_id"], "quantity": qty, "amount_minor": amt, "commission_minor": comm, "promo_minor": promo})
         items_part += amt
         comm_part += comm
+        promo_part += promo
     ship = vo["shipping_minor"] - vo["shipping_refunded_minor"] if include_shipping else 0
     items_left = vo["items_net_minor"] - vo["items_refunded_minor"] - items_part
     tax = (vo["tax_minor"] - vo["tax_refunded_minor"]) if items_left == 0 else vo["tax_minor"] * items_part // max(vo["items_net_minor"], 1)
-    total = items_part + ship + tax
+    total = items_part - promo_part + ship + tax
     if total <= 0:
         raise APIError(422, "validation_error", "Choose items or shipping to refund.")
     if total > vo["charged_minor"] - vo["refunded_minor"]:
         raise APIError(422, "validation_error", "Refund exceeds what's left on this vendor order.")
     doc = {"payment_id": payment["_id"], "order_id": vo["order_id"], "vendor_order_id": vo["_id"], "vendor_id": vo["vendor_id"], "lines": out,
            "items_minor": items_part, "shipping_minor": ship, "tax_minor": tax, "commission_returned_minor": comm_part, "amount_minor": total,
+           "promo_reversal_minor": promo_part,
            "vendor_debit_minor": items_part + ship - comm_part, "currency": vo["currency"], "reason": reason, "status": "processing",
            "idempotency_key": key, "requested_by": ObjectId(actor_id) if actor_id else None, "created_at": utcnow()}
     try:

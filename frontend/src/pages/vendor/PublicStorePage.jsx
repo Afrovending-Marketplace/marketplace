@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { normalizeProduct } from "@/lib/catalog";
 import NotFoundPage from "@/pages/NotFoundPage";
 import { SellerRatings } from "@/components/trust/PublicReviews";
+import { Seo } from "@/components/common/Seo";
 
 export default function PublicStorePage() {
   const { slug } = useParams();
@@ -21,6 +22,9 @@ export default function PublicStorePage() {
   if (store === null) return <NotFoundPage />;
   return (
     <div data-testid="public-store-page">
+      <Seo title={store.display_name} description={(store.tagline || store.description || store.display_name).slice(0, 160)} path={`/store/${slug}`}
+        image={store.logo_url ? fileUrl(store.logo_url) : undefined}
+        jsonLd={{ "@context": "https://schema.org", "@type": "Store", name: store.display_name, url: `${window.location.origin}/store/${slug}`, description: store.description }} />
       <div className="h-48 sm:h-64 bg-av-indigo">{store.banner_url && <img src={fileUrl(store.banner_url)} alt="" className="h-full w-full object-cover" />}</div>
       <div className="av-container pb-16">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end">

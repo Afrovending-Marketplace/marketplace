@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Stars } from "@/components/trust/Reviews";
+import { MarketingConsent } from "@/pages/account/MarketingPages";
 import { api, getErrorMessage } from "@/lib/api";
 
 const Preferences = () => {
@@ -55,6 +56,7 @@ export default function NotificationsPage() {
             <p className="text-xs text-av-muted">{new Date(n.created_at).toLocaleString()} · <Link className="underline" to={n.link} onClick={() => read(n)} data-testid={`notification-open-${n.id}`}>Open</Link></p></div></li>)}
       </ul>
       <Preferences />
+      <MarketingConsent />
     </div>
   );
 }

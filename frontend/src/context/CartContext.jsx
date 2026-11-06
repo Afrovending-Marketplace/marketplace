@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
 
 const KEY = "av_cart_token";
 const CartContext = createContext(null);
@@ -29,7 +30,10 @@ export const CartProvider = ({ children }) => {
   }, [user, call, refresh]);
   const value = {
     cart, refresh, count: cart?.item_count || 0,
-    add: (variant_id, quantity) => call("post", "/cart/items", { variant_id, quantity }),
+    add: (variant_id, quantity, product_slug) => call("post", "/cart/items", { variant_id, quantity }).then((r) => {
+      track("add_to_cart", { product_slug: product_slug || "" });
+      return r;
+    }),
     setQty: (variant_id, quantity) => call("patch", `/cart/items/${variant_id}`, { quantity }),
     remove: (variant_id) => call("delete", `/cart/items/${variant_id}`),
     acceptPrices: () => call("post", "/cart/accept-prices"),

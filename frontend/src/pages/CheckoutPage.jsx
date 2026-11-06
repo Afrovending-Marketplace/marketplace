@@ -9,6 +9,7 @@ import { CartLine, TotalsCard } from "@/components/cart/CartParts";
 import { useCart } from "@/context/CartContext";
 import { api, getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
+import { track } from "@/lib/analytics";
 
 const Option = ({ value, id, children, testId }) => (
   <label htmlFor={id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-av-line bg-white p-3 text-sm has-[[data-state=checked]]:border-av-ink">
@@ -48,6 +49,7 @@ export default function CheckoutPage() {
   const blocking = [...cart.blocking, !cart.address_id && "Choose a delivery address.", groups.some((g) => !g.shipping_method_id) && "Choose a shipping option for each vendor."].filter(Boolean);
   const start = async () => {
     setBusy(true);
+    track("begin_checkout");
     try {
       const r = await api.post("/checkout/start", null, { headers: { "Idempotency-Key": key } });
       nav(`/checkout/draft/${r.data.order.id}`);

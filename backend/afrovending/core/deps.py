@@ -29,6 +29,15 @@ async def get_current_user(request: Request) -> User:
     return User.from_mongo(doc)
 
 
+async def get_optional_user(request: Request):
+    if not request.cookies.get("access_token") and not request.headers.get("authorization", "").startswith("Bearer "):
+        return None
+    try:
+        return await get_current_user(request)
+    except APIError:
+        return None
+
+
 def require_roles(*roles: Role):
     allowed = {r.value for r in roles}
 

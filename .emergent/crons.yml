@@ -27,3 +27,10 @@ crons:
     endpoint: "{{BASE_URL}}/api/v1/cron/handling-alerts"
     method: POST
     enabled: true
+  - name: abandoned-carts
+    description: "Every 15 min: abandoned-cart reminders (1h and 24h) for opted-in customers only; does nothing while the admin switch is off"
+    cron: "*/15 * * * *"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/v1/cron/abandoned-carts"
+    method: POST
+    enabled: true

@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /account
+Disallow: /admin
+Disallow: /vendor
+Disallow: /checkout
+Disallow: /cart
+Disallow: /api/
+Allow: /api/v1/seo/
+Sitemap: https://www.afrovending.com/api/v1/seo/sitemap.xml

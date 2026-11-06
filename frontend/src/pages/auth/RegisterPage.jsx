@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AuthCard, Field, FormError } from "@/components/auth/AuthCard";
 import { useAuth } from "@/context/AuthContext";
 import { getErrorMessage } from "@/lib/api";
+import { storedReferral } from "@/lib/analytics";
 
 const pwProblem = (p) => (p.length < 10 || !/[A-Za-z]/.test(p) || !/\d/.test(p) ? "At least 10 characters with a letter and a number." : "");
 
@@ -30,7 +31,7 @@ export default function RegisterPage() {
     setBusy(true);
     setError("");
     try {
-      const data = await register({ name: form.name, email: form.email, password: form.password });
+      const data = await register({ name: form.name, email: form.email, password: form.password, marketing_opt_in: !!form.marketing, referral_code: storedReferral() });
       toast.success(data.verification_email_sent ? "Account created — check your inbox to verify your email." : "Account created. We couldn't send the verification email yet; you can resend it from your account.");
       navigate("/account", { replace: true });
     } catch (err) {
@@ -51,6 +52,8 @@ export default function RegisterPage() {
           error={errors.password} testId="register-password-input" />
         <Field id="reg-confirm" label="Confirm password" type="password" autoComplete="new-password" value={form.confirm} onChange={set("confirm")}
           error={errors.confirm} testId="register-password-confirm-input" />
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={!!form.marketing} onChange={(e) => setForm({ ...form, marketing: e.target.checked })} data-testid="register-marketing-optin" />
+          <span>Email me AfroVending offers, new arrivals and reminders about items left in my cart. Optional — unsubscribe any time.</span></label>
         <p className="text-xs text-av-muted">By creating an account you agree to our <Link to="/terms" className="underline">Terms</Link> and <Link to="/privacy" className="underline">Privacy Policy</Link> (drafts pending legal review).</p>
         <Button type="submit" size="lg" className="w-full" disabled={busy} data-testid="register-submit-button">{busy ? "Creating account…" : "Create account"}</Button>
       </form>

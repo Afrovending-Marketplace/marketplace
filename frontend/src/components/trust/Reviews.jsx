@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { api, getErrorMessage } from "@/lib/api";
+import { fileUrl } from "@/components/vendor/FileUpload";
 
 export const Stars = ({ value, size = "h-4 w-4", testId }) => (
   <span className="inline-flex items-center gap-0.5 text-av-gold" aria-label={`${value} out of 5 stars`} data-testid={testId}>
@@ -45,6 +46,7 @@ export const ReviewItem = ({ r }) => (
   <li className="space-y-2 py-4" data-testid={`review-${r.id}`}>
     <div className="flex flex-wrap items-center gap-2 text-sm"><Stars value={r.rating} /><b>{r.title}</b></div>
     {r.comment && <p className="whitespace-pre-line text-sm text-av-ink/85">{r.comment}</p>}
+    {r.photos?.length > 0 && <div className="flex gap-2" data-testid={`review-photos-${r.id}`}>{r.photos.map((p) => <img key={p.id} src={fileUrl(p.url)} alt="Customer photo" loading="lazy" className="h-20 w-20 rounded-lg object-cover" />)}</div>}
     <p className="flex flex-wrap items-center gap-2 text-xs text-av-muted">{r.author} · {new Date(r.created_at).toLocaleDateString()}{r.edited && " · edited"}
       <span className="inline-flex items-center gap-1 font-semibold text-av-forest" data-testid={`review-verified-${r.id}`}><BadgeCheck className="h-3.5 w-3.5" />Verified Purchase</span>
       <ReportButton kind={r.kind} id={r.id} part="review" /></p>

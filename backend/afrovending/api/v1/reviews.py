@@ -28,6 +28,7 @@ class ReviewIn(BaseModel):
     rating: int = Field(ge=1, le=5)
     title: str = Field(default="", max_length=120)
     comment: str = Field(default="", max_length=3000)
+    photo_file_ids: list[str] = Field(default_factory=list, max_length=3)
 
 
 class ResponseIn(BaseModel):
@@ -77,9 +78,28 @@ async def _received_item_ids(vo: dict) -> set:
     return {ln["order_item_id"] for s in ships for ln in s.get("lines", [])}
 
 
+def _photos(d: dict, everything: bool = False) -> list:
+    return [{"id": str(p["file_id"]), "url": f"/api/v1/reviews/photos/{p['file_id']}", **({"status": p["status"]} if everything else {})}
+            for p in d.get("photos", []) if everything or p["status"] == "approved"]
+
+
+async def _photo_list(ids: list[str], user: User, existing: dict | None) -> list:
+    """Buyer's own uploads only; already-reviewed photos keep their status, new ones wait for an admin."""
+    prior = {p["file_id"]: p for p in (existing or {}).get("photos", [])}
+    out = []
+    for fid in dict.fromkeys(ids):
+        if not ObjectId.is_valid(fid):
+            raise APIError(422, "validation_error", "Unknown photo.")
+        f = await db.files.find_one({"_id": ObjectId(fid), "owner_user_id": ObjectId(user.id), "purpose": "review_photo", "is_deleted": False})
+        if not f:
+            raise APIError(422, "validation_error", "Upload each photo before attaching it.")
+        out.append(prior.get(f["_id"]) or {"file_id": f["_id"], "status": "pending", "added_at": utcnow()})
+    return out
+
+
 def _pub_review(d: dict, kind: str) -> dict:
     resp = d.get("response")
-    return {"id": str(d["_id"]), "kind": kind, "rating": d["rating"], "title": d.get("title", ""), "comment": d.get("comment", ""),
+    return {"id": str(d["_id"]), "kind": kind, "rating": d["rating"], "title": d.get("title", ""), "comment": d.get("comment", ""), "photos": _photos(d),
             "author": d["author_name"], "verified_purchase": True, "created_at": d["created_at"], "updated_at": d["updated_at"], "edited": d.get("edited", False),
             "product_title": d.get("product_title"), "vendor_name": d.get("vendor_name"),
             "response": {"body": resp["body"], "updated_at": resp["updated_at"]} if resp and resp.get("status") == PUBLIC else None}
@@ -87,7 +107,7 @@ def _pub_review(d: dict, kind: str) -> dict:
 
 def _own_review(d: dict, kind: str) -> dict:
     resp = d.get("response")
-    return {**_pub_review(d, kind), "status": d["status"], "moderation_note": d.get("moderation_note"), "flags": d.get("flags", []),
+    return {**_pub_review(d, kind), "status": d["status"], "moderation_note": d.get("moderation_note"), "flags": d.get("flags", []), "photos": _photos(d, True),
             "response": {"body": resp["body"], "updated_at": resp["updated_at"]} if resp and resp.get("status") == PUBLIC else None}
 
 
@@ -125,8 +145,9 @@ async def _write(kind: str, key: dict, base: dict, body: ReviewIn, request: Requ
     status = "pending_moderation" if flags else PUBLIC
     now = utcnow()
     existing = await db[coll].find_one(key)
+    photos = await _photo_list(body.photo_file_ids, user, existing) if kind == "product" else []
     h = hashlib.sha256(" ".join(comment.lower().split()).encode()).hexdigest() if len(comment) >= 20 else None
-    fields = {"rating": body.rating, "title": title, "comment": comment, "comment_hash": h, "status": status, "flags": flags, "updated_at": now}
+    fields = {"rating": body.rating, "title": title, "comment": comment, "comment_hash": h, "status": status, "flags": flags, "updated_at": now, "photos": photos}
     if existing:
         if existing["status"] == "removed":
             raise APIError(409, "invalid_state", "This review was removed for a policy violation and can't be edited. Contact support to appeal.")
@@ -289,7 +310,7 @@ async def report(kind: Kind, review_id: str, body: ReportIn, request: Request, u
 
 def _admin_row(d: dict, kind: str, reports: list) -> dict:
     resp = d.get("response")
-    return {**_pub_review(d, kind), "status": d["status"], "flags": d.get("flags", []), "order_number": d.get("order_number"),
+    return {**_pub_review(d, kind), "status": d["status"], "flags": d.get("flags", []), "order_number": d.get("order_number"), "photos": _photos(d, True),
             "moderation_note": d.get("moderation_note"), "history": [{**h, "by": str(h["by"]) if h.get("by") else None} for h in d.get("history", [])],
             "response": {"body": resp["body"], "status": resp["status"], "flags": resp.get("flags", [])} if resp else None,
             "reports": [{"part": r["part"], "reason": r["reason"], "details": r["details"], "reporter_role": r["reporter_role"], "status": r["status"],
@@ -302,7 +323,7 @@ async def admin_reviews(kind: Kind = "product", status: Optional[Literal["publis
     coll = COLL[kind]
     reported = await db.review_reports.distinct("target_id", {"target_kind": kind, "status": "open"})
     if queue == "needs_action" and not status:
-        q = {"$or": [{"status": "pending_moderation"}, {"response.status": "pending_moderation"}, {"_id": {"$in": reported}}]}
+        q = {"$or": [{"status": "pending_moderation"}, {"response.status": "pending_moderation"}, {"photos.status": "pending"}, {"_id": {"$in": reported}}]}
     else:
         q = {"status": status} if status else {}
     docs = await db[coll].find(q).sort("updated_at", -1).to_list(300)
@@ -354,6 +375,52 @@ async def decide(kind: Kind, review_id: str, body: DecisionIn, request: Request,
                          f"Your public response couldn't be shown under the AfroVending review policy. Reason: {reason}. "
                          + ("You can edit it and resubmit." if new == "rejected" else "To appeal, contact AfroVending support."), "/vendor/reviews")
     return {"ok": True, "status": new}
+
+
+class PhotoDecisionIn(BaseModel):
+    action: Literal["approve", "reject"]
+    reason: str = Field(min_length=3, max_length=300)
+
+
+@router.post("/admin/reviews/product/{review_id}/photos/{file_id}")
+async def decide_photo(review_id: str, file_id: str, body: PhotoDecisionIn, request: Request, admin: User = Depends(require_perm(REVIEWS_MOD))):
+    st = "approved" if body.action == "approve" else "rejected"
+    res = await db.reviews.update_one({"_id": _oid(review_id), "photos.file_id": _oid(file_id)},
+                                      {"$set": {"photos.$.status": st, "photos.$.decided_at": utcnow(), "photos.$.decided_by": ObjectId(admin.id)}})
+    if not res.matched_count:
+        raise APIError(404, "not_found", "Photo not found.")
+    await audit(f"review.photo_{st}", "reviews", request=request, actor=admin, entity_id=review_id, file_id=file_id, reason=mod.sanitize(body.reason, 300))
+    if st == "rejected":
+        d = await db.reviews.find_one({"_id": _oid(review_id)})
+        await notify(d["customer_id"], "reviews", "A review photo wasn't approved", f"One of your review photos couldn't be shown. Reason: {body.reason[:200]}.", "/account/reviews")
+    return {"ok": True, "status": st}
+
+
+@router.get("/reviews/photos/{file_id}")
+async def review_photo(file_id: str):
+    """Only photos an admin approved, on a published review, are served publicly."""
+    from afrovending.api.v1.files import stream_private
+    fid = _oid(file_id)
+    if not await db.reviews.find_one({"status": PUBLIC, "photos": {"$elemMatch": {"file_id": fid, "status": "approved"}}}, {"_id": 1}):
+        raise APIError(404, "not_found", "Photo not found.")
+    doc = await db.files.find_one({"_id": fid, "is_deleted": False})
+    if not doc:
+        raise APIError(404, "not_found", "Photo not found.")
+    r = await stream_private(doc)
+    r.headers["Content-Disposition"] = "inline"
+    r.headers["Cache-Control"] = "public, max-age=3600"
+    return r
+
+
+@router.get("/admin/reviews/photos/{file_id}")
+async def admin_review_photo(file_id: str, _: User = Depends(require_perm(REVIEWS_MOD))):
+    from afrovending.api.v1.files import stream_private
+    doc = await db.files.find_one({"_id": _oid(file_id), "purpose": "review_photo", "is_deleted": False})
+    if not doc:
+        raise APIError(404, "not_found", "Photo not found.")
+    r = await stream_private(doc)
+    r.headers["Content-Disposition"] = "inline"
+    return r
 
 
 @router.get("/admin/moderation/rules")
