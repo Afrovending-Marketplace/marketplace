@@ -111,6 +111,7 @@ async def start_payment(order_id: str, body: CheckoutIn, request: Request, user:
         doc["_id"] = (await db.payments.insert_one(doc)).inserted_id
     except DuplicateKeyError:
         raise APIError(409, "payment_in_progress", "Payment is being prepared. Try again in a moment.")
+    await db.orders.update_one({"_id": order["_id"]}, {"$max": {"payment_attempts": attempt}})
     held = []
     for g in plan:
         for line in g["lines"]:

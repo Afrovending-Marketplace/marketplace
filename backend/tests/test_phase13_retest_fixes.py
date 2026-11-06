@@ -43,7 +43,7 @@ def expired(p):
 
 
 # F1: hold on session create, reuse does not double-hold, cancel/expired release exactly once, paid keeps the hold
-def test_01_stock_hold_and_release(w):
+def test_01_stock_hold_and_release(w):  # noqa: F811
     _, vid = live(w["a"], w["adm"], f"TEST20 Hold {TAG}", 1500, 1)
     assert inv(vid) == (1, 0)
     b1, b2, b3 = buyer(), buyer(), buyer()
@@ -135,7 +135,7 @@ def _cron(force: bool):
 
 
 # F5 + F6: send-hour gate and 7-day hold for a higher reference price
-def test_05_send_hour_gate_and_higher_ref(w):
+def test_05_send_hour_gate_and_higher_ref(w):  # noqa: F811
     from afrovending.core.wishlist_alerts import ET
     from datetime import datetime, timezone
     sup = admin_client()

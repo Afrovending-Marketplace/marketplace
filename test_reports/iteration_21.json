@@ -1,0 +1,66 @@
+{
+  "summary": "Retest of the iteration_20 action items, plus a regression run and a UI smoke test. (HIGH) client_ip is FIXED. Live test: 6 bad logins from one client returned [401 x5, 429, 429]. The single rate-limit key was login:34.170.12.145:<email>, which is the real egress IP. Spoofed X-Forwarded-For entries were ignored. Cloudflare itself rejects a client-sent CF-Connecting-IP header with 403 error 1000, so that header cannot be spoofed. In-process test: client A was locked out (429) while client B, using the same email from a different CF-Connecting-IP behind a Cloudflare hop, still got 401. Unit cases also pass: a CF hop with the header, a CF hop without it (uses the entry to its left), a spoofed leftmost entry, and a non-CF hop that ignores CF-Connecting-IP. (LOW) mark_paid now uses claimed.get('stock_reserved'): verified in code, and the phase07/08/qa_audit stock tests pass. (MEDIUM) start_payment is only PARTLY fixed. When Session.create raises, it returns 502, the payment is set to failed/session_create_failed, stock_reserved is False and inventory goes back to (1,0). When the amounts do not match, it returns 500 amount_mismatch, the payment is set to failed and the stock is released. But retrying the same order after a failure ALWAYS returns 409 payment_in_progress, so the order is still stuck. Regression files run one at a time: test_phase13_retest_fixes 5/5, test_phase13_qa_audit 10/10, test_phase13_wishlist_alerts 2/2, test_phase07_payments 7/7, test_phase08_fulfillment 12/12. New file test_phase13_iter21.py: 3/4 pass; test_04 fails on the real retry bug. UI at 390px and 1920px: the account Notifications page shows the marketing consent switch, and the wishlist toggles appear only after opt-in. Toggling wishlist-alert-price persists through a reload and in GET /account/marketing. In admin marketing, the mk-flag-wishlist switch saves, persists through a reload, and can be turned off again. No horizontal overflow at 390px. Playbook checks: the admin hash starts with $2b$, and seed_admin only creates the admin if missing and never changes an existing admin.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/v1/payments/orders/{id}/checkout (start_payment)",
+        "issue": "Retry after any failed attempt is stuck at 409 payment_in_progress. The failed paths (session_create_failed, amount_mismatch, out_of_stock) do not increment order.payment_attempts. The next call rebuilds the same idempotency_key `pay:{order_id}:{attempt}`, the insert into payments hits the unique index, and DuplicateKeyError maps to 409 payment_in_progress. Reproduced live: after a 502 from a simulated Stripe APIConnectionError, the real checkout call returned 409 'Payment is being prepared'. Stock is released correctly, but the shopper can never pay this order and must abandon the cart. The same happens after an out_of_stock failure once the item is restocked. Fix: $inc payment_attempts when the payment row is inserted (or in each failure branch), or base the key on the payment _id. Stripe's idempotency_key must also change per attempt.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "start_payment amount_mismatch branch",
+        "issue": "If `call(stripe.checkout.Session.expire)` raises (APIError), the failed-status update and release_payment_stock never run, so the stock leaks. Mark the payment failed and release the stock first, then expire inside try/except. Only APIError is caught around Session.create; non-Stripe exceptions (for example KeyError) would also leak the hold."
+      },
+      {
+        "endpoint": "core/wishlist_alerts.py run_wishlist_alerts",
+        "issue": "Alert rows are inserted and ref_price_minor is advanced before the per-day digest insert. If the digest for the day already exists (a second run on the same day, or force=True), the new drops are recorded and the reference moves, but the email is never sent. Items beyond max_items are likewise recorded but not emailed (the slice happens after the insert). The notify category is 'orders' for a marketing message."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Account marketing consent / wishlist toggles",
+        "issue": "setAlert and change in MarketingPages.jsx have no .catch, so an API failure leaves the switch visually unchanged with no error toast (unhandled rejection). Low priority.",
+        "affected_selectors": ["[data-testid=wishlist-alert-price]", "[data-testid=wishlist-alert-stock]", "[data-testid=marketing-consent-switch]"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Admin marketing campaigns form",
+        "issues": ["Uses the browser's native <select> for placement/status instead of the shadcn Select (minor inconsistency)"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase13_iter21.py",
+    "/app/backend/tests/test_phase13_retest_fixes.py",
+    "/app/test_reports/pytest/qa13_iter21.xml",
+    "/app/test_reports/pytest/qa13_retest_r21.xml",
+    "/app/test_reports/pytest/test_phase13_qa_audit_r21.xml",
+    "/app/test_reports/pytest/test_phase13_wishlist_alerts_r21.xml",
+    "/app/test_reports/pytest/test_phase07_payments_r21.xml",
+    "/app/test_reports/pytest/test_phase08_fulfillment_r21.xml"
+  ],
+  "action_items": [
+    "HIGH: start_payment must use a new attempt/idempotency key after a failed payment row (increment payment_attempts on insert or on failure), so a retry after session_create_failed / amount_mismatch / out_of_stock succeeds instead of returning 409 payment_in_progress forever. Rerun tests/test_phase13_iter21.py::test_04 to verify.",
+    "LOW: In the amount_mismatch branch, release the stock and mark the payment failed before calling Session.expire (and wrap expire in try/except).",
+    "LOW: wishlist_alerts: insert the digest/claim the day before writing alert rows or advancing the reference, and slice to max_items before inserting alerts.",
+    "LOW: Add .catch with toast.error to the MarketingConsent switch handlers."
+  ],
+  "critical_code_review_comments": [
+    "client_ip: trusting CF-Connecting-IP is safe only because Cloudflare rejects or overwrites it and the hop check needs fwd[-hops] to be a Cloudflare range. Keep the CF range list current (or load it from config).",
+    "release_payment_stock flips stock_reserved atomically and skips status 'succeeded'. Together with the claimed-doc check in mark_paid, the cancel-vs-paid race is now closed.",
+    "wishlist run: N+1 queries per user (users, wishlists, products, public_products). Fine for an MVP, but batch these before the list grows."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase13_iter21.py"],
+  "success_rate": {"backend": "97.5% (39/40; the one failure is the real retry bug)", "frontend": "100%"},
+  "seed_data_creation": "No seed scripts run. Test buyers, vendors, products, orders and payments were created by fixtures and removed by the cleanup7/_p6 fixtures (verified 0 leftover p6 users and TEST7/20/21 products). UI user delivered+qa21ui727ad7@resend.dev, its sessions and the qa21 rate_limits were deleted. The platform_settings marketing.flags doc was absent before testing; the admin UI save created it, and it was deleted again, so the default is wishlist_alerts enabled=false.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run the files one at a time with pytest (pytest.ini forces -n 2; use -n 0 for serial). test_phase13_iter21.py: test_02 makes live bad logins (no CF-Connecting-IP header, since Cloudflare returns 403 error 1000 for it). test_03/test_04 run in-process through httpx.ASGITransport against server.app and monkeypatch stripe.checkout.Session.create. Admin UI needs TOTP: get cookies from tests.test_phase03_vendors.admin_client() and inject them into the Playwright context. The marketing consent UI is at /account/notifications.",
+  "rca of the issue": "Retry stuck: start_payment computes attempt = order.payment_attempts + 1, but payment_attempts is only $set on the success path (after Session.create). Every failure branch leaves a payments row with idempotency_key pay:{order}:{attempt}, which has a unique index. The next call computes the same key, insert_one raises DuplicateKeyError, and that returns 409 payment_in_progress. Repro: create a draft order, make Session.create raise (or force a mismatch), then call checkout again -> 409. Mitigation: atomically $inc payment_attempts on the order before building the key."
+}
