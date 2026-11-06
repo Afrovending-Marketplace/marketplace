@@ -1,0 +1,29 @@
+{
+  "summary": "Tested the Phase 13 (B) Wishlist 'Price dropped' badge end to end. Backend: test_phase13_wishlist_alerts.py passes 3/3, including test_03_price_badge (run with -n0, no xdist). UI tests used a fresh TEST22 customer (not opted in to marketing) and a fresh TEST vendor + product (4500 minor, stock 5), because the DB has no active products. Reference (ref) price set to 2x -> badge 'Price dropped 50%', previous $90.00 struck through (line-through confirmed), current $45.00. Results: 1920px OK; 390px OK, badge visible, scrollWidth 390 = innerWidth (no horizontal overflow). Ref = current price -> no badge. Ref +4% (3.8% drop) -> no badge. Ref 4737 (5.003% drop) -> 'Price dropped 5%'. Ref +6% -> 5% (percent rounds down, never overstates). Inventory 0 -> no badge; restocked -> badge back. Real variant price raised from 4500 to 6000 -> badge updates to 33% / $60.00. Raised to 9500 (above ref) -> badge disappears. Archived and draft products are not listed; set active again -> listed with badge. Regression: the Remove button removes the item, the empty state shows and the removal holds after reload. On /account/notifications, the marketing consent switch renders unchecked; turning it on shows the wishlist-alert-price and wishlist-alert-stock toggles and a success toast. Playbook: admin hash starts with $2b$ (checked in iteration_21; the admin doc still has password_hash and MFA fields). All test data was deleted by id: user, vendor, product, variants, inventory, wishlist, sessions and notifications.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/account/wishlist", "issues": ["An item without a price drop shows only its title. There is no current price and no stock state, so shoppers see a price only when it has dropped."]},
+      {"screen": "/account/notifications", "issues": ["The label 'Wishlist price drops (5% or more)' has 5% hard-coded. If an admin changes wishlist_threshold_bps, the label becomes wrong."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase13_wishlist_alerts.py", "/app/backend/tests/iter22_wishlist_ui_helper.py", "/app/test_reports/pytest/iter22_wishlist.xml"],
+  "action_items": [
+    "Optional: show the current price (and out-of-stock or unavailable state) on every wishlist item, not only when there is a drop.",
+    "Optional: build the notifications label from the admin threshold (threshold_bps/100) instead of hard-coding 5%."
+  ],
+  "critical_code_review_comments": [
+    "badge_ref_minor has no expiry. After the alert job runs, the badge keeps comparing against the old reference until the price returns to or above it, so a months-old drop can still show as 'Price dropped'. Consider a time limit (e.g. 30 days) or clearing it when the 7-day higher-price rule resets ref.",
+    "run_wishlist_alerts updates wishlist rows (ref_price_minor and badge_ref_minor) for ALL users, including those not opted in, before the consent check. This is intended so badges work without consent, but it means the cron changes badge state for non-consenting users. That is fine, but worth documenting.",
+    "GET /wishlist still lists products from vendors that are not visible (it only sets price_drop to null). Check whether items from hidden or suspended vendors should be hidden or labelled 'unavailable'.",
+    "WishlistPage has no loading or error state: if the GET fails, the page renders nothing (it returns null forever)."
+  ],
+  "updated_files": ["/app/backend/tests/iter22_wishlist_ui_helper.py"],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "100% (all badge scenarios + regression smoke)"},
+  "seed_data_creation": "A temporary TEST22_Wish customer and a TEST6_ vendor with product 'TEST22 Kente Scarf' were created with iter22_wishlist_ui_helper.py setup and deleted with its cleanup command. Verified 0 remain.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use tests/iter22_wishlist_ui_helper.py (setup / setref <mult> / oos <qty> / price <minor> / status <s> / cleanup) for wishlist badge UI tests. Run it from /app/backend with python -m. It writes its state to /tmp/iter22_state.json. The DB has no active seed products, so the helper creates its own vendor and product. Run pytest with -n0 (pytest.ini adds xdist args)."
+}
