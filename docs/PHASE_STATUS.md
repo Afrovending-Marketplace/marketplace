@@ -13,7 +13,18 @@
 | 08 Order fulfilment (+ monthly payout statements) | ✅ Complete (manual tracking only; no paid carrier APIs) — awaiting owner approval | 2026-10-22 |
 | 09 Vendor dashboard (control center) | ✅ Complete — awaiting owner approval | 2026-10-23 |
 | 10 Marketplace administration | ✅ Complete — awaiting owner approval | 2026-10-23 |
-| 11–14 | ⏸ Not started | — |
+| 11 Customer trust & communication | ✅ Complete — awaiting owner approval | 2026-11-06 |
+| 12–14 | ⏸ Not started | — |
+
+## Phase 11 deliverables
+- Product reviews (`PUT /reviews/items/{order_item_id}`): only the buyer, only after the item's shipment is delivered or the pickup is collected; one per order item (unique index), editable; Verified Purchase label.
+- Seller ratings (`PUT /reviews/sellers/{vendor_order_id}`): one per completed vendor suborder, kept separate from product ratings; storefront and vendor dashboard show "No seller ratings yet" when empty.
+- Moderation: clean reviews publish at once; links, contact details, payment talk, threats, abuse, spam, bursts and copy-paste text are held (`pending_moderation`). Rating value is never used. Marketplace Admins approve/reject/remove with a required reason; audited; customers notified with appeal path.
+- Vendor responses: one public response per review (editable), same filters, customer notified when published. Customers and vendors can report reviews/responses.
+- Order messages per vendor order: emails, phones (incl. spelled-out / "(at)" "(dot)" tricks), outside links masked; payment links/solicitation and threats held until reviewed; originals visible only to Marketplace/Support Admins; approved domains configurable (`/admin/moderation/rules`).
+- Notification center (`/account/notifications`), header bell, per-topic email/in-app preferences; order status, delivery/review invites, vendor application, support, review and message notifications go through `core/notify.py`. Notifications never include message content. Test addresses (example.com etc.) never receive email.
+- Rate limits: reviews 20/h, responses 30/h, reports 15/h, messages 20/h per order + 150/day, duplicate messages blocked for 10 min.
+- Tests: `tests/test_phase11_trust.py` (7 passing).
 
 ## Phase 09 deliverables
 - `/vendor` control center (tabs: Overview, Orders & stock, Earnings & payouts, Store settings), responsive.

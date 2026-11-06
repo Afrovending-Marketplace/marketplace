@@ -7,7 +7,6 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
-from afrovending.core import email as mail
 from afrovending.core import rate_limit
 from afrovending.core.audit import audit
 from afrovending.core.db import db
@@ -62,10 +61,8 @@ def _out(t: dict, staff: bool) -> dict:
 
 
 async def _notify(user_id, headline: str, text: str, path: str) -> None:
-    u = await db.users.find_one({"_id": user_id})
-    if u:
-        subject, html = mail.payment_notice_email(u.get("name") or "there", headline, text, path)
-        await mail.try_send(to=u["email"], subject=subject, html=html)
+    from afrovending.core.notify import notify
+    await notify(user_id, "support", headline, text, path)
 
 
 async def _mine(ticket_id: str, user: User) -> dict:

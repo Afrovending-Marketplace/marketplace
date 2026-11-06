@@ -25,7 +25,7 @@ Owner redefined Phase 01 as "Public Storefront" (D-011); later phases shifted ac
 | 08 | Order management, shipping, tracking & returns | I | 06, 07 | shipping_methods, shipments, returns |
 | 09 | Vendor analytics dashboard (control center; review summary card is empty until Phase 11) | J | 06–08 | (aggregations) |
 | 10 | Marketplace administration: 5 admin roles with granular server-side permissions, TOTP MFA for admins, CLI bootstrap + in-app invites, basic support tickets, homepage banners/featured, overview, exports, refund two-person approval | K | 02–08 | admin_invites, support_tickets, content_banners, admin_approvals |
-| 11 | Reviews (submission, star ratings, moderation, review notifications — still scheduled here, not built in Phase 09), notifications (email), support | L | 02, 06, 08 | reviews, notifications, support_tickets |
+| 11 | Customer trust & communication: verified-purchase product reviews (after delivery/collection, one per order item), separate seller ratings (one per vendor suborder), one public vendor response, auto-moderation + abuse reports + admin decisions, order messaging with contact/link/payment masking, in-app notification center, preferences, rate limits (support tickets reused from Phase 10) | L | 02, 06, 08, 10 | reviews, seller_ratings, review_reports, order_messages, notifications |
 | 12 | Marketing, SEO, CMS content, newsletter, coupons, subscriptions | M, A | 04, 06, 07 | coupons (+ content entities) |
 | 13 | Security hardening, audit, backups & monitoring | N | all | — |
 | 14 | Launch readiness & production deploy | all | 00–13 | — |

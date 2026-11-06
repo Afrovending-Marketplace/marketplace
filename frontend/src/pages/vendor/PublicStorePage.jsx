@@ -7,6 +7,7 @@ import { fileUrl } from "@/components/vendor/FileUpload";
 import { api } from "@/lib/api";
 import { normalizeProduct } from "@/lib/catalog";
 import NotFoundPage from "@/pages/NotFoundPage";
+import { SellerRatings } from "@/components/trust/PublicReviews";
 
 export default function PublicStorePage() {
   const { slug } = useParams();
@@ -36,6 +37,7 @@ export default function PublicStorePage() {
         </div>
         {store.tagline && <p className="mt-6 text-lg text-av-ink">{store.tagline}</p>}
         <p className="mt-4 max-w-3xl whitespace-pre-line text-av-ink/80">{store.description}</p>
+        <div className="mt-8 rounded-2xl border border-av-line bg-white p-5"><SellerRatings slug={slug} /></div>
         <section className="mt-12" aria-labelledby="store-products-title">
           <h2 id="store-products-title" className="mb-6 text-2xl font-semibold text-av-ink">Products ({products.length})</h2>
           {products.length ? <ProductGrid products={products} testId="public-store-products" />

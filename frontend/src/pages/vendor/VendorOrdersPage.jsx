@@ -10,6 +10,7 @@ const TABS = ["", "pending", "accepted", "partially_shipped", "shipped", "ready_
 import { BulkSlips } from "@/components/vendor/BulkSlips";
 import { PickupHoursEditor, emptyHours } from "@/components/vendor/PickupHoursEditor";
 import { PickupHours } from "@/components/common/PickupHours";
+import { OrderMessages } from "@/components/trust/OrderMessages";
 
 const label = (s) => (s ? s.replace(/_/g, " ") : "all");
 const day = (d) => new Date(d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
@@ -91,7 +92,7 @@ const Request = ({ r, vo, reload }) => (
   </div>
 );
 
-const Order = ({ vo, reload }) => {
+const Order = ({ vo, reload, unread }) => {
   const [ship, setShip] = useState(false);
   const status = (to) => act(() => api.post(`/vendor/orders/${vo.id}/status`, { to }), `Marked ${label(to)}`, reload);
   const a = vo.shipping_address;
@@ -104,6 +105,7 @@ const Order = ({ vo, reload }) => {
       {vo.shipments.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-2 text-xs">{s.carrier_name} {s.tracking_number} · {label(s.status)}<SlipButtons vo={vo} shipment={s} tid={s.id} />
         {s.status !== "delivered" && ["in_transit", "out_for_delivery", "delivered"].filter((st) => s.status === "exception" || ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(st) > ["label_created", "in_transit", "out_for_delivery", "delivered"].indexOf(s.status)).map((st) => <Button key={st} size="sm" variant="ghost" onClick={() => act(() => api.post(`/vendor/shipments/${s.id}/status`, { status: st }), "Updated", reload)} data-testid={`vo-shipment-${st}-${s.id}`}>{label(st)}</Button>)}</div>)}
       {vo.requests.map((r) => <Request key={r.id} r={r} vo={vo} reload={reload} />)}
+      <OrderMessages path={`/vendor/orders/${vo.id}/messages`} testId={`vo-messages-${vo.order_number}`} unread={unread?.[vo.id] || 0} />
       <div className="flex flex-wrap gap-2">
         {vo.status === "pending" && <Button size="sm" onClick={() => status("accepted")} data-testid={`vo-accept-${vo.order_number}`}>Accept</Button>}
         {vo.status === "accepted" && <Button size="sm" variant="outline" onClick={() => status("processing")} data-testid={`vo-processing-${vo.order_number}`}>Mark processing</Button>}
@@ -168,7 +170,11 @@ const Methods = () => {
 export default function VendorOrdersPage() {
   const [tab, setTab] = useState("");
   const [d, setD] = useState(null);
-  const load = useCallback(() => api.get("/vendor/orders", { params: tab ? { status: tab } : {} }).then((r) => setD(r.data)), [tab]);
+  const [unread, setUnread] = useState({});
+  const load = useCallback(() => {
+    api.get("/vendor/messages/unread").then((r) => setUnread(r.data.by_vendor_order)).catch(() => {});
+    return api.get("/vendor/orders", { params: tab ? { status: tab } : {} }).then((r) => setD(r.data));
+  }, [tab]);
   useEffect(() => {
     load();
   }, [load]);
@@ -180,7 +186,7 @@ export default function VendorOrdersPage() {
       <BulkSlips refreshKey={d} />
       <section className="rounded-2xl border border-av-line bg-white px-5">
         {d && d.data.length === 0 && <p className="py-6 text-sm text-av-muted" data-testid="vo-empty">No orders here.</p>}
-        <ul className="divide-y divide-av-line">{d?.data.map((vo) => <Order key={vo.id} vo={vo} reload={load} />)}</ul>
+        <ul className="divide-y divide-av-line">{d?.data.map((vo) => <Order key={vo.id} vo={vo} reload={load} unread={unread} />)}</ul>
       </section>
       <Methods />
     </div>

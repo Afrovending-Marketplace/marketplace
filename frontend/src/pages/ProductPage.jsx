@@ -5,6 +5,7 @@ import { ProductGallery } from "@/components/product/ProductGallery";
 import { PurchasePanel } from "@/components/product/PurchasePanel";
 import { ProductInfoTabs } from "@/components/product/ProductInfoTabs";
 import { ProductRail } from "@/components/commerce/ProductRail";
+import { ProductReviews } from "@/components/trust/PublicReviews";
 import { getCategory, getProduct, getRelatedProducts, getVendor } from "@/lib/catalog";
 import NotFoundPage from "@/pages/NotFoundPage";
 
@@ -26,6 +27,7 @@ export default function ProductPage() {
             <ProductInfoTabs product={product} />
           </div>
         </div>
+        <ProductReviews slug={slug} />
       </div>
       <ProductRail testId="pdp-related" eyebrow="Keep exploring" title="You may also like" products={getRelatedProducts(product)} viewAll={`/categories/${category.slug}`} />
     </div>

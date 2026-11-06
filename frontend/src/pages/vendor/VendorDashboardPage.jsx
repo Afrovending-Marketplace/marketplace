@@ -45,6 +45,7 @@ const StoreSettings = ({ store, vendor, onSaved }) => {
         <Button onClick={toggle} disabled={suspended} variant={store.status === "published" ? "outline" : "default"} data-testid="vendor-publish-toggle">{store.status === "published" ? "Unpublish store" : "Publish store"}</Button>
         {store.status === "published" && <Button asChild variant="outline" data-testid="vendor-view-store"><Link to={`/store/${store.slug}`}>View live store</Link></Button>}
         <Button asChild variant="outline" data-testid="vendor-shipping-settings"><Link to="/vendor/orders">Shipping & pickup options</Link></Button>
+        <Button asChild variant="outline" data-testid="vendor-reviews-link"><Link to="/vendor/reviews">Reviews & ratings</Link></Button>
       </div>
       <form onSubmit={save} className="grid gap-5 sm:grid-cols-2" data-testid="vendor-store-form">
         <div className="sm:col-span-2"><FormError message={error} testId="vendor-store-error" /></div>

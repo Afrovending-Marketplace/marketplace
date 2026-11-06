@@ -62,11 +62,8 @@ async def event(vo: dict, type: str, message: str, role: str, actor_id=None, cus
 
 
 async def notify_user(user_id, headline: str, text: str, path: str) -> bool:
-    u = await db.users.find_one({"_id": user_id})
-    if not u:
-        return True
-    subject, html = mail.payment_notice_email(u.get("first_name") or u.get("name") or "there", headline, text, path)
-    return await mail.try_send(to=u["email"], subject=subject, html=html)
+    from afrovending.core.notify import notify
+    return await notify(user_id, "orders", headline, text, path)
 
 
 async def notify_vendor(vendor_id, headline: str, text: str) -> bool:
@@ -85,6 +82,10 @@ async def transition(vo: dict, to: str, role: str, actor_id=None, note: str = ""
     if not updated:
         raise APIError(409, "conflict", "This order changed at the same time. Refresh and try again.")
     await event(updated, f"status_{to}", note or f"Order {to.replace('_', ' ')}", role, actor_id)
+    if to == "delivered":
+        await notify_user(updated["customer_id"], "Tell others how it went",
+                          f"Your items from {updated.get('vendor_name') or 'the seller'} (order {updated['order_number']}) are marked delivered/collected. "
+                          "You can now review each item and rate the seller.", f"/account/orders/{updated['order_id']}")
     return updated
 
 

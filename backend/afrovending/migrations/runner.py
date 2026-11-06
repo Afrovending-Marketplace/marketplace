@@ -57,6 +57,14 @@ async def m0010_pickup_slots(db) -> None:
     await ensure_indexes(db, phase=8)
 
 
+async def m0011_phase11_trust(db) -> None:
+    for coll, name in (("reviews", "order_item_id_1"),):
+        existing = {i["name"]: i for i in await db[coll].list_indexes().to_list(50)}
+        if name in existing and not existing[name].get("unique"):
+            await db[coll].drop_index(name)
+    await ensure_indexes(db, phase=11)
+
+
 async def m0005_phase05_search(db) -> None:
     for idx in await db.products.list_indexes().to_list(50):
         if "textIndexVersion" in idx and "weights" in idx and idx["weights"].get("title") != 10:
@@ -93,6 +101,7 @@ MIGRATIONS = (
     ("0008", "phase08_fulfillment", m0008_phase08_fulfillment),
     ("0009", "handling_times", m0009_handling_times),
     ("0010", "pickup_slots", m0010_pickup_slots),
+    ("0011", "phase11_trust_communication", m0011_phase11_trust),
 )
 
 

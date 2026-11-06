@@ -105,9 +105,11 @@ export const PayoutsCard = ({ pay }) => {
 };
 
 export const ReviewsCard = ({ r }) => (
-  <Card title="Customer reviews" testId="dash-reviews">
+  <Card title="Customer reviews" testId="dash-reviews" action={<Button asChild size="sm" variant="outline"><Link to="/vendor/reviews" data-testid="dash-reviews-link">Reviews & responses</Link></Button>}>
     <div className="flex gap-6 text-sm"><div><p className="text-xs text-av-muted">Total reviews</p><p className="text-2xl font-bold" data-testid="reviews-total">{r.total}</p></div>
-      <div><p className="text-xs text-av-muted">Average rating</p><p className="text-2xl font-bold" data-testid="reviews-average">{r.average == null ? "—" : r.average.toFixed(1)}</p></div></div>
+      <div><p className="text-xs text-av-muted">Average rating</p><p className="text-2xl font-bold" data-testid="reviews-average">{r.average == null ? "—" : r.average.toFixed(1)}</p></div>
+      <div><p className="text-xs text-av-muted">Seller service</p><p className="text-2xl font-bold" data-testid="seller-rating-average">{r.seller?.average == null ? "—" : r.seller.average.toFixed(1)}</p>
+        <p className="text-xs text-av-muted" data-testid="seller-rating-total">{r.seller?.total ? `${r.seller.total} rating${r.seller.total === 1 ? "" : "s"}` : "No seller ratings yet"}</p></div></div>
     {r.total === 0 ? <p className="text-sm text-av-muted" data-testid="reviews-empty">No reviews yet.{!r.available && " Customer reviews are coming in a later update."}</p> :
       <ul className="text-xs">{Object.entries(r.distribution).map(([star, n]) => <li key={star}>{star}★ · {n}</li>)}</ul>}
   </Card>

@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { ProductGrid } from "@/components/commerce/ProductCard";
 import { getCategory, getProductsByVendor, getVendor } from "@/lib/catalog";
 import NotFoundPage from "@/pages/NotFoundPage";
+import { SellerRatings } from "@/components/trust/PublicReviews";
 
 export default function VendorStorePage() {
   const { slug } = useParams();
@@ -32,6 +33,7 @@ export default function VendorStorePage() {
         <div className="grid gap-10 py-10 lg:grid-cols-[280px_1fr] lg:py-14">
           <aside className="space-y-6">
             <DevDataNotice />
+            <SellerRatings slug={slug} compact />
             <div>
               <p className="av-eyebrow mb-2">Our story</p>
               <p data-testid="vendor-store-story" className="text-sm leading-relaxed text-av-ink/80">{vendor.story}</p>

@@ -84,7 +84,8 @@ async def decide(app_id: str, body: DecisionIn, request: Request, admin: User = 
             "rejected": f"We're unable to approve your application at this time. {body.note}",
             "changes_requested": f"Please update your application: {body.note}"}[status]
     subject, html = mail.vendor_notice_email(owner["name"], headline, text)
-    sent = await mail.try_send(to=owner["email"], subject=subject, html=html)
+    from afrovending.core.notify import notify
+    sent = await notify(owner["_id"], "vendor", headline, text, "/vendor/apply", email_content=(subject, html))
     return {"application": ser(await db.vendor_applications.find_one({"_id": app["_id"]})), "notification_sent": sent}
 
 

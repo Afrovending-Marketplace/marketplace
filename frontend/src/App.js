@@ -45,6 +45,9 @@ import VendorEarningsPage from "@/pages/vendor/VendorEarningsPage";
 import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
 import OrderDetailPage from "@/pages/account/OrderDetailPage";
 import VendorOrdersPage from "@/pages/vendor/VendorOrdersPage";
+import VendorReviewsPage from "@/pages/vendor/VendorReviewsPage";
+import NotificationsPage, { MyReviewsPage } from "@/pages/account/NotificationsPage";
+import AdminModerationPage from "@/pages/admin/AdminModerationPage";
 import AdminFulfillmentPage from "@/pages/admin/AdminFulfillmentPage";
 import { CartProvider } from "@/context/CartContext";
 import VendorProductsPage from "@/pages/vendor/VendorProductsPage";
@@ -100,6 +103,8 @@ function App() {
                 <Route path="privacy" element={<PrivacySettingsPage />} />
                 <Route path="support" element={<SupportPage />} />
                 <Route path="support/:id" element={<SupportTicketPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
+                <Route path="reviews" element={<MyReviewsPage />} />
               </Route>
               <Route path="vendor/apply" element={<VendorApplyPage />} />
             </Route>
@@ -111,6 +116,7 @@ function App() {
               <Route path="admin/team" element={<AdminTeamPage />} />
               <Route path="admin/tickets" element={<AdminTicketsPage />} />
               <Route path="admin/content" element={<AdminContentPage />} />
+              <Route path="admin/moderation" element={<AdminModerationPage />} />
             </Route>
             <Route element={<ProtectedRoute roles={ADMIN_ROLES} />}>
               <Route path="admin/vendors" element={<AdminVendorsPage />} />
@@ -126,6 +132,7 @@ function App() {
               <Route path="vendor/dashboard" element={<VendorDashboardPage />} />
               <Route path="vendor/earnings" element={<VendorEarningsPage />} />
               <Route path="vendor/orders" element={<VendorOrdersPage />} />
+              <Route path="vendor/reviews" element={<VendorReviewsPage />} />
               <Route path="vendor/products" element={<VendorProductsPage />} />
               <Route path="vendor/products/import" element={<ProductImportPage />} />
               <Route path="vendor/products/:id" element={<ProductEditorPage />} />

@@ -151,7 +151,9 @@ async def submit_application(body: SubmitIn, request: Request, user: User = Depe
     await db.users.update_one({"_id": ObjectId(user.id)}, {"$addToSet": {"roles": "vendor_applicant"}})
     await audit("vendor.application_submitted", "vendor_applications", request=request, actor=user, entity_id=str(app["_id"]), policy_version=VENDOR_POLICY_VERSION)
     subject, html = mail.vendor_notice_email(user.name, "We received your vendor application", "Our team will review it and email you with a decision.")
-    await mail.try_send(to=user.email, subject=subject, html=html)
+    from afrovending.core.notify import notify
+    await notify(user.id, "vendor", "We received your vendor application", "Our team will review it and email you with a decision.", "/vendor/apply",
+                 email_content=(subject, html))
     return {"application": ser(await my_application(user))}
 
 

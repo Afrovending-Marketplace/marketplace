@@ -7,6 +7,8 @@ import { StatusAlert } from "@/components/common/StatusAlert";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { PickupHours } from "@/components/common/PickupHours";
 import { PickupBooking } from "@/components/account/PickupBooking";
+import { OrderReviews } from "@/components/trust/OrderReviews";
+import { OrderMessages } from "@/components/trust/OrderMessages";
 import { api, getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
 
@@ -52,7 +54,7 @@ const Actions = ({ orderId, vo, reload }) => {
   );
 };
 
-const VendorOrder = ({ orderId, vo, reload }) => (
+const VendorOrder = ({ orderId, vo, reload, reviews, reloadReviews }) => (
   <section className="space-y-3 rounded-2xl border border-av-line bg-white p-5 text-sm" data-testid={`order-vendor-${vo.vendor_slug}`}>
     <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold">Sold by {vo.vendor_name}</h2>
       <StatusBadge tone={tone(vo.status)} testId={`order-status-${vo.vendor_slug}`}>{label(vo.status)}</StatusBadge>
@@ -71,6 +73,8 @@ const VendorOrder = ({ orderId, vo, reload }) => (
       {r.history.length > 1 && r.history[r.history.length - 1].note && ` · ${r.history[r.history.length - 1].note}`}</p>)}
     {vo.refunds.map((r) => <p key={r.created_at} className="text-xs text-av-clay">Refund {formatPrice(r.amount_minor)} · {r.status === "succeeded" ? "sent by Stripe (your bank may take 5–10 business days)" : "pending with Stripe"}</p>)}
     <Actions orderId={orderId} vo={vo} reload={reload} />
+    <OrderReviews vo={vo} status={reviews} reload={reloadReviews} />
+    <OrderMessages path={`/orders/${orderId}/vendor-orders/${vo.id}/messages`} testId={`order-messages-${vo.vendor_slug}`} />
     <details className="text-xs text-av-muted"><summary data-testid={`order-timeline-toggle-${vo.vendor_slug}`}>Timeline</summary>
       <ol className="mt-2 space-y-1">{vo.events.map((e) => <li key={e.at + e.type}>{new Date(e.at).toLocaleString()} — {e.message}</li>)}</ol></details>
   </section>
@@ -79,10 +83,13 @@ const VendorOrder = ({ orderId, vo, reload }) => (
 export default function OrderDetailPage() {
   const { id } = useParams();
   const [d, setD] = useState(undefined);
+  const [rs, setRs] = useState({});
   const load = useCallback(() => api.get(`/orders/${id}/detail`).then((r) => setD(r.data)).catch(() => setD(null)), [id]);
+  const loadReviews = useCallback(() => api.get(`/orders/${id}/review-status`).then((r) => setRs(r.data.vendor_orders)).catch(() => {}), [id]);
   useEffect(() => {
     load();
-  }, [load]);
+    loadReviews();
+  }, [load, loadReviews]);
   if (d === undefined) return null;
   if (!d) return <p data-testid="order-not-found">Order not found.</p>;
   const a = d.order.shipping_address;
@@ -94,7 +101,7 @@ export default function OrderDetailPage() {
         {!d.vendor_orders.every((v) => v.fulfillment_type === "pickup") && <>{a.full_name}, {[a.line1, a.line2, a.city, a.region, a.postal_code, a.country].filter(Boolean).join(", ")}</>}
         {d.vendor_orders.some((v) => v.fulfillment_type === "pickup") && <span className="block text-xs">Local pickup items are collected from the seller's pickup address shown below.</span>}
         <span className="block text-xs">Returns can be requested within {d.return_window_days} days of delivery.</span></StatusAlert>
-      {d.vendor_orders.map((vo) => <VendorOrder key={vo.id} orderId={id} vo={vo} reload={load} />)}
+      {d.vendor_orders.map((vo) => <VendorOrder key={vo.id} orderId={id} vo={vo} reload={() => { load(); loadReviews(); }} reviews={rs[vo.id]} reloadReviews={loadReviews} />)}
       <Button asChild variant="outline" size="sm"><Link to={`/checkout/payment/${id}`} data-testid="order-receipt-link">Payment receipt</Link></Button>
     </div>
   );

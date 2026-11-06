@@ -3,6 +3,7 @@ import { User, ShoppingBag } from "lucide-react";
 import { BrandLogo } from "@/components/layout/BrandLogo";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { SearchEntry } from "@/components/layout/SearchEntry";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { CategoryNav } from "@/components/layout/CategoryNav";
 import { SHELL } from "@/constants/testIds";
 import { useAuth } from "@/context/AuthContext";
@@ -29,6 +30,7 @@ export const SiteHeader = () => {
           Sell on AfroVending
         </NavLink>
         <SearchEntry compact className="md:hidden" />
+        {user && <NotificationBell className={iconCls} />}
         <Link to={user ? "/account" : "/login"} aria-label={user ? `Your account (${user.name})` : "Sign in"} data-testid={SHELL.accountButton} className={iconCls}>
           {user ? <span data-testid="header-account-initial" className="grid h-8 w-8 place-items-center rounded-full bg-av-indigo text-sm font-semibold text-av-linen">{user.name[0]?.toUpperCase()}</span> : <User className="h-5 w-5" />}
         </Link>

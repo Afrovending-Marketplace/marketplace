@@ -30,8 +30,8 @@ def _plan(vendor: dict, default_bps: int | None = None) -> dict:
 
 
 async def _reviews(vendor_id) -> dict:
-    """Customer reviews arrive in Phase 11; until then the summary reports zero reviews and no average (never a fabricated rating)."""
-    return {"total": 0, "average": None, "distribution": {str(n): 0 for n in range(5, 0, -1)}, "recent": [], "available": False}
+    from afrovending.api.v1.reviews import vendor_summary
+    return await vendor_summary(vendor_id)
 
 
 @router.get("/vendor/dashboard")
