@@ -59,9 +59,15 @@ def admin_client():
         secret = c.post("/auth/mfa/setup").json()["secret"]
         assert c.post("/auth/mfa/enable", json={"code": pyotp.TOTP(secret).now()}).status_code == 200
         return c
-    mongo.users.update_one({"_id": u["_id"]}, {"$unset": {"mfa_last_step": ""}})
-    assert c.post("/auth/mfa/verify", json={"code": pyotp.TOTP(u["mfa_secret"]).now()}).status_code == 200, "admin MFA verify failed"
-    return c
+    # xdist workers share this admin; TOTP replay protection (mfa_last_step) can reject a code another worker just used -> retry next step
+    import time
+    for attempt in range(4):
+        mongo.users.update_one({"_id": u["_id"]}, {"$unset": {"mfa_last_step": ""}})
+        r = c.post("/auth/mfa/verify", json={"code": pyotp.TOTP(u["mfa_secret"]).now()})
+        if r.status_code == 200:
+            return c
+        time.sleep(1.5 + attempt)
+    raise AssertionError(f"admin MFA verify failed: {r.status_code} {r.text}")
 
 
 def submit(c, slug):

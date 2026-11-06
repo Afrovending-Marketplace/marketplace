@@ -9,7 +9,7 @@ RULES_KEY = "moderation.rules"
 DEFAULT_RULES = {
     "approved_domains": ["afrovending.com"],
     "payment_terms": ["paypal", "venmo", "cash app", "cashapp", "zelle", "western union", "moneygram", "wire transfer", "bank transfer", "bitcoin",
-                      "crypto", "usdt", "gift card", "pay me directly", "pay outside", "off the site", "off-site payment", "off platform", "outside afrovending"],
+                      "usdt", "gift card", "pay me directly", "pay outside", "off the site", "off-site payment", "off platform", "outside afrovending"],
     "payment_domains": ["paypal.me", "paypal.com", "venmo.com", "cash.app", "zellepay.com", "wise.com", "revolut.me", "buymeacoffee.com"],
     "threat_terms": ["kill you", "hurt you", "i will find you", "find where you live", "burn your", "you will regret", "watch your back", "beat you"],
     "abuse_terms": ["fuck", "shit", "bitch", "bastard", "retard", "idiot", "moron", "dumbass", "asshole", "whore", "slut", "cunt"],
@@ -24,7 +24,8 @@ _EMAIL_SPOKEN = re.compile(r"\b[a-z0-9._%+\-]+\s+at\s+[a-z0-9\-]+(?:\s+dot\s+|\s
 _TLDS = "com|net|org|io|co|me|shop|store|biz|info|ly|gg|app|xyz|us|uk|link|site|online|page|top|ca|ng|gh|ke|za"
 _URL = re.compile(r"(?:\bhttps?://|\bwww\.)[^\s<>\"']+|\b(?:[a-z0-9\-]+\.)+(?:" + _TLDS + r")\b(?:/[^\s<>\"']*)?", re.I)
 _URL_SPOKEN = re.compile(r"\b[a-z0-9\-]{2,}(?:\s*\(\s*dot\s*\)\s*|\s*\[\s*dot\s*\]\s*|\s+dot\s+)(?:" + _TLDS + r")\b", re.I)
-_PHONE_RUN = re.compile(r"\+?\d[\d\s().\-]{7,}\d")
+_PHONE_RUN = re.compile(r"(?<![A-Za-z0-9])\+?\d[\d\s().\-]{7,}\d(?![A-Za-z])")
+_TRACKING_CTX = re.compile(r"(track|tracking|ups|usps|fedex|dhl|parcel)\W*(number|no\.?|#|id)?\W*$", re.I)
 _WORD_DIGITS = re.compile(r"\b(?:(?:zero|oh|one|two|three|four|five|six|seven|eight|nine)[\s\-,]*){7,}\b", re.I)
 _LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "!": "i"})
 CONTACT_MASK, LINK_MASK, PAY_MASK = "[contact details hidden]", "[link hidden]", "[payment details hidden]"
@@ -99,6 +100,8 @@ def scan(text: str, r: dict) -> dict:
     out = _URL_SPOKEN.sub(lambda m: (flags.add("link"), LINK_MASK)[1], out)
 
     def phone(m):
+        if _TRACKING_CTX.search(m.string[max(0, m.start() - 30):m.start()]):
+            return m.group(0)
         if 10 <= len(re.sub(r"\D", "", m.group(0))) <= 15:
             flags.add("phone")
             return CONTACT_MASK

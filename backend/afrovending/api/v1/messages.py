@@ -40,7 +40,7 @@ def _oid(v: str) -> ObjectId:
 def _view(m: dict, me: str) -> dict:
     mine = m["sender_role"] == me
     hidden = m.get("hidden") or (m.get("held") and m.get("review_status") == "open")
-    body = m["body_display"] if mine or not hidden else HELD
+    body = m["body_display"] if mine or not hidden else ("This message was removed by AfroVending." if m.get("hidden") else HELD)
     if m.get("hidden") and mine:
         body = "This message was removed by AfroVending for breaking the marketplace communication policy."
     return {"id": str(m["_id"]), "sender_role": m["sender_role"], "sender_name": m["sender_name"], "body": body, "created_at": m["created_at"],

@@ -10,7 +10,11 @@ export const NotificationBell = ({ className }) => {
     const load = () => api.get("/notifications/unread-count").then((r) => setN(r.data.unread)).catch(() => {});
     load();
     const t = setInterval(load, 60000);
-    return () => clearInterval(t);
+    window.addEventListener("av:notifications", load);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("av:notifications", load);
+    };
   }, [pathname]);
   return (
     <Link to="/account/notifications" aria-label={`Notifications, ${n} unread`} className={className} data-testid="header-notifications">

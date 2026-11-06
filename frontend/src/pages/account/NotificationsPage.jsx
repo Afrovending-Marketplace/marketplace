@@ -35,7 +35,10 @@ const Preferences = () => {
 
 export default function NotificationsPage() {
   const [d, setD] = useState(null);
-  const load = useCallback(() => api.get("/notifications").then((r) => setD(r.data)), []);
+  const load = useCallback(() => api.get("/notifications").then((r) => {
+    setD(r.data);
+    window.dispatchEvent(new Event("av:notifications"));
+  }), []);
   useEffect(() => {
     load();
   }, [load]);

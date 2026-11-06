@@ -1,0 +1,53 @@
+{
+  "summary": "Phase 11 (Customer Trust & Communication) tested on backend and frontend. Backend: test_phase11_trust.py 7/7 pass. New test_phase11_edge_cases.py 6/6 pass: 401s, 404 rather than 500 for invalid ids, 422 validation, customers blocked from admin and vendor routes, default prefs. Regression: test_phase10_admin 4/4, t1_extended 5/5, retest_fixes 3/3. Running phase10 and phase11 tests in one invocation used to fail on the admin TOTP step. Cause found and fixed in the test helper; the combined run now passes 17/17. UI (desktop 1920 and 390px): product page shows 'Customer reviews' with 'No reviews yet', then shows the published review with the Verified Purchase badge and the Vendor Response block. The header bell shows the unread count. On the order detail page, the review-item and review-seller forms both published (a 4-star item review and a negative 2-star seller rating). In order messages, a phone number was masked, the sender saw the policy notice and a toast, and the vendor saw the masked text. /account/notifications: list works, the pref switch persists after reload, 'Mark all as read' works. /account/reviews lists both reviews. Vendor /vendor/orders: the Messages button shows an unread badge, and an afrovending.com link was not masked. Vendor /vendor/reviews: summary plus response form; a clean response published, and a response containing an email went to 'Response being checked'. /admin/moderation (super admin after MFA): summary, reviews, messages and rules all render; Approve stays disabled until a reason is entered; approving removed the row; the flagged message shows the original and the masked text. Store pages show the seller-ratings section. No JS page errors and no horizontal overflow at 390px.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "core/moderation.py scan() _PHONE_RUN", "issue": "Courier tracking numbers are masked as phone numbers and flagged. 'Tracking 1Z999AA10123456700' becomes '1Z999AA[contact details hidden]' because the 11-digit run counts as a phone number. A 12-digit FedEx number would be masked too. Vendors often send tracking numbers in order messages, so this creates false flags. Suggest skipping digit runs that touch letters, such as alphanumeric tracking tokens."},
+      {"endpoint": "core/moderation.py payment_terms 'crypto'", "issue": "False positive: 'I love crypto-themed designs' becomes '[payment details hidden]-themed' and is flagged payment_solicitation. Payment flags count as 'high', so the message is held from the recipient. Consider matching phrases like 'pay in crypto' instead of the bare word."},
+      {"endpoint": "POST /admin/reviews/{kind}/{id}/decision (part=response)", "issue": "When a vendor response is rejected or removed, the vendor gets no notification and no appeal path. Only customers are notified for review decisions."},
+      {"endpoint": "PUT /vendor/reviews/{kind}/{id}/response", "issue": "If a vendor edits a published response into flagged content, the old approved response disappears from public view until the edit is moderated. Consider keeping the last published body visible."},
+      {"endpoint": "GET /admin/reviews/summary", "issue": "'Waiting for moderation' only counts reviews with status pending_moderation. It showed 0 while a vendor response was pending (response.status) and appeared in the needs-action queue."},
+      {"endpoint": "messages._view", "issue": "A message hidden by an admin ('hide') shows the recipient 'This message is being reviewed by AfroVending before delivery.' forever, which is misleading."},
+      {"endpoint": "Approved review/response content", "issue": "When an admin approves flagged content, it is published raw, so emails and phone numbers become public. For example, 'Email me at vendorjoe@gmail.com' was shown publicly after approval. Consider publishing the masked text when the only flags are contact or link."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "NotificationBell", "issue": "The bell count goes stale after 'Mark all as read' or after opening a notification on /account/notifications. It only re-fetches on route change or every 60s, so it kept showing a count after read-all.", "selector": "[data-testid='header-notifications-count']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Mobile header (390px, logged in)", "issues": ["The AFROVENDING wordmark overlaps the search icon (the 'G' sits under the magnifier) when the bell, avatar and cart are all shown."]},
+      {"screen": "/admin/moderation reviews queue", "issues": ["For a review that is already published and only has a pending vendor response, the review-level approve/reject/remove buttons are still shown, with approve styled as primary. This is confusing.", "After approving a vendor response, the toast says 'Review approved'."]},
+      {"screen": "/vendors list", "issues": ["Vendors without a logo show a broken image with alt text 'Biz' in the avatar circle (existing issue, seen with a test vendor)."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase11_trust.py", "/app/backend/tests/test_phase11_edge_cases.py", "/app/backend/tests/seed_phase11_ui.py", "/app/test_reports/pytest/pytest_phase11.xml"],
+  "action_items": [
+    "Stop the phone regex from masking alphanumeric courier tracking numbers (UPS 1Z…, FedEx 12-digit) in order messages",
+    "Narrow the 'crypto' payment term to avoid holding harmless messages",
+    "Make NotificationBell refresh after read-all or mark-read (shared context or an event)",
+    "Fix the mobile header wordmark overlapping the search icon at 390px",
+    "Optional: notify vendors when their response is rejected or removed (with an appeal path); include pending responses in the moderation summary count; show recipients a 'removed' message for hidden messages instead of 'being reviewed'",
+    "Test hygiene: the test_phase11_trust teardown runs platform_settings.delete_many({key:'moderation.rules'}) and rate_limits.delete_many(regex '^(review|msg)'). This wipes any admin-configured moderation rules and other users' rate-limit counters in the shared DB. Save and restore the original rules doc instead."
+  ],
+  "critical_code_review_comments": [
+    "notify() sends email synchronously inside the request (mail.try_send), so vendor status changes and messages wait on Resend latency. Consider BackgroundTasks or a queue.",
+    "TEST_DOMAINS in notify.py does not include resend.dev, so delivered+…@resend.dev test users really go through Resend. That is the intended sink, but it costs quota.",
+    "GET /notifications and public review lists are capped at 100 with no pagination.",
+    "POST /reviews/{kind}/{id}/report lets authors report their own review and vendors report other vendors' reviews. Consider restricting this.",
+    "VendorReviewsPage defines the List component inside render, so it remounts on every load and Respond form state resets."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase03_vendors.py (admin_client: retry the TOTP verify, since parallel xdist workers sharing the super admin hit mfa_last_step replay protection, giving 422. This fixes the combined phase10+phase11 run.)",
+    "/app/backend/tests/test_phase11_edge_cases.py (new)",
+    "/app/backend/tests/seed_phase11_ui.py (new, UI seed and cleanup by tracked emails/ids)"
+  ],
+  "success_rate": {"backend": "100% (phase11 13/13 incl. edge cases, phase10 regression 12/12)", "frontend": "95% (all flows work; minor bell refresh and mobile header overlap)"},
+  "seed_data_creation": "Ran seed_phase11_ui.py seed: 1 vendor, 1 buyer, 1 product, 1 delivered order, and a platform shipping method 'TEST11UI Flat'. All of it, plus the reviews, messages, notifications and audit logs it produced, was removed with seed_phase11_ui.py cleanup. Verified 0 leftover reviews, seller_ratings and order_messages, and 0 TEST8UI users.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: pytest tests/test_phase10_admin.py tests/test_phase11_trust.py tests/test_phase11_edge_cases.py (combined works now thanks to the admin_client TOTP retry). UI seed: python -m tests.seed_phase11_ui seed|cleanup (state in /tmp/seed11ui.json). Do NOT leave the seed's platform shipping method in place while running other suites: 2 platform shipping methods make checkout require a choice, and phase10_t1_extended test_03/04 then fail with 409 checkout_blocked. Browser MFA: unset users.mfa_last_step, compute TOTP inline with hmac/base64, fill [data-testid=mfa-code], click [data-testid=mfa-submit]. pymongo/pyotp are not available inside browser_automation.",
+  "rca of the issue": "Combined phase10+phase11 TOTP failure: pytest.ini runs 2 xdist workers with loadscope, so the two modules run in parallel and both call admin_client() for the same super admin. The MFA endpoint rejects any code whose step is <= users.mfa_last_step (replay protection). Worker A unsets mfa_last_step and verifies; worker B unsets it too, but A's verify sets mfa_last_step = current step before B's verify arrives, so B gets 422. Fix: admin_client retries the unset+verify up to 4 times with a short backoff. App behaviour is correct; only the test needed changing."
+}

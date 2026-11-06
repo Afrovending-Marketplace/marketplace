@@ -8,6 +8,7 @@ from tests.test_phase08_fulfillment import HOURS, _pickup_order, paid
 from tests.test_phase10_admin import MADE, admin_with, teardown_module as _p10_teardown  # noqa: F401
 
 T = {}
+_RULES_BEFORE = mongo.platform_settings.find_one({"key": "moderation.rules"})
 
 
 def teardown_module():
@@ -25,7 +26,10 @@ def teardown_module():
     owners = [v["owner_user_id"] for v in mongo.vendors.find({"_id": {"$in": vids}})]
     mongo.notifications.delete_many({"user_id": {"$in": buyers + owners}})
     mongo.platform_settings.delete_many({"key": "moderation.rules"})
-    mongo.rate_limits.delete_many({"key": {"$regex": "^(review|msg)"}})
+    if _RULES_BEFORE:
+        mongo.platform_settings.insert_one(_RULES_BEFORE)
+    test_users = [str(u) for u in buyers + owners]
+    mongo.rate_limits.delete_many({"key": {"$regex": "^(review|msg)"}, "$or": [{"key": {"$regex": u}} for u in test_users] or [{"_id": None}]})
     _p10_teardown()
 
 

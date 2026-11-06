@@ -316,6 +316,7 @@ async def admin_summary(_: User = Depends(require_perm(REVIEWS_MOD))):
         return {s: await db[coll].count_documents({"status": s}) for s in ("published", "pending_moderation", "rejected", "removed")}
     return {"product": {**await _summary("reviews", {}), "by_status": await counts("reviews")},
             "seller": {**await _summary("seller_ratings", {}), "by_status": await counts("seller_ratings")},
+            "pending_responses": await db.reviews.count_documents({"response.status": "pending_moderation"}) + await db.seller_ratings.count_documents({"response.status": "pending_moderation"}),
             "open_reports": await db.review_reports.count_documents({"status": "open"}),
             "flagged_messages": await db.order_messages.count_documents({"review_status": "open"})}
 
@@ -346,6 +347,12 @@ async def decide(kind: Kind, review_id: str, body: DecisionIn, request: Request,
         await notify(d["customer_id"], "reviews", "Your review is live", "Thanks — your review passed our checks and is now published.", "/account/reviews")
     elif body.part == "response" and new == PUBLIC and d["response"]["status"] != PUBLIC:
         await _response_published(d)
+    elif body.part == "response" and new in ("rejected", "removed"):
+        v = await db.vendors.find_one({"_id": d["vendor_id"]})
+        if v:
+            await notify(v["owner_user_id"], "reviews", "Update on your review response",
+                         f"Your public response couldn't be shown under the AfroVending review policy. Reason: {reason}. "
+                         + ("You can edit it and resubmit." if new == "rejected" else "To appeal, contact AfroVending support."), "/vendor/reviews")
     return {"ok": True, "status": new}
 
 
