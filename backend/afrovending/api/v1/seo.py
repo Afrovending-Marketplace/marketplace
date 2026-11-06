@@ -76,7 +76,7 @@ async def share_product(slug: str):
 async def share_store(slug: str):
     s = await db.vendor_stores.find_one({"slug": slug.lower(), "status": "published"})
     url = f"{settings.frontend_url}/store/{slug}"
-    if not s:
+    if not s or s["vendor_id"] not in await visible_vendor_ids():
         return _page("AfroVending", "African fashion, beauty, food and crafts from independent sellers.", settings.frontend_url, None, {})
     logo = f"{settings.frontend_url}/api/v1/files/{s['logo_file_id']}" if s.get("logo_file_id") else None
     ld = {"@context": "https://schema.org", "@type": "Store", "name": s["display_name"], "url": url, "description": (s.get("description") or "")[:500],

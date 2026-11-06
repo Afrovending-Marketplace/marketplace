@@ -1,0 +1,52 @@
+{
+  "summary": "Phase 12 (Marketing & Monetization) tested end-to-end on the backend and frontend. Backend: the existing test_phase12_marketing.py passes 9/9. A new T1 regression file, test_phase12_t1_extended.py, passes 10/10. It covers SEO share pages for products and stores, sitemap entries, JSON-LD price, wishlist add/remove/unknown/401, vendor coupon validation (duplicate code, bad code, percent over 100%, pause), campaign validation (unknown coupon, end date before start date, javascript: URL, draft hidden, activate, 404), the sponsored listing lock (409), flags locks (referral rewards 409, second delay must be after first), report permissions (support admin 403, anonymous 401), unknown referral codes, tampered unsubscribe tokens, and that a plan request leaves the plan unchanged. Frontend (Playwright, real seeded vendor, product and delivered order): cookie banner Reject/Accept/Manage all work; analytics POSTs are zero after Reject and sent after the analytics switch is turned on; product page and /store/:slug set the title, description, canonical, og tags and #av-jsonld; static /robots.txt is served; wishlist toggle, wishlist page and remove work; referrals page shows link and counts; /?ref=CODE then register attributes the referral (checked in the DB); the register marketing checkbox stores consent; the notifications consent switch persists; /unsubscribe with an invalid or missing token shows the 'invalid' message; vendor /vendor/marketing coupon create/pause/activate, plan 'Register interest' and store analytics work; cart/checkout show the vendor coupon discount (-$4.50); review photos: 3 uploads, hidden publicly (404) until admin approves in /admin/moderation, rejected photo stays 404, approved photo shows under the review; admin /admin/marketing analytics date range (US Eastern), referrals, cart stats, campaign create/activate shown on homepage (homepage-campaigns), coupon funding report, flags save and restore. The main new finding is that rate limits are keyed on the ingress IP, so the limits are shared by all visitors.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/v1/analytics/events, POST /api/v1/marketing/unsubscribe (also existing PUT /api/v1/cart/coupon and cart add)", "issue": "Rate-limit keys use request.client.host, which is the internal ingress IP (10.79.138.x). Confirmed in the rate_limits collection: key 'coupon:10.79.138.2'. All visitors therefore share one bucket: 300 analytics batches per 10 min, 30 unsubscribes per 10 min and 20 coupon applies per 10 min for the whole marketplace. Under real traffic this will return 429, lose analytics, block unsubscribes (a compliance risk) and break coupon campaigns. Fix: use afrovending.core.security.client_ip(request), which reads X-Forwarded-For.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "GET /api/v1/admin/referrals", "issue": "Ignores the date range, but the UI shows these cards inside the date-ranged Analytics section. For example, Nov 1-5 still showed 'Referral visits 1 / sign-ups 1' from Nov 6, which is misleading."},
+      {"endpoint": "GET /api/v1/seo/share/stores/{slug}", "issue": "Doesn't filter by visible_vendor_ids (share_product does), so a suspended vendor's published store still gets a share page with OG/JSON-LD."},
+      {"endpoint": "GET /api/v1/reviews/photos/{id}", "issue": "The handler sets Cache-Control 'public, max-age=3600', but the response arrives as 'no-store, no-cache' because middleware overrides it."},
+      {"endpoint": "core/marketing.attribute_signup", "issue": "Self-referral detection treats any two plus-aliases of the same mailbox as the same person (e.g. delivered+a@resend.dev and delivered+b@resend.dev). That is intended, but test users following test_credentials.md (delivered+...@resend.dev) can never refer each other, so referral tests need other domains such as @example.com."},
+      {"endpoint": "POST /api/v1/vendor/coupons", "issue": "PLAN_FEATURES lists 'Store coupons' only for Growth/Premium, but Starter vendors can create coupons. The copy and the behaviour don't match."},
+      {"endpoint": "Campaign coupon_code", "issue": "Only checks that the marketplace coupon exists, not that it is active or in date."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "CookieConsent", "issue": "Once Accept/Reject is chosen there is no way to reopen cookie preferences. Nothing dispatches 'av:open-consent' (no footer 'Cookie settings' link), so a visitor who rejected cannot change their mind and one who accepted cannot withdraw. Withdrawing consent should be as easy as giving it.", "selector": "[data-testid=cookie-manage-open]", "priority": "MEDIUM"},
+      {"component": "ReviewForm photo input", "issue": "The file input value isn't reset after upload, so choosing the same file again fires no change event and nothing happens. Selected photos aren't shown as thumbnails, and photos can't be removed one at a time ('Remove photos' clears all). After submitting with photos, the toast says 'Review published' without saying the photos wait for approval.", "selector": "[data-testid=review-item-*-photo-input]", "priority": "LOW"},
+      {"component": "WishlistButton on /products/:slug", "issue": "When the catalog is in dev-data mode (no live products), the button is shown on static sample products, but PUT /wishlist/{slug} returns 404 'Product not found'. Hide the button when isDevData().", "selector": "[data-testid=wishlist-toggle]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Account overview /account", "issues": ["Wishlist card still says 'Saved items will appear here once wishlists launch with product discovery (Phase 05)'. It should link to /account/wishlist. The Orders card also has stale Phase copy."]},
+      {"screen": "Footer newsletter", "issues": ["Still says 'Newsletter preview — sign-up is not connected to an email service yet', which conflicts with the new marketing opt-in."]},
+      {"screen": "/admin/marketing and /vendor/marketing", "issues": ["Native <select> elements (mk-camp-placement, mk-camp-status, vcoupon-type) are unstyled and shorter than the shadcn Inputs next to them. Use the shadcn Select."]},
+      {"screen": "static /robots.txt", "issues": ["The Sitemap line is hard-coded to https://www.afrovending.com, and the file allows crawling in preview, while the backend robots for non-production returns 'Disallow: /'."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase12_marketing.py", "/app/backend/tests/test_phase12_t1_extended.py", "/app/test_reports/pytest/phase12_t1.xml"],
+  "action_items": [
+    "HIGH: Replace request.client.host with security.client_ip(request) in rate-limit keys: marketing.py ingest and unsubscribe, cart.py lines 140 and 242.",
+    "Add a persistent 'Cookie settings' link (footer) that dispatches 'av:open-consent' so visitors can change or withdraw cookie consent.",
+    "Scope /admin/referrals to the selected date range, or move the referral cards out of the date-ranged section.",
+    "Reset the review photo input value after each upload, show thumbnails with per-photo remove, and say in the toast that photos await approval.",
+    "Update the stale Account overview Wishlist/Orders copy and the footer newsletter text; use the shadcn Select in the marketing pages.",
+    "Filter share_store by visible vendors; hide WishlistButton in dev-data mode; check that a linked campaign coupon is active."
+  ],
+  "critical_code_review_comments": [
+    "Rate limiting on the proxy IP (see HIGH issue): the coupon apply limit of 20 per 10 min applies to the whole site.",
+    "test_phase12_marketing.py test_05 has an assertion ending in '... or True' (vendor plan unchanged), so it can never fail. test_06 compares a value with itself. The T1 extended file replaces these with real checks.",
+    "analytics.js flush() sends only the first 20 queued events and clears the timer, so any extra events wait for the next track() call. Reschedule when the queue is not empty.",
+    "AdminMarketingPage loads /admin/analytics three times on mount (duplicate effect runs)."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase12_t1_extended.py"],
+  "success_rate": {"backend": "100% (19/19 tests); 1 HIGH design defect found in code review", "frontend": "95% (all requested flows work; consent cannot be reopened)"},
+  "seed_data_creation": "Ran tests/seed_phase11_ui.py seed (vendor, live product test11ui-kente-scarf, delivered order) and cleaned it up afterwards. Also deleted every UI-created record: 2 TEST users (t12_uifriend02@example.com, delivered+t12reffriend01@resend.dev), their referral, vendor coupon T12UIVEND10, campaign TEST12UI Harmattan, subscription request, 15 analytics_events from my anon ids, review/photo files, and marketing.flags (absent before testing, so removed; abandoned-cart was left OFF) plus 4 flags_updated audit logs. Checked afterwards: no T12/TEST12 coupons, campaigns, users or flags doc remain.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Seed with `cd /app/backend && python -m tests.seed_phase11_ui seed` (state in /tmp/seed11ui.json) and run test_phase12_t1_extended.py against it. Clean up with `python -m tests.seed_phase11_ui cleanup` plus Phase 12 collections (see /tmp/clean12.py approach). Browser auth: dump httpx cookies (admin_client() for super admin with MFA, or /auth/login for buyer/vendor with password TestPass12345) and inject them with context.add_cookies. Once a live product exists, the frontend /products/:slug uses the live catalog. Referral tests must use different email bases/domains (plus-alias counts as self-referral). The marketing.flags doc did not exist before testing; delete it after testing.",
+  "rca of the issue": "Rate-limit RCA: the backend sits behind Kubernetes ingress and Cloudflare, so request.client.host is the ingress pod IP (backend access log shows 10.79.138.2/.5 for every request). Keys like 'analytics:<ip>' therefore collapse into one global bucket. Reproduce: send more than 20 PUT /api/v1/cart/coupon requests from different clients within 10 min; all get 429. Mitigation: use core.security.client_ip (X-Forwarded-For, last hop) as the login limiter already does."
+}

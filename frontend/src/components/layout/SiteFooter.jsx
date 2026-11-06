@@ -47,6 +47,7 @@ export const SiteFooter = () => (
         </p>
         <div className="flex items-center gap-5">
           <ApiStatus />
+          <button type="button" onClick={() => window.dispatchEvent(new Event("av:open-consent"))} className="text-xs text-av-linen/60 hover:text-av-linen" data-testid="footer-cookie-settings">Cookie settings</button>
           <Link to="/design-system" data-testid={SHELL.footerDesignSystemLink}
             className="text-xs text-av-linen/60 hover:text-av-linen underline-offset-4 hover:underline">Design system</Link>
         </div>

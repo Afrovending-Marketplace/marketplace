@@ -19,6 +19,7 @@ export const ReviewForm = ({ url, existing, label, testId, onSaved, showPhotos }
     try {
       const doc = await uploadFile(file, "review_photo");
       setF((x) => ({ ...x, photo_file_ids: [...x.photo_file_ids, doc.id] }));
+      toast.success("Photo added — it will appear once AfroVending approves it");
     } catch (e) {
       toast.error(getErrorMessage(e));
     } finally {
@@ -51,7 +52,7 @@ export const ReviewForm = ({ url, existing, label, testId, onSaved, showPhotos }
       {showPhotos && <div className="flex flex-wrap items-center gap-2 text-xs" data-testid={`${testId}-photos`}>
         <span>{f.photo_file_ids.length}/3 photos (checked by AfroVending before they appear)</span>
         {f.photo_file_ids.length < 3 && <label className="cursor-pointer rounded-full border border-av-line bg-white px-3 py-1">{uploading ? "Uploading…" : "Add photo"}
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => addPhoto(e.target.files?.[0])} data-testid={`${testId}-photo-input`} /></label>}
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { addPhoto(e.target.files?.[0]); e.target.value = ""; }} data-testid={`${testId}-photo-input`} /></label>}
         {f.photo_file_ids.length > 0 && <button type="button" className="underline" onClick={() => setF({ ...f, photo_file_ids: [] })} data-testid={`${testId}-photos-clear`}>Remove photos</button>}</div>}
       <div className="flex gap-2"><Button size="sm" disabled={!f.rating} onClick={save} data-testid={`${testId}-submit`}>Submit</Button>
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button></div>

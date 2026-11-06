@@ -18,6 +18,7 @@ from afrovending.core.deps import get_current_user, get_optional_user
 from afrovending.core.errors import APIError
 from afrovending.core.models import User, utcnow
 from afrovending.core.permissions import ANALYTICS, CONTENT, FIN_VIEW, SETTINGS, require_perm
+from afrovending.core.security import client_ip
 
 router = APIRouter(tags=["marketing"])
 PLAN_FEATURES = {"starter": ["Up to 50 live products", "Standard storefront", "Order messaging"],
@@ -61,7 +62,7 @@ class EventsIn(BaseModel):
 @router.post("/analytics/events", status_code=202)
 async def ingest(body: EventsIn, request: Request, user: Optional[User] = Depends(get_optional_user)):
     """Only sent by the browser after the visitor accepts analytics cookies. Purchases are recorded server-side only."""
-    await rate_limit.hit(f"analytics:{request.client.host if request.client else 'x'}", 300, 600)
+    await rate_limit.hit(f"analytics:{client_ip(request)}", 300, 600)
     stored = 0
     for e in body.events:
         pid = vid = None
@@ -101,7 +102,7 @@ class UnsubIn(BaseModel):
 
 @router.post("/marketing/unsubscribe")
 async def unsubscribe(body: UnsubIn, request: Request):
-    await rate_limit.hit(f"unsub:{request.client.host if request.client else 'x'}", 30, 600)
+    await rate_limit.hit(f"unsub:{client_ip(request)}", 30, 600)
     uid = mk.verify_unsubscribe(body.token)
     if not uid:
         raise APIError(422, "invalid_token", "This unsubscribe link isn't valid.")
@@ -200,8 +201,8 @@ async def list_campaigns(_: User = Depends(require_perm(CONTENT))):
 async def _check_campaign(b: CampaignIn) -> dict:
     if b.starts_at and b.ends_at and b.starts_at >= b.ends_at:
         raise APIError(422, "validation_error", "End date must be after start date.")
-    if b.coupon_code and not await db.coupons.find_one({"code": b.coupon_code, "funded_by": "marketplace"}):
-        raise APIError(422, "validation_error", "Link a marketplace coupon that exists.")
+    if b.coupon_code and not await db.coupons.find_one({"code": b.coupon_code, "funded_by": "marketplace", "status": "active"}):
+        raise APIError(422, "validation_error", "Link an active marketplace coupon.")
     return b.model_dump()
 
 

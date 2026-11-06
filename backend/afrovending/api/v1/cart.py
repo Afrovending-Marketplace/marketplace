@@ -8,6 +8,7 @@ from fastapi import APIRouter, Header, Request
 from pydantic import BaseModel, Field
 
 from afrovending.core import rate_limit
+from afrovending.core.security import client_ip
 from afrovending.core.catalog import available, oid, visible_vendor_ids
 from afrovending.core.db import db
 from afrovending.core.deps import get_current_user
@@ -137,7 +138,7 @@ async def get_cart(request: Request):
 
 @router.post("/items")
 async def add_item(body: AddIn, request: Request):
-    await rate_limit.hit(f"cart:{request.client.host if request.client else 'x'}", 120, 60)
+    await rate_limit.hit(f"cart:{client_ip(request)}", 120, 60)
     cart, user, token = await resolve(request, create=True)
     items = cart["items"]
     line = next((i for i in items if str(i["variant_id"]) == body.variant_id), None)
@@ -239,7 +240,7 @@ async def apply_coupon(body: CouponIn, request: Request):
     cart, user, _ = await resolve(request)
     if not cart or not cart["items"]:
         raise APIError(409, "conflict", "Add items before applying a coupon.")
-    await rate_limit.hit(f"coupon:{request.client.host if request.client else 'x'}", 20, 600)
+    await rate_limit.hit(f"coupon:{client_ip(request)}", 20, 600)
     await _save(cart, coupon_code=body.code.strip().upper())
     out = await view(await db.carts.find_one({"_id": cart["_id"]}), user)
     if not out["coupon"]["applied"]:
