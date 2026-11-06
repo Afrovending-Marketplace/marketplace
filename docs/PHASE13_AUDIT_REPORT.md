@@ -13,11 +13,12 @@ The audit covered authentication and authorization (7 roles + MFA), vendor and c
 | # | Severity | Issue | Repro | Files | Fix |
 |---|---|---|---|---|---|
 | F1 | High | Two shoppers could both be charged for the last unit, because stock was only reserved when the payment webhook arrived. | Stock 1; two buyers start Stripe checkout at the same time and both pay; both orders end up paid. | api/v1/payments.py, core/payments.py | Stock is now reserved atomically when the Checkout session is created; the second buyer gets 409 `out_of_stock`. The stock is released exactly once on cancel, expiry or failure, and mark_paid skips the reservation when stock is already held. |
-| F2 | High | Rate limits were keyed on the load balancer's IP, so every visitor shared one bucket. Anyone could also lock any account by failing its login a few times. | Check `rate_limits` keys: every key shows the load balancer IP. | core/security.py `client_ip` | Uses the `TRUSTED_PROXY_HOPS` hop count (default 2) to read the client's address; client-supplied left-hand entries are never trusted. |
+| F2 | High | Rate limits were keyed on the load balancer's IP, so every visitor shared one bucket. Anyone could also lock any account by failing its login a few times. | Check `rate_limits` keys: every key shows the load balancer IP. | core/security.py `client_ip` | Uses the `TRUSTED_PROXY_HOPS` hop count (default 2). When that hop is a Cloudflare address, the client address is taken from CF-Connecting-IP or the entry Cloudflare added. Addresses the client writes into the header are never trusted. Retest: 6 bad logins from one client now return 429, and other visitors are not affected. |
 | F3 | Medium | Missing HSTS, X-Frame-Options and Referrer-Policy headers, so the admin console could be framed (clickjacking). | `curl -I /api/v1/health` | core/logging.py | Added the three headers to every API response. The hosting/ingress layer must add the same headers for the React app. |
 | F4 | Medium (privacy) | Outside production, email could reach real addresses stored in the preview database. | Any notification sent to a real address in preview. | core/email.py `try_send` | Outside production, email only goes to example.com, resend.dev, the admin address and the `EMAIL_TEST_ALLOWLIST` entries. Everything else is skipped and logged. |
 | F5 | Medium | The 9:00 AM ET send time relied on the scheduler's timezone setting. | Read crons.yml and the code. | core/wishlist_alerts.py, .emergent/crons.yml | The job now runs hourly and the code sends only during the 9 AM US Eastern hour, so daylight saving time is handled. |
 | F6 | Medium (consumer protection) | A brief price markup could create a fake "X% off" alert. | Raise the price for one run, then lower it again. | core/wishlist_alerts.py | A higher price only becomes the new reference after it has held for 7 days. |
+| F8 | Medium | If creating the Stripe session failed, or the amount check failed, the held stock was never released. | Make the Stripe call fail during checkout. | api/v1/payments.py | The payment is marked failed and the stock is released once. mark_paid now reads the claimed payment record. |
 | F7 | Low | Cron failure logs were mislabelled, and the health endpoint showed an old version. | — | api/v1/cron.py, core/config.py | Corrected both. |
 
 ## Remaining Medium/Low findings (not launch blockers)
@@ -41,7 +42,8 @@ The audit covered authentication and authorization (7 roles + MFA), vendor and c
 | test_phase10_admin (role permissions) | 4/4 |
 | test_phase11_trust (reviews, message privacy) | 7/7 |
 | test_phase12_marketing (coupon funding, analytics, consent, referrals) | 9/9 |
-| test_phase13_qa_audit, by the testing agent (CSRF, injection, isolation, uploads, lockout, cron secrets, roles, headers, last-unit oversell) | 9/10 at first; the oversell test passes after F1 |
+| test_phase13_qa_audit, by the testing agent (CSRF, injection, isolation, uploads, lockout, cron secrets, roles, headers, last-unit oversell) | 9/10 at first; 10/10 after F1 |
+| test_phase13_retest_fixes, by the testing agent (client IP, reservation release, headers, email allowlist) | 4/5 at first; 5/5 after the Cloudflare-aware F2 fix |
 | test_phase13_seo_perf (sitemap: 51 URLs, all resolve; robots; API about 0.15–0.2 s) | 3/3 |
 | test_phase13_wishlist_alerts (5% threshold, daylight saving, consent, dedupe, restock) | 2/2 |
 | UI at 390px (home, shop, product, cart, checkout, account, vendor, admin) | No overflow, no broken images, no JS errors |

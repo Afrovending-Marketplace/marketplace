@@ -87,7 +87,7 @@ async def mark_paid(payment: dict, pi_id: str, amount_total: int, currency: str,
         if g.get("platform_discount_minor"):
             await ledger.post(f"{k}:promo", account=PLATFORM, type="promo_expense", amount_minor=-g["platform_discount_minor"], **ids)
         for line in g["lines"]:
-            if payment.get("stock_reserved"):
+            if claimed.get("stock_reserved"):
                 break
             if not await reserve(ObjectId(line["variant_id"]), line["quantity"]):
                 await db.vendor_orders.update_one({"_id": vo["_id"]}, {"$set": {"stock_issue": True}})

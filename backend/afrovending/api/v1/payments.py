@@ -122,18 +122,25 @@ async def start_payment(order_id: str, body: CheckoutIn, request: Request, user:
             held.append((ObjectId(line["variant_id"]), line["quantity"]))
     await db.payments.update_one({"_id": doc["_id"]}, {"$set": {"stock_reserved": True}})
     meta = {"order_id": str(order["_id"]), "payment_id": str(doc["_id"]), "order_number": order["order_number"]}
-    session = await call(
-        stripe.checkout.Session.create, mode="payment", customer_email=user.email, client_reference_id=str(order["_id"]), metadata=meta,
-        line_items=[{"quantity": 1, "price_data": {"currency": "usd", "unit_amount": g["charged_minor"], "product_data": {
-            "name": f"{g['vendor_name']} — {sum(x['quantity'] for x in g['lines'])} item(s)",
-            "description": f"Items ${g['items_net_minor'] / 100:.2f} · shipping ${g['shipping_minor'] / 100:.2f} · tax ${g['tax_minor'] / 100:.2f}"}}}
-            for g in plan],
-        payment_intent_data={"transfer_group": order["order_number"], "metadata": meta},
-        success_url=f"{origin}/checkout/payment/{order['_id']}?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{origin}/checkout/payment/{order['_id']}?cancelled=1",
-        expires_at=int((now + timedelta(minutes=SESSION_MINUTES)).timestamp()), idempotency_key=key)
+    try:
+        session = await call(
+            stripe.checkout.Session.create, mode="payment", customer_email=user.email, client_reference_id=str(order["_id"]), metadata=meta,
+            line_items=[{"quantity": 1, "price_data": {"currency": "usd", "unit_amount": g["charged_minor"], "product_data": {
+                "name": f"{g['vendor_name']} — {sum(x['quantity'] for x in g['lines'])} item(s)",
+                "description": f"Items ${g['items_net_minor'] / 100:.2f} · shipping ${g['shipping_minor'] / 100:.2f} · tax ${g['tax_minor'] / 100:.2f}"}}}
+                for g in plan],
+            payment_intent_data={"transfer_group": order["order_number"], "metadata": meta},
+            success_url=f"{origin}/checkout/payment/{order['_id']}?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{origin}/checkout/payment/{order['_id']}?cancelled=1",
+            expires_at=int((now + timedelta(minutes=SESSION_MINUTES)).timestamp()), idempotency_key=key)
+    except APIError:
+        await db.payments.update_one({"_id": doc["_id"]}, {"$set": {"status": "failed", "failure": "session_create_failed", "updated_at": utcnow()}})
+        await release_payment_stock(doc["_id"])
+        raise
     if session["amount_total"] != amount:
         await call(stripe.checkout.Session.expire, session["id"])
+        await db.payments.update_one({"_id": doc["_id"]}, {"$set": {"status": "failed", "failure": "amount_mismatch", "updated_at": utcnow()}})
+        await release_payment_stock(doc["_id"])
         raise APIError(500, "amount_mismatch", "Payment amount check failed. Nothing was charged.")
     await db.payments.update_one({"_id": doc["_id"]}, {"$set": {"provider_session_id": session["id"], "checkout_url": session["url"],
                                                                  "session_expires_at": now + timedelta(minutes=SESSION_MINUTES)}})

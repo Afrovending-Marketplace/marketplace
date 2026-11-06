@@ -74,7 +74,7 @@ def test_04_customer_isolation_tickets_notifications_wishlist():
 
 
 # --- vendor cross-isolation
-def test_05_vendor_cross_isolation(w):
+def test_05_vendor_cross_isolation(w):  # noqa: F811
     pid_a = mongo.product_variants.find_one({"_id": ObjectId(w["scarf"][1])})["product_id"]
     b = w["b"]
     assert b.get(f"/vendor/products/{pid_a}").status_code in (403, 404)
@@ -143,7 +143,7 @@ def test_09_admin_role_permissions():
 
 
 # --- overselling: two shoppers pay for the last unit
-def test_10_last_unit_concurrent_checkout(w):
+def test_10_last_unit_concurrent_checkout(w):  # noqa: F811
     pid, vid = live(w["a"], w["adm"], f"TEST7 LastUnit {uuid.uuid4().hex[:5]}", 2000, 1)
     b1, b2 = buyer(), buyer()
     o1, o2 = draft(b1, [(vid, 1)]), draft(b2, [(vid, 1)])

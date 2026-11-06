@@ -1,0 +1,37 @@
+{
+  "summary": "Retest of the iteration_19 Phase 13 fixes. Five of the six fixes work: F1 (overselling), F3 (headers), F4 (email allowlist), F5 (send-hour gate) and F6 (7-day higher reference). F2 (client_ip) is only partly fixed: spoofed left-side X-Forwarded-For entries are ignored, and the key is no longer the load-balancer IP 34.160.159.238, but fwd[-2] in preview is now a Cloudflare edge IP (104.22.x / 172.69-71.x) that changes from request to request. The real client IP is not recorded. As a result the 5-fails-per-IP+email login lockout never fires: 7 bad logins all returned 401 and were split across 5 different keys. Only the account-wide limit of 20 still protects logins. The regression files all pass when run one by one: phase07 7/7, phase08 12/12, phase12 9/9, phase13_wishlist 2/2, phase13_qa_audit 10/10 (test_10: codes [409,200], one order paid, inventory 1/1), phase13_seo_perf 3/3. New file test_phase13_retest_fixes.py: 4 of 5 pass, and test_02 (client IP) fails on the real bug. UI checkout smoke test passed at 390px and on desktop: cart -> checkout -> draft -> Stripe test Checkout -> ?cancelled=1 page. In the UI, stock went to reserved 2 on session create and back to 0 on cancel. Playbook checks: the admin bcrypt hash starts with $2b$, and CORS echoes the explicit origin with credentials=true.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "core/security.py client_ip (rate_limits keys login:/register:/forgot:/analytics:)", "issue": "With TRUSTED_PROXY_HOPS=2, preview picks a Cloudflare edge IP, not the client IP. Observed keys: login:104.22.64.41, login:172.69.58.224, login:172.71.254.8 and login:172.70.126.37, all from one test client whose real IP is 34.170.12.145. The preview chain is client -> Cloudflare -> GCP LB -> ingress, so the client is at fwd[-3]. The per-IP login lockout (5 fails) never triggers, and per-IP limits are split or shared by Cloudflare PoP.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/v1/payments/orders/{id}/checkout", "issue": "Stock is reserved before stripe.checkout.Session.create. If that call raises, or the amount_mismatch branch runs, the stock is never released. The payment also stays requires_payment with no checkout_url, so every retry returns 409 payment_in_progress and the order is stuck. Nothing sweeps these up. Fix: release the stock and mark the payment failed in a try/except around the Stripe call and in the mismatch branch."},
+      {"endpoint": "core/payments.py mark_paid", "issue": "The check uses the stale `payment` argument (payment.get('stock_reserved')) instead of the `claimed` doc. Race: a cancel or expiry releases the stock (flag set to False) while a late paid event is being processed with the old dict (True), so the reserve is skipped and the paid order has no stock held. Use claimed.get('stock_reserved'), or re-check atomically. Also, when a late payment's reserve fails, the code only sets stock_issue. Recommended: needs_review plus an admin notice (from the iteration_19 recommendation)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Header cart badge on /checkout/payment/:id?cancelled=1", "issue": "The badge showed 0 while the server cart was still active with 2 items (seen once, minor, not investigated further)", "selector": "header cart icon", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_phase13_retest_fixes.py", "/app/backend/tests/test_phase13_qa_audit.py", "/app/test_reports/pytest/qa13_retest_r20.xml", "/app/test_reports/pytest/qa13_audit_r.xml"],
+  "action_items": [
+    "HIGH: Fix client_ip for the real proxy chain. In preview the chain has 3 hops, with Cloudflare in front: set TRUSTED_PROXY_HOPS=3 in preview, or trust CF-Connecting-IP / True-Client-IP only when the hop at fwd[-2] is in a Cloudflare range. Log the raw X-Forwarded-For once in production to confirm its hop count. Then re-run tests/test_phase13_retest_fixes.py::test_02 and confirm that 6 bad logins from one client give 429.",
+    "MEDIUM: In start_payment, release held stock and set the payment to failed if Session.create raises or the amount check fails, so stock doesn't leak and the order isn't stuck in payment_in_progress.",
+    "LOW: In mark_paid, use claimed.get('stock_reserved') instead of the stale payment dict."
+  ],
+  "critical_code_review_comments": [
+    "client_ip: when len(fwd) < hops it falls back to fwd[0], the client-controlled leftmost entry. Prefer request.client.host or the rightmost entry.",
+    "release_payment_stock is correctly guarded (atomic find_one_and_update on stock_reserved=True and status != succeeded). Double cancel, a replayed expired event, and an expired event after payment all left the inventory correct.",
+    "try_send allowlist: send_email is called only through try_send, so the guard covers every email path. 'x@example.com.evil.io' is correctly rejected."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase13_retest_fixes.py (new)"],
+  "success_rate": {"backend": "96% (44/45 tests; the 1 failure is real bug F2)", "frontend": "100% checkout smoke"},
+  "seed_data_creation": "The test fixtures created TEST buyers, vendors and products, and the TEST QA13 UI sessions with one draft order, one payment and a TEST20 Flat shipping method. All were removed by id. The marketing.flags doc was restored from a snapshot taken before the run (it was absent).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest files one at a time (use -n 0 for test_phase13_retest_fixes.py). Look up the client egress IP with `curl ifconfig.me`. Preview traffic comes through Cloudflare (keys like 104.22.x and 172.6x.x). After the F2 fix, test_02 should see login:<egress ip>:email. For the UI, `python -m tests.qa13_ui_sessions` sets up the sessions. The vendor needs a fixed-rate shipping method, or the draft returns 409 shipping_unconfirmed.",
+  "rca of the issue": "F2: the fix assumed 2 trusted hops (GCP LB + ingress). The preview host also sits behind Cloudflare, which adds its own edge IP before the LB appends its entry. So fwd[-2] is the Cloudflare edge (it rotates per request), and the real client is fwd[-3] (or the CF-Connecting-IP header). Reproduce: send 7 bad logins for one email and observe 401 every time plus several login:<cf-ip>:email keys in rate_limits."
+}

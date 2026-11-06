@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="5" time="26.398" timestamp="2026-11-06T22:24:16.131134+00:00" hostname="agent-env-4b2b150f-8765-4048-a7c3-f9e7f63531e9"><testcase classname="tests.test_phase13_retest_fixes" name="test_01_stock_hold_and_release" time="20.273" /><testcase classname="tests.test_phase13_retest_fixes" name="test_02_client_ip_from_trusted_hop" time="0.386"><failure message="AssertionError: ['forgot:xqa20e8c806@example.com', 'login-account:qa20e8c806@example.com', 'login:104.22.64.41:qa20e8c806@example.com']&#10;assert False&#10; +  where False = any(&lt;generator object test_02_client_ip_from_trusted_hop.&lt;locals&gt;.&lt;genexpr&gt; at 0xf92857de9000&gt;)">def test_02_client_ip_from_trusted_hop():
+        my_ip = httpx.get("https://ifconfig.me/ip", timeout=20).text.strip()
+        g = httpx.Client(base_url=BASE, timeout=30)
+        g.post("/auth/login", json={"email": RL_EMAIL, "password": "WrongPass12345"}, headers={"X-Forwarded-For": "6.6.6.6"})
+        g.post("/auth/forgot-password", json={"email": f"x{RL_EMAIL}"}, headers={"X-Forwarded-For": "7.7.7.7, 8.8.8.8"})
+        keys = [d["key"] for d in mongo.rate_limits.find({"key": {"$regex": f"qa20{TAG}"}})]
+        print("my egress ip:", my_ip, "keys:", keys)
+        assert keys and all("34.160.159.238" not in k and "6.6.6.6" not in k for k in keys)
+&gt;       assert any(f"login:{my_ip}:" in k for k in keys), keys
+E       AssertionError: ['forgot:xqa20e8c806@example.com', 'login-account:qa20e8c806@example.com', 'login:104.22.64.41:qa20e8c806@example.com']
+E       assert False
+E        +  where False = any(&lt;generator object test_02_client_ip_from_trusted_hop.&lt;locals&gt;.&lt;genexpr&gt; at 0xf92857de9000&gt;)
+
+tests/test_phase13_retest_fixes.py:93: AssertionError</failure></testcase><testcase classname="tests.test_phase13_retest_fixes" name="test_03_security_headers" time="0.274" /><testcase classname="tests.test_phase13_retest_fixes" name="test_04_email_allowlist" time="0.166" /><testcase classname="tests.test_phase13_retest_fixes" name="test_05_send_hour_gate_and_higher_ref" time="5.118" /></testsuite></testsuites>
