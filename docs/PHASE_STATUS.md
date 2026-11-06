@@ -15,11 +15,12 @@
 | 10 Marketplace administration | ✅ Complete — awaiting owner approval | 2026-10-23 |
 | 11 Customer trust & communication | ✅ Complete — approved | 2026-11-06 |
 | 12 Marketing & monetization | ✅ Complete — approved | 2026-11-06 |
-| 13 Full marketplace QA | ✅ Complete — awaiting owner review of docs/PHASE13_AUDIT_REPORT.md | 2026-11-06 |
+| 13 Full marketplace QA | ✅ Complete — report + Launch Blockers List submitted; **awaiting explicit owner approval** (Phase 14 blocked until then) | 2026-11-06 |
 | 14 | ⏸ Not started | — |
 
 ## Phase 13 deliverables
-- Audit report: `docs/PHASE13_AUDIT_REPORT.md` (2 High + 4 Medium fixed, 9 Low documented, no open launch blockers in code).
+- Audit report: `docs/PHASE13_AUDIT_REPORT.md` (2 High + 5 Medium fixed with test evidence, 9 Low documented). Launch Blockers List LB1–LB9: LB1–LB2 resolved; LB3–LB9 open (Stripe Connect, live-payment authorization, restore drill and monitoring, admin MFA enrollment, sending domain and email approval, legal review, frontend security headers).
+- Wishlist "Price dropped" badge (previous/current price, % off) on the account wishlist page.
 - Fixes: checkout-time stock reservation (no overselling), trusted-proxy client IP for rate limits, security headers, preview email allowlist, wishlist send-hour enforced in code, 7-day hold before a higher price becomes the wishlist reference.
 - Wishlist daily summary alerts (price drop >= 5% threshold, back in stock), opted-in shoppers only, one email per shopper per ET day, customer toggles, admin switch (default OFF).
 

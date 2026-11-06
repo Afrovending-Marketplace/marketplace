@@ -72,3 +72,43 @@ def test_02_price_drop_restock_consent_dedupe(w):  # noqa: F811
     run()
     assert mongo.wishlist_alerts.count_documents({"user_id": uy, "kind": "price_drop"}) == 1
     assert sup.put("/admin/marketing/flags", json={**BODY, "wishlist_alerts_enabled": False}).status_code == 200
+
+
+
+def test_03_price_badge(w):  # noqa: F811
+    c = buyer()  # not opted in to marketing: badge still shows
+    uid = S["buyers"][-1]
+    vid = ObjectId(w["scarf"][1])
+    pid = mongo.product_variants.find_one({"_id": vid})["product_id"]
+    slug = mongo.products.find_one({"_id": pid})["slug"]
+    assert c.put(f"/wishlist/{slug}").status_code == 200
+    ref = mongo.wishlists.find_one({"user_id": uid})["ref_price_minor"]
+
+    def item():
+        return next(p for p in c.get("/wishlist").json()["data"] if p["slug"] == slug)
+    assert item()["price_drop"] is None  # no change yet
+    mongo.wishlists.update_one({"user_id": uid}, {"$set": {"ref_price_minor": int(ref / Decimal("0.96"))}})
+    assert item()["price_drop"] is None  # under 5%
+    mongo.wishlists.update_one({"user_id": uid}, {"$set": {"ref_price_minor": ref * 2}})
+    d = item()["price_drop"]
+    assert d == {"previous_minor": ref * 2, "current_minor": ref, "percent": 50}
+    # kept after the alert job moves the email reference down
+    mongo.wishlists.update_one({"user_id": uid}, {"$set": {"ref_price_minor": ref, "badge_ref_minor": ref * 2}})
+    assert item()["price_drop"]["previous_minor"] == ref * 2
+    # out of stock -> hidden
+    inv = mongo.inventory.find_one({"variant_id": vid})
+    others = list(mongo.product_variants.find({"product_id": pid, "_id": {"$ne": vid}}, {"_id": 1}))
+    saved = {d["variant_id"]: d["quantity_on_hand"] for d in mongo.inventory.find({"variant_id": {"$in": [vid] + [o["_id"] for o in others]}})}
+    mongo.inventory.update_many({"variant_id": {"$in": list(saved)}}, {"$set": {"quantity_on_hand": 0}})
+    try:
+        assert item()["price_drop"] is None
+    finally:
+        for k, q in saved.items():
+            mongo.inventory.update_one({"variant_id": k}, {"$set": {"quantity_on_hand": q}})
+    assert inv and item()["price_drop"] is not None
+    # unpublished product -> not listed at all
+    mongo.products.update_one({"_id": pid}, {"$set": {"status": "archived"}})
+    try:
+        assert slug not in [p["slug"] for p in c.get("/wishlist").json()["data"]]
+    finally:
+        mongo.products.update_one({"_id": pid}, {"$set": {"status": "active"}})

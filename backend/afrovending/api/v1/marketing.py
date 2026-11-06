@@ -126,12 +126,20 @@ async def cart_click(body: UnsubIn):
 # ---------- wishlists ----------
 @router.get("/wishlist")
 async def wishlist(user: User = Depends(get_current_user)):
-    from afrovending.core.catalog import public_products
+    from afrovending.core.catalog import public_products, visible_vendor_ids
+    from afrovending.core.wishlist_alerts import badge
     rows = await db.wishlists.find({"user_id": ObjectId(user.id)}).sort("created_at", -1).to_list(300)
     docs = await db.products.find({"_id": {"$in": [r["product_id"] for r in rows]}, "status": "active"}).to_list(300)
     order = {r["product_id"]: i for i, r in enumerate(rows)}
     docs.sort(key=lambda d: order[d["_id"]])
-    return {"data": await public_products(docs) if docs else [], "slugs": [d["slug"] for d in docs]}
+    data = await public_products(docs) if docs else []
+    vids = {str(v) for v in await visible_vendor_ids()}
+    by_slug = {d["slug"]: (str(d["vendor_id"]), rows[order[d["_id"]]]) for d in docs}
+    bps = (await mk.flags())["wishlist_alerts"]["threshold_bps"]
+    for p in data:
+        vid, row = by_slug[p["slug"]]
+        p["price_drop"] = badge(row, p, bps) if vid in vids else None
+    return {"data": data, "slugs": [d["slug"] for d in docs]}
 
 
 @router.put("/wishlist/{slug}")

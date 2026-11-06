@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/context/AuthContext";
 import { api, getErrorMessage } from "@/lib/api";
+import { formatPrice } from "@/lib/catalog";
 
 export const WishlistButton = ({ slug }) => {
   const { user } = useAuth();
@@ -26,6 +27,16 @@ export const WishlistButton = ({ slug }) => {
   return <Button variant="outline" size="sm" onClick={toggle} aria-pressed={on} data-testid="wishlist-toggle"><Heart className={`mr-1 h-4 w-4 ${on ? "fill-av-clay text-av-clay" : ""}`} />{on ? "Saved" : "Save to wishlist"}</Button>;
 };
 
+function PriceDrop({ d, slug }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs" data-testid={`wishlist-price-drop-${slug}`}>
+      <span className="rounded-full bg-av-clay px-2 py-0.5 font-semibold text-white" data-testid={`wishlist-price-drop-badge-${slug}`}>Price dropped {d.percent}%</span>
+      <span className="text-av-muted line-through" data-testid={`wishlist-price-previous-${slug}`}>{formatPrice(d.previous_minor)}</span>
+      <span className="font-semibold text-av-ink" data-testid={`wishlist-price-current-${slug}`}>{formatPrice(d.current_minor)}</span>
+    </div>
+  );
+}
+
 export function WishlistPage() {
   const [d, setD] = useState(null);
   const load = useCallback(() => api.get("/wishlist").then((r) => setD(r.data)), []);
@@ -38,7 +49,10 @@ export function WishlistPage() {
       <h1 className="text-3xl font-bold tracking-tight text-av-ink">Wishlist</h1>
       {d.data.length === 0 && <p className="text-sm text-av-muted" data-testid="wishlist-empty">Nothing saved yet. Tap “Save to wishlist” on any product.</p>}
       <ul className="grid gap-3 sm:grid-cols-2">{d.data.map((p) => <li key={p.slug} className="flex items-center justify-between gap-2 rounded-2xl border border-av-line bg-white p-4 text-sm" data-testid={`wishlist-item-${p.slug}`}>
-        <Link to={`/products/${p.slug}`} className="font-semibold hover:underline">{p.title}</Link>
+        <div className="min-w-0 space-y-1">
+          <Link to={`/products/${p.slug}`} className="font-semibold hover:underline">{p.title}</Link>
+          {p.price_drop && <PriceDrop d={p.price_drop} slug={p.slug} />}
+        </div>
         <Button size="sm" variant="ghost" onClick={() => api.delete(`/wishlist/${p.slug}`).then(load)} data-testid={`wishlist-remove-${p.slug}`}>Remove</Button></li>)}</ul>
     </div>
   );

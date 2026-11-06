@@ -4,10 +4,11 @@ Environment: preview, Stripe test mode, test fixtures only. No production deploy
 
 ## Executive summary
 The audit covered authentication and authorization (7 roles + MFA), vendor and customer data isolation, input validation, injection and XSS, CSRF, uploads, payments and webhooks, inventory, multi-vendor orders, refunds and commissions, mobile layout and accessibility, SEO, performance, backups and monitoring.
-- It found **2 High** and **4 Medium** issues. All of these are fixed and retested.
-- The **9 Low** issues are listed below.
-- **There are no Critical issues and no open launch blockers in the code.**
-- Several things outside the code are still needed before launch (see the final section).
+- It found **2 High** and **5 Medium** issues (F1–F6, F8). All of these are fixed and retested; the evidence is in the test results table.
+- The **9 Low** issues (F7 fixed; R1–R9 open) are listed below.
+- **There are no Critical issues and no unresolved Critical or High issues in the code.**
+- Launch is still blocked by the items in the **Launch Blockers List** below. Most of them are outside the code.
+- **Approval gate:** Phase 14 starts only after the owner explicitly approves this report and the Launch Blockers List. Passing automated tests and this assessment do not count as approval.
 
 ## Findings — fixed in Phase 13
 | # | Severity | Issue | Repro | Files | Fix |
@@ -60,6 +61,23 @@ The audit covered authentication and authorization (7 roles + MFA), vendor and c
 - Product images already have thumbnails; add width/height attributes and lazy-load below the fold.
 - Watch the `analytics_events` volume. Its TTL is 400 days.
 
+## Launch Blockers List (owner approval required)
+An item is marked Resolved only when there is test evidence for it.
+
+| # | Blocker | Area | Status | Evidence / what is needed |
+|---|---|---|---|---|
+| LB1 | Last-unit overselling (F1, High) | Payments / core | Resolved | test_phase13_qa_audit test_10, test_phase13_retest_fixes test_01, test_phase13_iter21 test_04 (testing agent, iterations 19–21, plus main-agent rerun) |
+| LB2 | Rate limits and account lockout keyed on a shared IP (F2, High) | Security | Resolved in preview | Testing agent, live preview: 6 bad logins from one client gave 429; other clients were unaffected (iteration 21). **Still to do:** confirm the hop count once in production (log one raw X-Forwarded-For). |
+| LB3 | Stripe Connect is not enabled; vendor payouts and transfers are SIMULATED | Payments | **Open** | The owner claims the Stripe account, enables Connect and approves live mode. Then re-run test_phase07 against Connect test accounts. |
+| LB4 | Live payments are not authorized | Payments | **Open (by design)** | Needs separate explicit owner authorization. Stripe stays in test mode. |
+| LB5 | No restore drill, RPO/RTO targets or monitoring/alerting (R9) | Data safety / operations | **Open** | Write the mongodump/mongorestore runbook, run one restore drill, and set up alerts for 5xx errors and cron failures. |
+| LB6 | Not every admin has MFA enrolled | Security | **Open** | Every admin account enrolls two-step sign-in before launch. The admin check already enforces MFA per session. |
+| LB7 | The afrovending.com sending domain is not verified, and marketing emails are OFF | Privacy / legal (CAN-SPAM) | **Open** | Verify SPF, DKIM and DMARC, test the unsubscribe flow end to end, then give explicit approval to switch on abandoned-cart and wishlist emails. |
+| LB8 | Terms, Privacy Policy and vendor agreement are drafts | Legal | **Open** | Legal review and owner sign-off. |
+| LB9 | Security headers are missing on the React app host | Security | **Open (hosting)** | The API already sends HSTS, X-Frame-Options and Referrer-Policy (verified with curl). The frontend host must add the same headers at deployment. |
+
+Not blockers (Low, with mitigations in place): R2 (uploads are served with their declared type plus nosniff), R3 (browsers always send Origin on cross-site POSTs), and R1, R4–R8.
+
 ## Production launch readiness
 **Code: ready for staging sign-off. Production: not approved and not deployed.** These are still needed before launch:
 1. Verify the afrovending.com sending domain, then approve the marketing switches. Abandoned-cart and wishlist emails are OFF.
@@ -67,3 +85,9 @@ The audit covered authentication and authorization (7 roles + MFA), vendor and c
 3. Approve pricing and billing for paid plans and sponsored listings. Both are locked OFF.
 4. Complete the backup and restore drill and the monitoring setup (R9).
 5. Get legal review of the Terms and Privacy Policy drafts.
+
+## Post-audit enhancement (approved): Wishlist "Price dropped" badge
+- `GET /api/v1/wishlist` now returns `price_drop` ({previous_minor, current_minor, percent}) for each item. It is set only when the current real selling price is at least the admin threshold (5%) below the reference price. It is never set for products that are out of stock, unpublished, or from a hidden or suspended vendor.
+- The badge does not depend on marketing consent. Emails still follow the opt-in rules.
+- After a price-drop email, the job resets its alert reference but keeps `badge_ref_minor`, so the badge stays until the price returns to or above that level. A 7-day reference raise also clears it.
+- Tests: test_phase13_wishlist_alerts 3/3 (adds test_03_price_badge).

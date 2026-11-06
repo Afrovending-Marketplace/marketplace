@@ -29,6 +29,15 @@ def drop_bps(ref: int, cur: int) -> Decimal:
     return (Decimal(ref - cur) * Decimal(10000) / Decimal(ref)).quantize(Decimal("0.01")) if ref else Decimal(0)
 
 
+def badge(row: dict, p: dict, threshold_bps: int) -> dict | None:
+    """On-site 'Price dropped' badge from real prices only; hidden when the item is out of stock."""
+    cur, stock = snapshot(p)
+    ref = max(row.get("ref_price_minor") or 0, row.get("badge_ref_minor") or 0)
+    if not stock or cur is None or not ref or cur >= ref or drop_bps(ref, cur) < threshold_bps:
+        return None
+    return {"previous_minor": ref, "current_minor": cur, "percent": int(drop_bps(ref, cur) // 100)}
+
+
 def _money(m: int) -> str:
     return f"${Decimal(m) / Decimal(100):.2f}"
 
@@ -80,12 +89,15 @@ async def run_wishlist_alerts(now: datetime | None = None, force: bool = False) 
                 if not since or r.get("higher_price_minor") != cur:
                     upd.update(higher_since=now, higher_price_minor=cur)
                 elif now - since.replace(tzinfo=now.tzinfo) >= timedelta(days=7):
-                    upd.update(ref_price_minor=cur, higher_since=None, higher_price_minor=None)
+                    upd.update(ref_price_minor=cur, higher_since=None, higher_price_minor=None, badge_ref_minor=None)
             else:
                 upd.update(higher_since=None, higher_price_minor=None)
+            if cur is not None and r.get("badge_ref_minor") and cur >= r["badge_ref_minor"]:
+                upd["badge_ref_minor"] = None
             kind = None
             if stock and ref is not None and cur is not None and cur < ref and drop_bps(ref, cur) >= cfg["threshold_bps"] and wants.get("price_drop", True):
                 kind, upd["ref_price_minor"] = "price_drop", cur
+                upd["badge_ref_minor"] = max(ref, r.get("badge_ref_minor") or 0)  # keeps the on-site badge after the email resets the alert reference
             elif stock and ref_stock is False and wants.get("back_in_stock", True):
                 kind = "back_in_stock"
             await db.wishlists.update_one({"_id": r["_id"]}, {"$set": upd})

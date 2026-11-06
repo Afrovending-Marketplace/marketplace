@@ -56,3 +56,5 @@
 | D-059 | 2026-11-06 | Wishlist alerts: daily summary at 9:00 AM ET (code-enforced, DST-safe), price drop >= 5% vs reference price (higher prices become reference only after 7 days), back-in-stock, opted-in only, admin switch default OFF. | Owner choice |
 | D-060 | 2026-11-06 | Stock is reserved when the Stripe Checkout session is created and released on cancel/expiry/failure (prevents overselling). | Phase 13 audit |
 | D-061 | 2026-11-06 | Rate-limit client IP uses TRUSTED_PROXY_HOPS (default 2); non-production email restricted to test allowlist. | Phase 13 audit |
+| D-062 | 2026-11-06 | Phase 14 is gated on explicit owner approval of the Phase 13 report and Launch Blockers List (LB1–LB9). Automated tests or an AI readiness assessment are not approval; live Stripe, production deploy and customer launch each need separate authorization. | Owner |
+| D-063 | 2026-11-06 | Wishlist "Price dropped" badge: shown when the real current price is >= threshold (5%) below the reference price, in stock, published and from a visible vendor; independent of marketing consent; badge_ref_minor keeps it after the alert reference resets. | Owner |
