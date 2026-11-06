@@ -117,11 +117,28 @@ async def send_email(*, to: str, subject: str, html: str) -> str | None:
 
 
 async def try_send(**kwargs) -> bool:
+    if not _allowed_outside_production(kwargs.get("to", "")):
+        logger.info("email suppressed outside production (recipient not on test allowlist)")
+        return True
     try:
         await send_email(**kwargs)
         return True
     except HTTPException:
         return False
+
+
+def _allowed_outside_production(to) -> bool:
+    """Preview/staging never emails real customers: only test domains, the owner/admin address and EMAIL_TEST_ALLOWLIST entries."""
+    import os
+    if settings.app_env == "production":
+        return True
+    allow = {"example.com", "example.org", "resend.dev"} | {x.strip().lower() for x in os.environ.get("EMAIL_TEST_ALLOWLIST", "").split(",") if x.strip()}
+    admin = (getattr(settings, "admin_email", "") or "").lower()
+    for addr in ([to] if isinstance(to, str) else list(to or [])):
+        a = addr.lower()
+        if a != admin and a not in allow and a.rsplit("@", 1)[-1] not in allow:
+            return False
+    return True
 
 
 def _layout(title: str, body: str) -> str:

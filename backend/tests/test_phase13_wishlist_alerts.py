@@ -26,7 +26,7 @@ def teardown_module():
 
 
 def run():
-    r = httpx.post(f"{BASE}/cron/wishlist-alerts", headers={"Authorization": f"Bearer {SECRET}", "X-Webhook-Id": f"t13-{uuid.uuid4().hex}"}, timeout=30)
+    r = httpx.post(f"{BASE}/cron/wishlist-alerts", headers={"Authorization": f"Bearer {SECRET}", "X-Webhook-Id": f"t13-{uuid.uuid4().hex}", "X-Force-Run": "1"}, timeout=30)
     assert r.status_code == 202
     time.sleep(4)
 

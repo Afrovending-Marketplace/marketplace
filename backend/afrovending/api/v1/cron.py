@@ -24,7 +24,7 @@ async def _run(run_id: str, job) -> None:
         result = await job()
         await db.cron_runs.update_one({"run_id": run_id}, {"$set": {"status": "done", "result": result, "finished_at": utcnow()}})
     except Exception:
-        log.exception("low-stock digest failed run_id=%s", run_id)
+        log.exception("cron job failed run_id=%s", run_id)
         await db.cron_runs.update_one({"run_id": run_id}, {"$set": {"status": "failed", "finished_at": utcnow()}})
 
 

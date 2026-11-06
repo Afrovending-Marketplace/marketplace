@@ -33,6 +33,9 @@ def register_request_logging(app: FastAPI) -> None:
         duration_ms = (time.perf_counter() - start) * 1000
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         logger.info(
             "method=%s path=%s status=%s duration_ms=%.1f request_id=%s",
             request.method, request.url.path, response.status_code, duration_ms, request_id,

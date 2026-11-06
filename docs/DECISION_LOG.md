@@ -53,3 +53,6 @@
 | D-056 | 2026-11-06 | Analytics: first-party events after cookie consent; GA4 prepared but inactive until Measurement ID provided and approved; no PII sent. | Owner choice |
 | D-057 | 2026-11-06 | Paid vendor subscriptions and sponsored listings are locked off in code until pricing and billing rules are approved; sponsored results always separate and labelled. | Owner instruction |
 | D-058 | 2026-11-06 | Review photos: up to 3 per product review, each checked by an admin before it is shown. | Owner choice |
+| D-059 | 2026-11-06 | Wishlist alerts: daily summary at 9:00 AM ET (code-enforced, DST-safe), price drop >= 5% vs reference price (higher prices become reference only after 7 days), back-in-stock, opted-in only, admin switch default OFF. | Owner choice |
+| D-060 | 2026-11-06 | Stock is reserved when the Stripe Checkout session is created and released on cancel/expiry/failure (prevents overselling). | Phase 13 audit |
+| D-061 | 2026-11-06 | Rate-limit client IP uses TRUSTED_PROXY_HOPS (default 2); non-production email restricted to test allowlist. | Phase 13 audit |

@@ -16,6 +16,7 @@ from afrovending.core.config import settings
 from afrovending.core.db import db
 from afrovending.core.deps import get_current_user
 from afrovending.core.errors import APIError
+from afrovending.core.fulfillment import release, reserve
 from afrovending.core.models import User, utcnow
 from afrovending.core.stripe_client import WEBHOOK_SECRET, call, guard
 
@@ -110,6 +111,16 @@ async def start_payment(order_id: str, body: CheckoutIn, request: Request, user:
         doc["_id"] = (await db.payments.insert_one(doc)).inserted_id
     except DuplicateKeyError:
         raise APIError(409, "payment_in_progress", "Payment is being prepared. Try again in a moment.")
+    held = []
+    for g in plan:
+        for line in g["lines"]:
+            if not await reserve(ObjectId(line["variant_id"]), line["quantity"]):
+                for vid_, q in held:
+                    await release(vid_, q)
+                await db.payments.update_one({"_id": doc["_id"]}, {"$set": {"status": "failed", "failure": "out_of_stock", "updated_at": utcnow()}})
+                raise APIError(409, "out_of_stock", f"Sorry, “{line.get('title', 'an item')}” just sold out. Please update your cart.")
+            held.append((ObjectId(line["variant_id"]), line["quantity"]))
+    await db.payments.update_one({"_id": doc["_id"]}, {"$set": {"stock_reserved": True}})
     meta = {"order_id": str(order["_id"]), "payment_id": str(doc["_id"]), "order_number": order["order_number"]}
     session = await call(
         stripe.checkout.Session.create, mode="payment", customer_email=user.email, client_reference_id=str(order["_id"]), metadata=meta,
@@ -141,6 +152,16 @@ async def _close_session(payment: dict, status: str) -> None:
     res = await db.payments.update_one({"_id": payment["_id"], "status": {"$in": list(pay.OPEN)}}, {"$set": {"status": status, "updated_at": utcnow()}})
     if res.modified_count:
         await db.orders.update_one({"_id": payment["order_id"], "status": "pending_payment"}, {"$set": {"status": "draft", "payment_status": status}})
+        await release_payment_stock(payment["_id"])
+
+
+async def release_payment_stock(payment_id) -> None:
+    """Give back stock held for an unpaid checkout exactly once (atomic flag flip)."""
+    p = await db.payments.find_one_and_update({"_id": payment_id, "stock_reserved": True, "status": {"$nin": ["succeeded"]}}, {"$set": {"stock_reserved": False}})
+    if p:
+        for g in p["plan"]:
+            for line in g["lines"]:
+                await release(ObjectId(line["variant_id"]), line["quantity"])
 
 
 async def _refresh(order: dict) -> None:

@@ -1,5 +1,5 @@
 """Daily wishlist summary: price drops (>= threshold vs reference price) and back-in-stock items, opted-in shoppers only."""
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from html import escape
 from zoneinfo import ZoneInfo
@@ -47,11 +47,13 @@ def _email(name: str, items: list[dict], uid) -> tuple[str, str]:
     return "Wishlist update: price drops and restocks", mail._layout("Your wishlist update", body)
 
 
-async def run_wishlist_alerts(now: datetime | None = None) -> dict:
+async def run_wishlist_alerts(now: datetime | None = None, force: bool = False) -> dict:
     cfg = (await flags())["wishlist_alerts"]
     if not cfg["enabled"]:
         return {"skipped": "disabled"}
     now = now or utcnow()
+    if not force and now.astimezone(ET).hour != cfg.get("send_hour_et", 9):
+        return {"skipped": "not_send_hour"}
     day = now.astimezone(ET).date().isoformat()
     vids = await visible_vendor_ids()
     sent = 0
@@ -70,8 +72,17 @@ async def run_wishlist_alerts(now: datetime | None = None) -> dict:
             cur, stock = snapshot(p)
             ref, ref_stock = r.get("ref_price_minor"), r.get("ref_in_stock")
             upd = {"ref_in_stock": stock}
-            if ref is None or cur is None or cur > ref:
+            if ref is None or cur is None:
                 upd["ref_price_minor"] = cur
+            elif cur > ref:
+                # A higher price only becomes the new reference after it has held for 7 days (no fake "drops" after a brief markup).
+                since = r.get("higher_since")
+                if not since or r.get("higher_price_minor") != cur:
+                    upd.update(higher_since=now, higher_price_minor=cur)
+                elif now - since.replace(tzinfo=now.tzinfo) >= timedelta(days=7):
+                    upd.update(ref_price_minor=cur, higher_since=None, higher_price_minor=None)
+            else:
+                upd.update(higher_since=None, higher_price_minor=None)
             kind = None
             if stock and ref is not None and cur is not None and cur < ref and drop_bps(ref, cur) >= cfg["threshold_bps"] and wants.get("price_drop", True):
                 kind, upd["ref_price_minor"] = "price_drop", cur

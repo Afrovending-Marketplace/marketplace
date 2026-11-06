@@ -505,4 +505,5 @@ async def cron_abandoned(request: Request, background: BackgroundTasks, authoriz
 async def cron_wishlist(request: Request, background: BackgroundTasks, authorization: str = Header(default="")):
     from afrovending.api.v1.cron import _accept
     from afrovending.core.wishlist_alerts import run_wishlist_alerts
-    return await _accept(request, background, authorization, "wishlist-alerts", run_wishlist_alerts)
+    force = request.headers.get("x-force-run") == "1" and settings.app_env != "production"
+    return await _accept(request, background, authorization, "wishlist-alerts", lambda: run_wishlist_alerts(force=force))

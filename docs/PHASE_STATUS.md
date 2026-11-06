@@ -14,8 +14,14 @@
 | 09 Vendor dashboard (control center) | ✅ Complete — awaiting owner approval | 2026-10-23 |
 | 10 Marketplace administration | ✅ Complete — awaiting owner approval | 2026-10-23 |
 | 11 Customer trust & communication | ✅ Complete — approved | 2026-11-06 |
-| 12 Marketing & monetization | ✅ Complete — awaiting owner approval | 2026-11-06 |
-| 13–14 | ⏸ Not started | — |
+| 12 Marketing & monetization | ✅ Complete — approved | 2026-11-06 |
+| 13 Full marketplace QA | ✅ Complete — awaiting owner review of docs/PHASE13_AUDIT_REPORT.md | 2026-11-06 |
+| 14 | ⏸ Not started | — |
+
+## Phase 13 deliverables
+- Audit report: `docs/PHASE13_AUDIT_REPORT.md` (2 High + 4 Medium fixed, 9 Low documented, no open launch blockers in code).
+- Fixes: checkout-time stock reservation (no overselling), trusted-proxy client IP for rate limits, security headers, preview email allowlist, wishlist send-hour enforced in code, 7-day hold before a higher price becomes the wishlist reference.
+- Wishlist daily summary alerts (price drop >= 5% threshold, back in stock), opted-in shoppers only, one email per shopper per ET day, customer toggles, admin switch (default OFF).
 
 ## Phase 12 deliverables
 - SEO: per-page title/description/canonical/Open Graph/Twitter tags (`components/common/Seo.jsx`), Product + Store JSON-LD, `/api/v1/seo/sitemap.xml`, `/robots.txt` (static) + `/api/v1/seo/robots.txt` (blocks indexing outside production), crawler share pages `/api/v1/seo/share/products/{slug}` and `/share/stores/{slug}`.
