@@ -54,7 +54,8 @@ const Flags = () => {
   if (!f) return null;
   const ac = f.abandoned_cart;
   const save = () => api.put("/admin/marketing/flags", { abandoned_cart_enabled: ac.enabled, first_delay_min: ac.first_delay_min, second_delay_min: ac.second_delay_min,
-    max_per_7_days: ac.max_per_7_days, ga4_enabled: !!f.ga4_enabled, analytics_retention_days: f.analytics_retention_days }).then((r) => {
+    max_per_7_days: ac.max_per_7_days, ga4_enabled: !!f.ga4_enabled, analytics_retention_days: f.analytics_retention_days,
+    wishlist_alerts_enabled: f.wishlist_alerts.enabled, wishlist_threshold_bps: f.wishlist_alerts.threshold_bps, wishlist_max_items: f.wishlist_alerts.max_items }).then((r) => {
     setF({ ...f, ...r.data });
     toast.success("Settings saved");
   }).catch((e) => toast.error(getErrorMessage(e)));
@@ -67,6 +68,8 @@ const Flags = () => {
         <label className="text-xs">1st reminder (min)<Input type="number" className="w-24" value={ac.first_delay_min} onChange={(e) => setAc("first_delay_min", Number(e.target.value))} data-testid="mk-cart-first" /></label>
         <label className="text-xs">2nd reminder (min)<Input type="number" className="w-24" value={ac.second_delay_min} onChange={(e) => setAc("second_delay_min", Number(e.target.value))} data-testid="mk-cart-second" /></label>
         <label className="text-xs">Max per 7 days<Input type="number" className="w-20" value={ac.max_per_7_days} onChange={(e) => setAc("max_per_7_days", Number(e.target.value))} data-testid="mk-cart-max" /></label></div>
+      <label className="flex items-center justify-between">Wishlist daily summary (9:00 AM ET, opted-in shoppers only)<Switch checked={f.wishlist_alerts.enabled} onCheckedChange={(v) => setF({ ...f, wishlist_alerts: { ...f.wishlist_alerts, enabled: v } })} data-testid="mk-flag-wishlist" /></label>
+      <label className="text-xs">Price-drop threshold (%)<Input type="number" min={1} max={90} className="w-24" value={f.wishlist_alerts.threshold_bps / 100} onChange={(e) => setF({ ...f, wishlist_alerts: { ...f.wishlist_alerts, threshold_bps: Math.round(Number(e.target.value) * 100) } })} data-testid="mk-wishlist-threshold" /></label>
       <label className="flex items-center justify-between">Google Analytics 4 {f.ga4_configured ? "" : "(no Measurement ID configured)"}<Switch checked={!!f.ga4_enabled} disabled={!f.ga4_configured} onCheckedChange={(v) => setF({ ...f, ga4_enabled: v })} data-testid="mk-flag-ga4" /></label>
       <p className="rounded-lg bg-av-sand p-2 text-xs" data-testid="mk-locked">Locked off until pricing and billing are approved: paid vendor subscriptions, sponsored listings, referral rewards.</p>
       <Button size="sm" onClick={save} data-testid="mk-flags-save">Save</Button>

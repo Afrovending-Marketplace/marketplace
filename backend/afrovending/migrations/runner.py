@@ -72,6 +72,10 @@ async def m0012_phase12_marketing(db) -> None:
     await ensure_indexes(db, phase=12)
 
 
+async def m0013_wishlist_alerts(db) -> None:
+    await ensure_indexes(db, phase=13)
+
+
 async def m0005_phase05_search(db) -> None:
     for idx in await db.products.list_indexes().to_list(50):
         if "textIndexVersion" in idx and "weights" in idx and idx["weights"].get("title") != 10:
@@ -110,6 +114,7 @@ MIGRATIONS = (
     ("0010", "pickup_slots", m0010_pickup_slots),
     ("0011", "phase11_trust_communication", m0011_phase11_trust),
     ("0012", "phase12_marketing", m0012_phase12_marketing),
+    ("0013", "wishlist_alerts", m0013_wishlist_alerts),
 )
 
 

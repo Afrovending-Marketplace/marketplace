@@ -72,18 +72,26 @@ export function ReferralsPage() {
 
 export const MarketingConsent = () => {
   const [v, setV] = useState(null);
+  const [wa, setWa] = useState({});
   useEffect(() => {
-    api.get("/account/marketing").then((r) => setV(r.data.marketing_opt_in));
+    api.get("/account/marketing").then((r) => {
+      setV(r.data.marketing_opt_in);
+      setWa({ wishlist_price_drop: r.data.wishlist_price_drop, wishlist_back_in_stock: r.data.wishlist_back_in_stock });
+    });
   }, []);
   if (v === null) return null;
+  const setAlert = (k, on) => api.put("/account/marketing", { marketing_opt_in: v, [k]: on }).then(() => setWa({ ...wa, [k]: on }));
   const change = (on) => api.put("/account/marketing", { marketing_opt_in: on }).then(() => {
     setV(on);
     toast.success(on ? "You're subscribed to AfroVending offers" : "You've been unsubscribed from marketing emails");
   });
   return (
-    <section className="flex items-center justify-between gap-3 rounded-2xl border border-av-line bg-white p-5 text-sm" data-testid="marketing-consent">
+    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-av-line bg-white p-5 text-sm" data-testid="marketing-consent">
       <div><p className="font-semibold">Offers & cart reminders by email</p><p className="text-xs text-av-muted">New campaigns, coupons and reminders about items left in your cart. Unsubscribe any time.</p></div>
       <Switch checked={v} onCheckedChange={change} data-testid="marketing-consent-switch" />
+      {v && <div className="w-full space-y-2 border-t border-av-line pt-3 text-xs">
+        <label className="flex items-center justify-between">Wishlist price drops (5% or more)<Switch checked={wa.wishlist_price_drop} onCheckedChange={(on) => setAlert("wishlist_price_drop", on)} data-testid="wishlist-alert-price" /></label>
+        <label className="flex items-center justify-between">Wishlist items back in stock<Switch checked={wa.wishlist_back_in_stock} onCheckedChange={(on) => setAlert("wishlist_back_in_stock", on)} data-testid="wishlist-alert-stock" /></label></div>}
     </section>
   );
 };

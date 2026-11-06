@@ -80,18 +80,24 @@ async def ingest(body: EventsIn, request: Request, user: Optional[User] = Depend
 
 class ConsentIn(BaseModel):
     marketing_opt_in: bool
+    wishlist_price_drop: Optional[bool] = None
+    wishlist_back_in_stock: Optional[bool] = None
 
 
 @router.get("/account/marketing")
 async def my_consent(user: User = Depends(get_current_user)):
     u = await db.users.find_one({"_id": ObjectId(user.id)})
+    wa = u.get("wishlist_alerts") or {}
     return {"marketing_opt_in": bool(u.get("marketing_opt_in")), "consent_at": _iso(u.get("marketing_consent_at")),
-            "withdrawn_at": _iso(u.get("marketing_withdrawn_at"))}
+            "withdrawn_at": _iso(u.get("marketing_withdrawn_at")), "wishlist_price_drop": wa.get("price_drop", True), "wishlist_back_in_stock": wa.get("back_in_stock", True)}
 
 
 @router.put("/account/marketing")
 async def put_consent(body: ConsentIn, request: Request, user: User = Depends(get_current_user)):
     await mk.set_consent(ObjectId(user.id), body.marketing_opt_in, "account_settings")
+    for k, f in (("wishlist_price_drop", "price_drop"), ("wishlist_back_in_stock", "back_in_stock")):
+        if getattr(body, k) is not None:
+            await db.users.update_one({"_id": ObjectId(user.id)}, {"$set": {f"wishlist_alerts.{f}": getattr(body, k)}})
     await audit("marketing.consent_" + ("given" if body.marketing_opt_in else "withdrawn"), "users", request=request, actor=user, entity_id=user.id)
     return {"marketing_opt_in": body.marketing_opt_in}
 
@@ -136,8 +142,16 @@ async def wish_add(slug: str, user: User = Depends(get_current_user)):
     await rate_limit.hit(f"wish:{user.id}", 120, 3600)
     if await db.wishlists.count_documents({"user_id": ObjectId(user.id)}) >= 300:
         raise APIError(409, "limit", "Your wishlist is full (300 items).")
-    await db.wishlists.update_one({"user_id": ObjectId(user.id), "product_id": p["_id"]}, {"$setOnInsert": {"created_at": utcnow()}}, upsert=True)
+    await db.wishlists.update_one({"user_id": ObjectId(user.id), "product_id": p["_id"]}, {"$setOnInsert": {"created_at": utcnow(), **await _ref(p["_id"])}}, upsert=True)
     return {"ok": True}
+
+
+async def _ref(pid) -> dict:
+    from afrovending.core.catalog import public_products
+    from afrovending.core.wishlist_alerts import snapshot
+    pub = await public_products([await db.products.find_one({"_id": pid})])
+    price, stock = snapshot(pub[0]) if pub else (None, None)
+    return {"ref_price_minor": price, "ref_in_stock": stock}
 
 
 @router.delete("/wishlist/{slug}")
@@ -389,6 +403,9 @@ class FlagsIn(BaseModel):
     paid_subscriptions_enabled: bool = False
     sponsored_listings_enabled: bool = False
     referral_rewards_enabled: bool = False
+    wishlist_alerts_enabled: bool = False
+    wishlist_threshold_bps: int = Field(default=500, ge=100, le=9000)
+    wishlist_max_items: int = Field(default=10, ge=1, le=30)
 
 
 @router.get("/admin/marketing/flags")
@@ -405,7 +422,9 @@ async def put_flags(body: FlagsIn, request: Request, admin: User = Depends(requi
     cur = await mk.flags()
     value = {**{k: cur[k] for k in ("referral_rewards",)}, "ga4_enabled": body.ga4_enabled, "analytics_retention_days": body.analytics_retention_days,
              "abandoned_cart": {"enabled": body.abandoned_cart_enabled, "first_delay_min": body.first_delay_min, "second_delay_min": body.second_delay_min,
-                                "max_per_7_days": body.max_per_7_days}}
+                                "max_per_7_days": body.max_per_7_days},
+             "wishlist_alerts": {"enabled": body.wishlist_alerts_enabled, "threshold_bps": body.wishlist_threshold_bps, "max_items": body.wishlist_max_items,
+                                 "send_hour_et": 9}}
     out = await mk.save_flags(value, ObjectId(admin.id))
     await audit("marketing.flags_updated", "platform_settings", request=request, actor=admin, entity_id=mk.FLAGS_KEY, abandoned_cart=body.abandoned_cart_enabled)
     return out
@@ -480,3 +499,10 @@ async def vendor_analytics(frm: Optional[str] = Query(default=None, alias="from"
 async def cron_abandoned(request: Request, background: BackgroundTasks, authorization: str = Header(default="")):
     from afrovending.api.v1.cron import _accept
     return await _accept(request, background, authorization, "abandoned-carts", mk.run_abandoned_carts)
+
+
+@router.post("/cron/wishlist-alerts", status_code=202)
+async def cron_wishlist(request: Request, background: BackgroundTasks, authorization: str = Header(default="")):
+    from afrovending.api.v1.cron import _accept
+    from afrovending.core.wishlist_alerts import run_wishlist_alerts
+    return await _accept(request, background, authorization, "wishlist-alerts", run_wishlist_alerts)

@@ -22,14 +22,16 @@ LOCKED_OFF = ("paid_subscriptions_enabled", "sponsored_listings_enabled", "refer
 DEFAULT_FLAGS = {"paid_subscriptions_enabled": False, "sponsored_listings_enabled": False, "referral_rewards_enabled": False,
                  "abandoned_cart": {"enabled": False, "first_delay_min": 60, "second_delay_min": 1440, "max_per_7_days": 2},
                  "referral_rewards": {"referrer_reward_minor": None, "friend_reward_minor": None, "trigger": "first_paid_order"},
-                 "analytics_retention_days": 400}
+                 "analytics_retention_days": 400,
+                 "wishlist_alerts": {"enabled": False, "threshold_bps": 500, "max_items": 10, "send_hour_et": 9}}
 CLIENT_EVENTS = ("page_view", "product_view", "search", "add_to_cart", "begin_checkout")
 
 
 async def flags() -> dict:
     doc = await db.platform_settings.find_one({"key": FLAGS_KEY})
     saved = (doc or {}).get("value") or {}
-    out = {**DEFAULT_FLAGS, **saved, "abandoned_cart": {**DEFAULT_FLAGS["abandoned_cart"], **saved.get("abandoned_cart", {})}}
+    out = {**DEFAULT_FLAGS, **saved, "abandoned_cart": {**DEFAULT_FLAGS["abandoned_cart"], **saved.get("abandoned_cart", {})},
+           "wishlist_alerts": {**DEFAULT_FLAGS["wishlist_alerts"], **saved.get("wishlist_alerts", {})}}
     for k in LOCKED_OFF:
         out[k] = False
     return out
