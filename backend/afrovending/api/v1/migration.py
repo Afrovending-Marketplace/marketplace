@@ -20,6 +20,9 @@ MIGRATED = {"migration.source": "legacy_afrovending"}
 @router.get("/redirects/resolve")
 async def resolve(path: str):
     path = "/" + path.split("?")[0].strip("/")[:300]
+    from afrovending.legacy.importer import STATIC_REDIRECTS
+    if path in STATIC_REDIRECTS:
+        return {"to": STATIC_REDIRECTS[path], "status": 301}
     hit = await db.legacy_redirects.find_one({"from_path": path})
     if hit:
         return {"to": hit["to_path"], "status": hit.get("status", 301)}

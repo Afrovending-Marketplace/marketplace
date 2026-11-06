@@ -203,20 +203,25 @@ async def request_activation(body: EmailIn, request: Request):
     return {"status": "ok", "message": "If that email belongs to a migrated AfroVending account that still needs activating, a link is on its way."}
 
 
+class ActivateIn(BaseModel):
+    token: str = Field(max_length=200)
+    password: str
+
+
 @router.post("/activation/complete")
-async def complete_activation(body: ResetIn, request: Request, response: Response):
+async def complete_activation(body: ActivateIn, request: Request, response: Response):
     await rate_limit.hit(f"activate:{client_ip(request)}", 10, 3600)
     require_valid_password(body.password)
-    tok = await consume_token("activate_account", hash_token(body.token))
+    tok = await consume_token("activate_account", hash_token(body.token)) if len(body.token) >= 10 else None
     if not tok:
         raise APIError(400, "invalid_token", "This activation link is invalid, already used or expired. Request a new one.")
     now = utcnow()
     doc = await db.users.find_one_and_update(
-        {"_id": tok["user_id"], "migration.activation_required": True, "password_hash": None},
-        {"$set": {"password_hash": hash_password(body.password), "status": "active", "migration.activation_required": False, "migration.activated_at": now,
+        {"_id": tok["user_id"], "migration.activation_required": True, "password_hash": None, "status": {"$nin": list(INACTIVE)}},
+        {"$set": {"password_hash": hash_password(body.password), "migration.activation_required": False, "migration.activated_at": now,
                   "updated_at": now, "auth_providers": [{"provider": "password", "linked_at": now}]}})
     if not doc:
-        raise APIError(400, "invalid_token", "This account is already activated. Sign in or reset your password.")
+        raise APIError(400, "invalid_token", "This activation link can't be used. Sign in, reset your password or contact support.")
     if not doc.get("email_verified_at"):
         await db.users.update_one({"_id": doc["_id"]}, {"$set": {"email_verified_at": now}})  # the emailed link proves ownership
     await revoke_all_sessions(str(doc["_id"]))

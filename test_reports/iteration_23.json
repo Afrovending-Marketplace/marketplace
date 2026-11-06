@@ -1,0 +1,43 @@
+{
+  "summary": "Phase 14 (legacy migration + activation + redirects + wishlist display) tested end-to-end. Backend: test_phase14_migration 7/7, test_phase13_wishlist_alerts 3/3, new test_phase14_t1_extended 6/6 (all run with -n0). Importer CLI: the dry run wrote nothing (collection counts identical before and after in the app DB and the staging DB) and reported all 5 planted errors plus the duplicate_email and invalid_email items (exit code 1). The real import into test_database_qa14 had a clean verification block; a rerun created or updated nothing (idempotent). --target-db test_database was refused. The qa14 DB was dropped. Frontend: the login activate link, the generic request message, the error for a bad token and for mismatched passwords, and the full valid activation all work: /login?activated=1 shows the notice, sign-in reaches /account and /auth/me returns 200. Legacy redirect /product/qa-old -> /products/<slug> works, /product-tag/palm-oil -> /search?q=palm oil works, and an unknown path shows the 404 page. Wishlist at 1920 and 390: in-stock and out-of-stock items show the price, the out-of-stock item shows 'Out of stock', and the discounted item shows the price-drop badge. Admin guards hold: 403 mfa_required without MFA, 403 for customers, 422 for every wrong confirm text, 409 for a batch while unapproved, 422 for batch_size 0 or 201. Approval was never turned on and is still OFF. Found 1 security issue: activation re-enables suspended accounts.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/v1/auth/activation/complete", "issue": "A suspended (or deactivated) migrated account that holds a valid activation token can complete activation. The handler then sets status='active', which silently undoes an admin suspension. The find_one_and_update filter does not exclude INACTIVE statuses, and $set forces status 'active'. Reproduced in test_phase14_t1_extended::test_request_for_normal_or_suspended_account_issues_no_token: the response is 200 {status: activated} and the user's status changes from suspended to active. Realistic path: a bulk activation email goes out, then the admin suspends the user, and the old link still works.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/v1/auth/activation/complete", "issue": "A token shorter than 10 characters (e.g. /activate?token=bad) returns a raw Pydantic 422 message, 'String should have at least 10 characters', and the UI shows it as-is. Users will think the message is about their password. Return the generic invalid-link message instead (a 64-character bad token already gets the correct text)."},
+      {"endpoint": "GET /api/v1/redirects/resolve", "issue": "The static legacy redirects (/about-us, /contact-us, /faqs, /privacy-policy, /become-a-vendor, /stores...) exist only as legacy_redirects docs that the importer writes. The app DB has 0 redirects, so /about-us shows a 404 today. Consider resolving STATIC_REDIRECTS in code, the way /product-tag/* is handled, so they work no matter which DB was imported."},
+      {"endpoint": "scripts/backup_db.sh", "issue": "Counts are taken with estimated_document_count after mongodump finishes. On a live DB, collections that are written during the dump (audit_logs, rate_limits, sessions, analytics_events) can differ, so restore_verify may report a false FAIL in production. Consider excluding volatile collections from the strict check or allowing a tolerance for them."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ActivateAccountPage", "issue": "/activate?token=bad shows the raw text 'String should have at least 10 characters' instead of the invalid-link message", "selector": "[data-testid='activate-error']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Account overview", "issues": ["The Wishlist card still says 'Saved items will appear here once wishlists launch with product discovery (Phase 05)'. The copy is stale: wishlists already exist."]},
+      {"screen": "Wishlist", "issues": ["The 'Out of stock' pill (text-av-muted on bg-av-line) has fairly low contrast; consider darker text."]},
+      {"screen": "NotFoundPage", "issues": ["The 'checked' state is never reset when the pathname changes. Going from one 404 path to another does not show the checking placeholder (minor, functional anyway)."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase14_migration.py", "/app/backend/tests/test_phase14_t1_extended.py", "/app/backend/tests/test_phase13_wishlist_alerts.py", "/app/backend/tests/qa14_ui_seed.py", "/app/test_reports/pytest/pytest_phase14.xml", "/app/test_reports/pytest/pytest_phase14_ext.xml"],
+  "action_items": [
+    "complete_activation: add {status: {$nin: INACTIVE}} to the update filter (or check _needs_activation(doc) before consuming the token) and stop forcing status='active'. Add a regression test.",
+    "Map short or malformed activation tokens to the generic 400 'invalid link' message (drop min_length on token or catch it).",
+    "Optionally resolve STATIC_REDIRECTS in /redirects/resolve so they do not depend on the import.",
+    "Update the stale Wishlist card copy on the Account overview."
+  ],
+  "critical_code_review_comments": [
+    "migration.py activation_batch: when _needs_activation(doc) is false, the claim timestamp is left set. This is harmless but leaves stale claims behind.",
+    "importer.py: the refuse-live guard compares only target_db == settings.db_name. That is OK, but --allow-live-db bypasses it with no second confirmation.",
+    "restore_verify.sh: with set -e, the restore_check DB is not dropped if mongorestore fails partway."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase14_t1_extended.py (new)", "/app/backend/tests/qa14_ui_seed.py (new UI seed and cleanup helper)"],
+  "success_rate": {"backend": "94% (15/16 checks; 1 security defect)", "frontend": "95% (all requested flows pass; 1 low-priority message issue)"},
+  "seed_data_creation": "qa14_ui_seed.py created a TEST customer, a TEST vendor with 3 products, wishlists, a migrated user with an activation token, and the /product/qa-old redirect. All of it was removed with 'python -m tests.qa14_ui_seed cleanup'. The app DB is back to users=1, products=0, legacy_redirects=0, wishlists=0. test_database_qa14 was dropped. migration.activation.approved is still false.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run the Phase 14 tests with -n0; pytest.ini adds xdist. Activation endpoints have a 10/hour per-IP rate limit. test_phase14_t1_extended clears rate_limits keys matching ^activate in setup_function. The live DB has no products, so use tests/qa14_ui_seed.py (writes /tmp/qa14_seed.json with customer cookies, product slugs and a raw activation token) for UI checks, then run its cleanup. The staging DB test_database_migration_staging was created by the main agent and left in place. After the fix, the suspended-account case in test_phase14_t1_extended should assert a 400 and status 'suspended'. Right now it only prints the result.",
+  "rca of the issue": "complete_activation (auth.py ~L214) consumes the token, then calls find_one_and_update with the filter {_id, migration.activation_required: True, password_hash: None} and $set status='active'. It never checks the current status. Repro: insert a migrated user with status 'suspended' and an activate_account token, then POST /auth/activation/complete. The response is 200 and the status becomes 'active'. Fix: add 'status': {'$nin': list(INACTIVE)} to the filter and remove 'status': 'active' from $set."
+}

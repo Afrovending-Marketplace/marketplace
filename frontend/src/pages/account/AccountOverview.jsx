@@ -45,7 +45,7 @@ export default function AccountOverview() {
           <Button asChild variant="outline" size="sm" className="mt-4"><Link to="/shop">Start shopping</Link></Button>
         </Panel>
         <Panel icon={Heart} title="Wishlist" testId="account-wishlist-section">
-          <p>Saved items will appear here once wishlists launch with product discovery (Phase 05).</p>
+          <p>Items you save appear in your <Link to="/account/wishlist" className="font-semibold text-av-clay hover:underline" data-testid="account-wishlist-link">wishlist</Link>, with current prices, stock and price drops.</p>
         </Panel>
         <Panel icon={MapPin} title="Addresses" testId="account-addresses-summary">
           <p>Manage the delivery addresses you'll use at checkout.</p>
