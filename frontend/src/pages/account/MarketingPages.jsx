@@ -51,7 +51,8 @@ export function WishlistPage() {
       <ul className="grid gap-3 sm:grid-cols-2">{d.data.map((p) => <li key={p.slug} className="flex items-center justify-between gap-2 rounded-2xl border border-av-line bg-white p-4 text-sm" data-testid={`wishlist-item-${p.slug}`}>
         <div className="min-w-0 space-y-1">
           <Link to={`/products/${p.slug}`} className="font-semibold hover:underline">{p.title}</Link>
-          {p.price_drop && <PriceDrop d={p.price_drop} slug={p.slug} />}
+          {p.price_drop ? <PriceDrop d={p.price_drop} slug={p.slug} /> : (p.current_minor != null && <p className="text-xs font-semibold text-av-ink" data-testid={`wishlist-price-${p.slug}`}>{formatPrice(p.current_minor)}</p>)}
+          {!p.in_stock && <span className="inline-block rounded-full bg-av-line px-2 py-0.5 text-xs font-semibold text-av-muted" data-testid={`wishlist-out-of-stock-${p.slug}`}>Out of stock</span>}
         </div>
         <Button size="sm" variant="ghost" onClick={() => api.delete(`/wishlist/${p.slug}`).then(load)} data-testid={`wishlist-remove-${p.slug}`}>Remove</Button></li>)}</ul>
     </div>

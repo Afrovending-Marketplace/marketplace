@@ -127,7 +127,7 @@ async def cart_click(body: UnsubIn):
 @router.get("/wishlist")
 async def wishlist(user: User = Depends(get_current_user)):
     from afrovending.core.catalog import public_products, visible_vendor_ids
-    from afrovending.core.wishlist_alerts import badge
+    from afrovending.core.wishlist_alerts import badge, snapshot
     rows = await db.wishlists.find({"user_id": ObjectId(user.id)}).sort("created_at", -1).to_list(300)
     docs = await db.products.find({"_id": {"$in": [r["product_id"] for r in rows]}, "status": "active"}).to_list(300)
     order = {r["product_id"]: i for i, r in enumerate(rows)}
@@ -139,6 +139,8 @@ async def wishlist(user: User = Depends(get_current_user)):
     for p in data:
         vid, row = by_slug[p["slug"]]
         p["price_drop"] = badge(row, p, bps) if vid in vids else None
+        p["current_minor"], p["in_stock"] = snapshot(p)
+        p["in_stock"] = p["in_stock"] and vid in vids
     return {"data": data, "slugs": [d["slug"] for d in docs]}
 
 

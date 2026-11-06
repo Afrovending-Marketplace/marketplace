@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Verified backup of the new marketplace database: gzip archive + SHA-256 + per-collection counts.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+set -a; . ./.env; set +a
+OUT="${BACKUP_DIR:-/app/backups}"; mkdir -p "$OUT"
+TS=$(date -u +%Y%m%dT%H%M%SZ); FILE="$OUT/${DB_NAME}-${TS}.archive.gz"
+mongodump --uri="$MONGO_URL" --db="$DB_NAME" --gzip --archive="$FILE" --quiet
+sha256sum "$FILE" > "$FILE.sha256"
+python3 - "$FILE" <<'PY'
+import json, os, sys
+from pymongo import MongoClient
+db = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+counts = {c: db[c].estimated_document_count() for c in sorted(db.list_collection_names())}
+json.dump(counts, open(sys.argv[1] + ".counts.json", "w"), indent=1)
+print(json.dumps({"backup": sys.argv[1], "collections": len(counts), "documents": sum(counts.values())}))
+PY

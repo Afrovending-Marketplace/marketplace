@@ -1,8 +1,19 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PAGES } from "@/constants/testIds";
+import { api } from "@/lib/api";
 
 export default function NotFoundPage() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [checked, setChecked] = useState(false);
+  useEffect(() => {
+    api.get("/redirects/resolve", { params: { path: pathname } })
+      .then((r) => navigate(r.data.to, { replace: true }))
+      .catch(() => setChecked(true));
+  }, [pathname, navigate]);
+  if (!checked) return <div className="av-container py-24" data-testid="legacy-redirect-checking" />;
   return (
     <section data-testid={PAGES.notFound} className="av-container py-24 lg:py-32 grid gap-10 md:grid-cols-12 items-center">
       <p className="md:col-span-5 font-serif text-[8rem] sm:text-[11rem] leading-none text-av-clay/90">404</p>

@@ -72,6 +72,44 @@ export const ResetPasswordPage = () => {
   );
 };
 
+export const ActivateAccountPage = () => {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const token = params.get("token");
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState({ password: "", confirm: "" });
+  const [done, setDone] = useState("");
+  const [error, setError] = useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      if (!token) return setDone((await api.post("/auth/activation/request", { email })).data.message);
+      if (pw.password !== pw.confirm) return setError("Passwords don't match.");
+      await api.post("/auth/activation/complete", { token, password: pw.password });
+      navigate("/login?activated=1", { replace: true });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+  return (
+    <AuthCard testId="activate-account-page" title={token ? "Activate your account" : "Moving from the old AfroVending site?"}
+      description={token ? "Choose a password with at least 10 characters, including a letter and a number." : "Enter the email you used on the old site. We'll send a secure activation link valid for 24 hours."}
+      footer={<Link to="/login" data-testid="activate-back-login-link" className="font-semibold text-av-clay hover:underline">Back to sign in</Link>}>
+      {done ? <StatusAlert tone="success" title="Check your inbox" testId="activate-request-result">{done}</StatusAlert> : (
+        <form onSubmit={submit} className="space-y-5">
+          <FormError message={error} testId="activate-error" />
+          {token ? (<>
+            <Field id="ac-pw" label="New password" type="password" autoComplete="new-password" value={pw.password} onChange={(e) => setPw({ ...pw, password: e.target.value })} testId="activate-password-input" />
+            <Field id="ac-confirm" label="Confirm password" type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} testId="activate-confirm-input" />
+          </>) : <Field id="ac-email" label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} testId="activate-email-input" />}
+          <Button type="submit" size="lg" className="w-full" data-testid="activate-submit-button">{token ? "Activate account" : "Send activation link"}</Button>
+        </form>
+      )}
+    </AuthCard>
+  );
+};
+
 export const VerifyEmailPage = () => {
   const [params] = useSearchParams();
   const { reload } = useAuth();

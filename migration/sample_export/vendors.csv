@@ -1,0 +1,3 @@
+legacy_id,owner_email,owner_name,store_name,slug,description,phone,city,region,country,status,created_at,logo_url,banner_url
+V1,test.vendor.legacy@example.com,TEST Vendor Owner,TEST Dar Foods,dar-foods,TEST legacy vendor (sample data),,Houston,TX,US,active,2023-11-01,/storage/storeLogos/v1.png,
+V2,test.vendor2.legacy@example.com,TEST Second Owner,TEST Kente House,kente-house,TEST legacy vendor (sample data),,Atlanta,GA,US,inactive,2023-12-01,,

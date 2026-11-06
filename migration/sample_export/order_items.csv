@@ -1,0 +1,4 @@
+order_legacy_id,product_legacy_id,variant_legacy_id,sku,title,quantity,unit_price
+O1,P1,PV1,TEST-LEG-PEPPER-S,TEST Dar Cameron Pepper Small,2,7.99
+O1,P2,P2-default,TEST-LEG-CASSAVA,TEST Cassava Flakes,1,12.50
+O2,P1,PV1,TEST-LEG-PEPPER-S,TEST Dar Cameron Pepper Small,1,7.99

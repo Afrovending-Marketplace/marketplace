@@ -176,6 +176,55 @@ async def forgot_password(body: EmailIn, request: Request):
     return {"status": "ok", "message": "If an account exists for that email, a reset link is on its way."}
 
 
+ACTIVATION_TTL = timedelta(hours=24)
+
+
+async def send_activation(doc: dict) -> bool:
+    """Issue a fresh 24h single-use activation token (older ones are superseded) and email it."""
+    raw, hashed = new_opaque_token()
+    await issue_token(str(doc["_id"]), "activate_account", ACTIVATION_TTL, hashed)
+    subject, html = mail.activation_email(doc["name"], raw)
+    return await mail.try_send(to=doc["email"], subject=subject, html=html)
+
+
+def _needs_activation(doc: dict | None) -> bool:
+    return bool(doc and (doc.get("migration") or {}).get("activation_required") and not doc.get("password_hash") and doc.get("status") not in INACTIVE)
+
+
+@router.post("/activation/request")
+async def request_activation(body: EmailIn, request: Request):
+    email = body.email.lower()
+    await rate_limit.hit(f"activate-req:{client_ip(request)}", 10, 3600)
+    if await rate_limit.hit(f"activate-req:{email}", 3, 3600, raise_over=False) <= 3:
+        doc = await db.users.find_one({"email": email})
+        if _needs_activation(doc):
+            sent = await send_activation(doc)
+            await audit("auth.activation_requested", "users", request=request, entity_id=str(doc["_id"]), sent=sent)
+    return {"status": "ok", "message": "If that email belongs to a migrated AfroVending account that still needs activating, a link is on its way."}
+
+
+@router.post("/activation/complete")
+async def complete_activation(body: ResetIn, request: Request, response: Response):
+    await rate_limit.hit(f"activate:{client_ip(request)}", 10, 3600)
+    require_valid_password(body.password)
+    tok = await consume_token("activate_account", hash_token(body.token))
+    if not tok:
+        raise APIError(400, "invalid_token", "This activation link is invalid, already used or expired. Request a new one.")
+    now = utcnow()
+    doc = await db.users.find_one_and_update(
+        {"_id": tok["user_id"], "migration.activation_required": True, "password_hash": None},
+        {"$set": {"password_hash": hash_password(body.password), "status": "active", "migration.activation_required": False, "migration.activated_at": now,
+                  "updated_at": now, "auth_providers": [{"provider": "password", "linked_at": now}]}})
+    if not doc:
+        raise APIError(400, "invalid_token", "This account is already activated. Sign in or reset your password.")
+    if not doc.get("email_verified_at"):
+        await db.users.update_one({"_id": doc["_id"]}, {"$set": {"email_verified_at": now}})  # the emailed link proves ownership
+    await revoke_all_sessions(str(doc["_id"]))
+    clear_auth_cookies(response)
+    await audit("auth.account_activated", "users", request=request, entity_id=str(doc["_id"]))
+    return {"status": "activated"}
+
+
 @router.post("/reset-password")
 async def reset_password(body: ResetIn, request: Request, response: Response):
     await rate_limit.hit(f"reset:{client_ip(request)}", 10, 3600)
