@@ -1,0 +1,31 @@
+{
+  "summary": "Tested the pre-launch Founding Vendor rule, the public /founding-vendors API and page, and the launch checklist regression. Backend: the existing suites pass when each is run on its own with -n 0 (launch_checklist 5/5, t1_launch_extended 6/6, launch 5/5). The new T1 suite test_phase14_t1_founding_public.py passes 5/5. With no launch recorded, an approved, active, non-test vendor is founding=true on /founding-vendors, /stores/{slug}, /catalog/storefront and the admin review, and its admin reason contains 'pre-launch'. These are excluded: example.com/.net/.org and test.com accounts, emails starting with test or qa, suspended and terminated vendors, vendors with override=false, draft stores and unapproved vendors. With a launch recorded 40 days ago: approvals before launch, at launch (inclusive) and at +29d23h are included; approvals at exactly +30d and at +35d are excluded; a +35d vendor with override=true is included. The public endpoint needs no auth, every entry has founding_vendor true, and no internal fields (vendor_id, owner_user_id, email) leak. The sitemap at /api/v1/seo/sitemap.xml lists /founding-vendors. The DNS check returns Blocked with 'lookup failed' when the HTTP client raises ConnectError and when the response is not JSON (checked in-process by monkeypatching _check). The live endpoint returns 200. backup_db.sh then restore_verify.sh exit 0 and the backup_rollback check returns verified. payments.config is unchanged. Frontend: the empty state (founding-vendors-empty, founding-empty-sell-link goes to /sell) and the grid (founding-store-{slug}, founding-store-badge-{slug}) both render. qa and suspended vendors are excluded. A card links to /store/{slug}, which shows the badge. vendors-founding-link on /vendors goes to /founding-vendors. /vendors badges match the API. No horizontal overflow at 1920 or 390.",
+  "backend_issues": {"critical": [], "minor": [
+    {"endpoint": "/sitemap.xml (frontend host)", "issue": "On the preview host, /sitemap.xml returns the SPA index.html. The real XML is only at /api/v1/seo/sitemap.xml. Make sure robots.txt and production routing point crawlers at the XML."}
+  ]},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "FoundingVendorsPage load", "issue": "The .catch() sets stores=[], so an API failure shows the 'Founding spots are open' empty state instead of an error. There is also no loading skeleton (stores===null renders nothing).", "affected_selectors": ["founding-vendors-empty"]}
+    ],
+    "design_issues": [
+      {"screen": "/founding-vendors grid", "issues": ["Cards have uneven heights when names wrap differently (no h-full or flex column).", "With no banner the card shows a plain sand block, while /vendors VendorCard shows a stock banner image for the same store, so the two pages look inconsistent."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase14_t1_founding_public.py", "/app/backend/tests/t1_founding_seed.py", "/app/test_reports/pytest/iter26_founding.xml"],
+  "action_items": [
+    "Optional: give FoundingVendorsPage an error state and a loading skeleton instead of falling back to the empty state.",
+    "Optional: make founding store cards equal height and use the same banner fallback as VendorCard."
+  ],
+  "critical_code_review_comments": [
+    "founding.is_test_email checks the exact domain only, so subdomains such as x@mail.example.com are not treated as test accounts. Use endswith('.'+d) if that matters.",
+    "founding_vendors_public loads up to 1000 published stores and filters in Python. Fine at launch scale; the storefront caps at 500 stores, so the two lists could diverge beyond 500.",
+    "An override=true grants the badge even with no approved_at (the override is checked before the approval check). This is intended per the spec, and test accounts and non-active vendors are still blocked."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase14_t1_founding_public.py", "/app/backend/tests/t1_founding_seed.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Temporary TEST_ vendors were created by the pytest module (removed in teardown) and by t1_founding_seed.py (tagged t1_tag=TEST_T1FUI, removed with cleanup). DB verified clean afterwards: 1 user, 0 vendors, 0 stores, 0 launch_checklist, no launch.public. A new backup archive and restore.json were written to /app/backups (rotation keeps 14).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run each phase14 suite separately with -n 0. For UI fixtures: python -m tests.t1_founding_seed seed|cleanup (from /app/backend). The sitemap XML is at /api/v1/seo/sitemap.xml. Set localStorage av_no_sample=1 for the clean-launch /vendors view."
+}
