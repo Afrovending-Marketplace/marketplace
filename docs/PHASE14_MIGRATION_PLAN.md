@@ -42,8 +42,8 @@
 | **/return-policy** | /returns-policy | Same policy |
 | **/support-topics** | /faq | The help centre is the FAQ |
 | **/fashion-products** | /categories/fashion | Same category |
-| **/species-products** | *Recommended:* /categories/food-groceries-spices | Probably a misspelling of "spices". **Needs your confirmation, so not active yet.** |
-| **/other-fees** | *Recommended:* /sell | The vendor fees explanation lives there. **Needs your confirmation.** |
+| **/species-products** | /categories/food-groceries-spices | Owner approved 2026-11-06. Active. |
+| **/other-fees** | /sell | Owner approved 2026-11-06. Active. |
 | **/flash-sales** | none (404) | There's no flash-sale feature yet. Add a redirect when campaigns go live. |
 | **/drop-off-warehouse** | none (404) | The service doesn't exist on the new site. |
 | /become-a-vendor, /stores, /category, /checkout | /sell, /vendors, /categories, /cart | Same purpose |
@@ -81,5 +81,6 @@ These redirects are handled by the 404 page using `/api/v1/redirects/resolve`, w
 | LB-F | Sending domain verified (SPF/DKIM/DMARC). Launch and marketing emails need your approval | Open |
 | LB-G | Legal review of the Terms, Privacy Policy and vendor agreement | Open |
 | LB-H | Uptime monitor, plus alerts for 5xx errors and cron failures | Open |
-| LB-I | Confirm /species-products and /other-fees redirects | Open, owner |
+| LB-I | Confirm /species-products and /other-fees redirects | Done (approved and active) |
+| LB-J | Launch-week banner "Now open — be one of our first vendors": the Content Admin sets start = launch day, end = +7 days, status active (Admin → Content) | Seeded INACTIVE in production; active in preview for review |
 | Final | Retire the old site, switch DNS, go live publicly | **Requires your explicit approval** |

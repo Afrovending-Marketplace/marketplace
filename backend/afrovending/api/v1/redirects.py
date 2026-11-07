@@ -11,7 +11,7 @@ _C = "/categories/"
 LEGACY_REDIRECTS = {
     "/about-us": "/about", "/contact-us": "/contact", "/faqs": "/faq", "/privacy-policy": "/privacy", "/terms-and-conditions": "/terms",
     "/return-policy": "/returns-policy", "/support-topics": "/faq", "/become-a-vendor": "/sell", "/stores": "/vendors", "/category": "/categories",
-    "/checkout": "/cart", "/fashion-products": _C + "fashion",
+    "/checkout": "/cart", "/fashion-products": _C + "fashion", "/species-products": _C + "food-groceries-spices", "/other-fees": "/sell",
     "/category/accessories": _C + "fashion-accessories", "/category/african-art-craft": _C + "arts-crafts", "/category/african-beauty-personal-care": _C + "beauty",
     "/category/african-fashion": _C + "fashion", "/category/african-home-living": _C + "home-living", "/category/african-instruments": _C + "cultural-products-instruments",
     "/category/african-jewelry": _C + "jewelry", "/category/african-textiles": _C + "home-living-textiles", "/category/bedding-linens": _C + "home-living-textiles",

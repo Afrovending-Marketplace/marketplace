@@ -76,6 +76,16 @@ async def m0013_wishlist_alerts(db) -> None:
     await ensure_indexes(db, phase=13)
 
 
+async def m0014_launch_banner(db) -> None:
+    """Launch-week welcome banner, seeded INACTIVE; the Content Admin sets start = launch day, end = +7 days and activates it."""
+    from afrovending.core.models import utcnow
+    await db.content_banners.update_one({"key": "launch_welcome"}, {"$setOnInsert": {
+        "key": "launch_welcome", "title": "Now open — be one of our first vendors",
+        "body": "AfroVending is live. Apply to sell, get approved and list your products in front of our first shoppers.",
+        "cta_label": "Apply to sell", "cta_url": "/sell", "placement": "home_hero", "starts_at": None, "ends_at": None,
+        "status": "inactive", "sort": 0, "created_by": None, "created_at": utcnow(), "updated_at": utcnow()}}, upsert=True)
+
+
 async def m0005_phase05_search(db) -> None:
     for idx in await db.products.list_indexes().to_list(50):
         if "textIndexVersion" in idx and "weights" in idx and idx["weights"].get("title") != 10:
@@ -115,6 +125,7 @@ MIGRATIONS = (
     ("0011", "phase11_trust_communication", m0011_phase11_trust),
     ("0012", "phase12_marketing", m0012_phase12_marketing),
     ("0013", "wishlist_alerts", m0013_wishlist_alerts),
+    ("0014", "launch_banner", m0014_launch_banner),
 )
 
 

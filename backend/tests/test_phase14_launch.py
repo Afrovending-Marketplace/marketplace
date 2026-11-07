@@ -14,6 +14,8 @@ def resolve(path):
 def test_01_related_redirects():
     assert resolve("/terms-and-conditions").json()["to"] == "/terms"
     assert resolve("/return-policy").json()["to"] == "/returns-policy"
+    assert resolve("/species-products").json()["to"] == "/categories/food-groceries-spices"
+    assert resolve("/other-fees").json()["to"] == "/sell"
     assert resolve("/category/hair-care/").json()["to"] == "/categories/beauty-hair-care"
     assert resolve("/product-tag/palm-oil").json()["to"] == "/search?q=palm oil"
 

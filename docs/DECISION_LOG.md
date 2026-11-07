@@ -65,4 +65,6 @@
 | D-067 | 2026-11-06 | Wishlist shows current price and an "Out of stock" label on every item; the "Price dropped" badge replaces the plain price when it applies. | Owner |
 | D-068 | 2026-11-06 | **CLEAN LAUNCH.** The new marketplace replaces afrovending.com with a fresh database. Legacy data migration: Not Required. D-064/D-065 are superseded, and the migration tooling (importer, activation flow, migration admin API) is removed. The old site is preserved and archived before retirement. | Owner |
 | D-069 | 2026-11-06 | The canonical host is the https://afrovending.com apex; www gets a 301 to the apex. Old URLs redirect only to related pages; unrelated or removed pages show 404, never the homepage. Sample catalog data appears only on preview hosts. | Owner / Phase 14 |
+| D-070 | 2026-11-06 | Owner approved /species-products → /categories/food-groceries-spices and /other-fees → /sell. Launch-week welcome banner uses the existing scheduled content banners (migration 0014, seeded inactive; the Content Admin schedules launch day to +7 days). | Owner |
+
 
