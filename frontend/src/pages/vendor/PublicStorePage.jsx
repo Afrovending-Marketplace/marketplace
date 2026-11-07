@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { MapPin, ShieldCheck } from "lucide-react";
+import { FoundingBadge } from "@/components/commerce/FoundingBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { ProductGrid } from "@/components/commerce/ProductCard";
 import { fileUrl } from "@/components/vendor/FileUpload";
@@ -36,6 +37,7 @@ export default function PublicStorePage() {
             <div className="flex flex-wrap items-center gap-3 text-sm text-av-muted">
               {store.location && <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{store.location}</span>}
               <StatusBadge tone="success"><ShieldCheck className="h-3 w-3" /> Approved vendor</StatusBadge>
+              {store.founding_vendor && <FoundingBadge />}
             </div>
           </div>
         </div>

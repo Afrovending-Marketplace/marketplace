@@ -201,7 +201,8 @@ async def public_store(slug: str):
     store = await db.vendor_stores.find_one({"slug": slug.lower(), "status": "published"})
     if not store or not await db.vendors.find_one({"_id": store["vendor_id"], "status": "active"}):
         raise APIError(404, "not_found", "Store not found.")
-    return _public_store(store)
+    from afrovending.core.founding import founding_ids
+    return {**_public_store(store), "founding_vendor": store["vendor_id"] in await founding_ids([store["vendor_id"]])}
 
 
 def _public_store(s: dict) -> dict:

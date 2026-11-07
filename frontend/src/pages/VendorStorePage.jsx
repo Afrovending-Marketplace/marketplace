@@ -5,6 +5,7 @@ import { DevDataNotice } from "@/components/common/DevDataNotice";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { ProductGrid } from "@/components/commerce/ProductCard";
 import { getCategory, getProductsByVendor, getVendor, isDevData } from "@/lib/catalog";
+import { FoundingBadge } from "@/components/commerce/FoundingBadge";
 import NotFoundPage from "@/pages/NotFoundPage";
 import { SellerRatings } from "@/components/trust/PublicReviews";
 
@@ -26,6 +27,7 @@ export default function VendorStorePage() {
             <div className="flex flex-wrap items-center gap-3 text-sm text-av-muted">
               <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{vendor.location}</span>
               {vendor.verified && <StatusBadge tone="success"><ShieldCheck className="h-3 w-3" /> {isDevData() ? "Verified (sample)" : "Verified"}</StatusBadge>}
+              {vendor.founding_vendor && <FoundingBadge />}
             </div>
           </div>
         </div>

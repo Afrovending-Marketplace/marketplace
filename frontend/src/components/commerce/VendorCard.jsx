@@ -3,6 +3,7 @@ import { MapPin, ShieldCheck } from "lucide-react";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { DevBadge } from "@/components/common/DevDataNotice";
 import { isDevData } from "@/lib/catalog";
+import { FoundingBadge } from "@/components/commerce/FoundingBadge";
 
 export const VendorCard = ({ vendor }) => (
   <Link to={`/vendors/${vendor.slug}`} data-testid={`vendor-card-${vendor.slug}`}
@@ -20,6 +21,7 @@ export const VendorCard = ({ vendor }) => (
       {vendor.verified && (
         <StatusBadge tone="success" className="mt-4"><ShieldCheck className="h-3 w-3" /> {isDevData() ? "Verified (sample)" : "Verified"}</StatusBadge>
       )}
+      {vendor.founding_vendor && <FoundingBadge className="ml-2 mt-4" testId={`founding-badge-${vendor.slug}`} />}
     </div>
   </Link>
 );

@@ -198,7 +198,9 @@ async def storefront():
     vendor_ids = await visible_vendor_ids()
     docs = await db.products.find({"status": "active", "vendor_id": {"$in": vendor_ids}}).sort("approved_at", -1).to_list(500)
     stores = await db.vendor_stores.find({"vendor_id": {"$in": vendor_ids}}).sort("display_name", 1).to_list(500)
+    from afrovending.core.founding import founding_ids
+    fids = await founding_ids([s["vendor_id"] for s in stores])
     vendors = [{"slug": s["slug"], "name": s["display_name"], "location": s.get("location", ""), "logo": file_url(s.get("logo_file_id")),
                 "banner": file_url(s.get("banner_file_id")), "categories": s.get("categories", []), "tagline": s.get("tagline", ""),
-                "story": s.get("description", ""), "verified": True, "is_dev_data": False} for s in stores]
+                "story": s.get("description", ""), "verified": True, "is_dev_data": False, "founding_vendor": s["vendor_id"] in fids} for s in stores]
     return {"categories": await category_tree(), "products": await public_products(docs), "vendors": vendors}
