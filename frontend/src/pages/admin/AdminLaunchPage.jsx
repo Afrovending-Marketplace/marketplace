@@ -19,7 +19,7 @@ function Item({ it, canEdit, onSaved }) {
     setBusy(true);
     try { onSaved((await fn()).data); toast.success("Checklist updated"); } catch (e) { toast.error(getErrorMessage(e)); } finally { setBusy(false); }
   };
-  const statuses = Object.keys(LABEL).filter((s) => it.mode !== "auto" || s !== "verified");
+  const statuses = Object.keys(LABEL).filter((s) => it.mode !== "auto" || s !== "verified" || it.status === "verified");
   return (
     <li className="space-y-2 rounded-2xl border border-av-line bg-white p-4" data-testid={`launch-item-${it.key}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">

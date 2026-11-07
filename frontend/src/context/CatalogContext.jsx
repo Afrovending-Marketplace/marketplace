@@ -15,7 +15,7 @@ export const CatalogProvider = ({ children }) => {
   if (!ready) {
     return (
       <div data-testid="catalog-loading" className="grid min-h-screen place-items-center bg-av-linen">
-        <img src="/logo-mark.png" alt="AfroVending" className="h-14 w-14 animate-pulse" />
+        <img src="/brand/logo-mark.png" alt="AfroVending" className="h-14 w-14 animate-pulse" />
       </div>
     );
   }

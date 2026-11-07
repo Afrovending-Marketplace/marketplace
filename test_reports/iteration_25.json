@@ -1,0 +1,41 @@
+{
+  "summary": "Phase 14 Launch Readiness Checklist + Founding Vendor badge tested end-to-end. Backend: main agent suite test_phase14_launch_checklist.py 5/5 pass; new T1 suite test_phase14_t1_launch_extended.py 6/6 pass (after a test-side fix: audit entity_id is stored as ObjectId). Verified: access matrix (super 10 items/is_super_admin, finance can_edit=[live_payments,stripe_test], marketplace 403, anon 401 on checklist/public-launch/founding-vendors), auto_only on all 5 auto items, manual_only on /check for the 5 manual/final items, evidence >=10 chars (whitespace-only rejected), final approval 403 non-super / 409 checklist_incomplete, reopen to in_progress with 'Reopened: <key>' note both via manual PUT (finance on live_payments) and via a blocked auto check (dns), DNS check = Blocked, SSL = Blocked, public-launch confirm/not_approved/future/already_recorded/correction-with-reason, payments.config unchanged, audit entries written. Founding: window start inclusive, +30d exclusive, before launch false, test accounts (example.com/.org, test*/qa* prefixes) false, suspended/terminated 404 on public store and excluded from storefront, admin override True cannot grant test/terminated, False removes, null clears, all audited, no launch recorded -> false for everyone. Frontend: admin-link-launch appears exactly once, /admin/launch renders all items/status/check/select/evidence/save testids, launch-record and founding-review sections; Run check (dns) -> Blocked with evidence; short evidence shows toast error; valid evidence -> Verified with time+admin; final approval shows '8 item(s) still need verification first.'; no horizontal overflow at 1920 or 390. FoundingBadge shows on /store/{slug} (desktop + mobile, aria-label present) only for the eligible store, and on VendorCard (founding-badge-{slug}) only for the eligible vendor (verified via an intercepted storefront response because the live vendor list is only used when products exist). One UI bug found in the checklist select for auto items.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/v1/admin/launch/checklist/dns/check", "issue": "httpx/JSON errors from dns.google aren't caught (unlike ssl). A network failure would return 500 instead of recording Blocked."},
+      {"endpoint": "core/founding.is_test_email", "issue": "The prefix rule e.startswith(('test','qa')) also matches real owners such as testimony@gmail.com or qasim@... They would silently lose eligibility, and an admin override can't grant it back because the test-account check runs before override=True. Consider a stricter pattern (e.g. 'test+', 'test_', 'qa+', 'qa-') or let override=True win over the prefix heuristic."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminLaunchPage Item select (auto items)", "issue": "For auto items the 'Verified' option is filtered out, but the select state is initialised from it.status. After a successful Run check (e.g. admin_mfa -> Verified) the select shows 'Blocked' (first option) because 'verified' isn't an option. Clicking Save without noticing would silently downgrade a verified item to Blocked and reopen final approval. Fix: include the current status as a disabled option, or initialise the select to '' with a placeholder.", "selector": "[data-testid='launch-select-admin_mfa']", "priority": "MEDIUM"},
+      {"component": "VendorCard / CatalogContext fallback logo", "issue": "The fallback logo path '/logo-mark.png' doesn't exist (the file is /brand/logo-mark.png), so vendors without a logo showed a broken image. FIXED by T1 in lib/catalog.js and context/CatalogContext.jsx.", "selector": "[data-testid^='vendor-card-'] img", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Founding badge on /vendors cards", "issue": "lib/catalog.setCatalog only swaps in the live vendor list when products.length > 0. A founding vendor approved early with no approved products, or while the marketplace has zero products, won't appear on /vendors, so the VendorCard badge isn't visible (on preview hosts only sample vendors show). /store/{slug} works. This is pre-existing behaviour; confirm it is intended.", "affected_selectors": ["[data-testid^='founding-badge-']"]}
+    ],
+    "design_issues": [
+      {"screen": "/admin/launch", "issues": ["Founding Grant/Remove/Clear use window.prompt for the reason, which doesn't match the app style and doesn't check the 5-character minimum on the client (the server returns 422 as a toast)", "LaunchRecord has no launched_at input, so the UI can only record 'now'. Corrections to a past timestamp need the API."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase14_t1_launch_extended.py", "/app/backend/tests/test_phase14_launch_checklist.py", "/app/backend/tests/t1_ui_helper.py", "/app/test_reports/pytest/pytest_phase14_t1.xml"],
+  "action_items": [
+    "Fix the auto-item status select so a verified auto item doesn't show 'Blocked' and can't be downgraded by accident (AdminLaunchPage.jsx Item: statuses/initial state)",
+    "Wrap the dns.google call in try/except and return blocked with the exception name",
+    "Revisit the is_test_email prefix heuristic (false positives such as testimony@/qasim@ that can't be overridden)",
+    "Optional: replace window.prompt in FoundingReview with a dialog and client-side check of the 5-character reason"
+  ],
+  "critical_code_review_comments": [
+    "launch.py _set recursion for the reopen is guarded correctly (key != final_approval)",
+    "record_launch: confirm, gate, future check and correction reason are all correct; it writes only platform_settings launch.public",
+    "founding.eligibility order: inactive -> override False -> test email -> override True -> window. The override can't rescue a false-positive test email",
+    "run_check for stripe_test returns verified when only the API is reachable (paid count isn't required). Acceptable for test mode, but the label says 'test payments working'"
+  ],
+  "updated_files": ["/app/backend/tests/test_phase14_t1_launch_extended.py", "/app/backend/tests/t1_ui_helper.py", "/app/frontend/src/lib/catalog.js", "/app/frontend/src/context/CatalogContext.jsx"],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "95% (1 medium UI bug in auto-item select)"},
+  "seed_data_creation": "Temporary TEST_T1UI vendors/stores/users (flag t1_ui) and launch.public (recorded_by t1-ui) for UI checks; all removed. DB verified restored: launch_checklist=0, no launch.public, users=1, vendors=0, stores=0, admin_invites=0, categories=43, payments.config value {hold_days:7} unchanged. test_phase14_launch_checklist.py test_02 created new backup files in /app/backups (expected).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run phase14 suites with -n 0 (they share launch_checklist/platform_settings state). UI auth: python tests/t1_ui_helper.py cookies (prints admin cookies after TOTP), then add them in Playwright. Seed/cleanup with t1_ui_helper.py seed|cleanup. The public store page is /store/{slug} (PublicStorePage). /vendors/{slug} uses the catalog snapshot (sample data on preview when there are no products)."
+}

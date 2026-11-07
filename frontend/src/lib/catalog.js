@@ -20,7 +20,10 @@ export const setCatalog = ({ categories, products, vendors }) => {
   if (products?.length) {
     LIVE = true;
     PRODUCTS = products.map(normalizeProduct);
-    VENDORS = vendors.map((v) => ({ ...v, logo: absUrl(v.logo) || "/logo-mark.png", banner: absUrl(v.banner) || FALLBACK_IMAGE }));
+  }
+  // Approved vendors show on the live site even before they list products (clean launch); preview keeps its sample set until real products exist.
+  if (vendors?.length && (LIVE || !USE_DEV)) {
+    VENDORS = vendors.map((v) => ({ ...v, logo: absUrl(v.logo) || "/brand/logo-mark.png", banner: absUrl(v.banner) || FALLBACK_IMAGE }));
   }
 };
 
