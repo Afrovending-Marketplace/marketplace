@@ -12,7 +12,7 @@ export const VendorCta = () => (
           Ready to share your craft with the world?
         </h2>
         <p className="max-w-lg text-av-linen/75 leading-relaxed">
-          AfroVending is being built for continental, Caribbean and diaspora businesses. Vendor applications open soon.
+          AfroVending is built for continental, Caribbean and diaspora businesses. Apply in minutes; once approved, you can list your products.
         </p>
         <Button asChild size="lg" variant="gold" data-testid={HOME.vendorCtaButton}>
           <Link to="/sell">Start selling <ArrowRight /></Link>

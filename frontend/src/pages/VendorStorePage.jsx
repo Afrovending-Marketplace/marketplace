@@ -4,7 +4,7 @@ import { Breadcrumbs } from "@/components/common/Breadcrumbs";
 import { DevDataNotice } from "@/components/common/DevDataNotice";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { ProductGrid } from "@/components/commerce/ProductCard";
-import { getCategory, getProductsByVendor, getVendor } from "@/lib/catalog";
+import { getCategory, getProductsByVendor, getVendor, isDevData } from "@/lib/catalog";
 import NotFoundPage from "@/pages/NotFoundPage";
 import { SellerRatings } from "@/components/trust/PublicReviews";
 
@@ -25,7 +25,7 @@ export default function VendorStorePage() {
             <h1 data-testid="vendor-store-name" className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-av-ink">{vendor.name}</h1>
             <div className="flex flex-wrap items-center gap-3 text-sm text-av-muted">
               <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{vendor.location}</span>
-              {vendor.verified && <StatusBadge tone="success"><ShieldCheck className="h-3 w-3" /> Verified (sample)</StatusBadge>}
+              {vendor.verified && <StatusBadge tone="success"><ShieldCheck className="h-3 w-3" /> {isDevData() ? "Verified (sample)" : "Verified"}</StatusBadge>}
             </div>
           </div>
         </div>

@@ -41,7 +41,7 @@ export default function AccountOverview() {
       {!user.email_verified && <VerifyBanner />}
       <div className="grid gap-6 md:grid-cols-2">
         <Panel icon={Package} title="Orders" testId="account-orders-section">
-          <p>You have no orders yet. Order history and tracking arrive with checkout (Phase 06) and order management (Phase 08).</p>
+          <p>You have no orders yet. When you place one, you can track it and see its history here.</p>
           <Button asChild variant="outline" size="sm" className="mt-4"><Link to="/shop">Start shopping</Link></Button>
         </Panel>
         <Panel icon={Heart} title="Wishlist" testId="account-wishlist-section">

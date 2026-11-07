@@ -1,6 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
+import { useLocation } from "react-router-dom";
 
 const SITE = "AfroVending";
+const PROD = () => /(^|\.)afrovending\.com$/.test(window.location.hostname);
+const origin = () => (PROD() ? "https://afrovending.com" : window.location.origin);
 const upsert = (selector, make) => {
   let el = document.head.querySelector(selector);
   if (!el) {
@@ -19,11 +22,10 @@ const meta = (attr, key, content) => {
 export const Seo = ({ title, description, path, image, type = "website", jsonLd, noindex }) => {
   useEffect(() => {
     const full = title ? `${title} | ${SITE}` : `${SITE} — African marketplace`;
-    const origin = /(^|\.)afrovending\.com$/.test(window.location.hostname) ? "https://afrovending.com" : window.location.origin;
-    const url = `${origin}${path ?? window.location.pathname}`;
+    const url = `${origin()}${path ?? window.location.pathname}`;
     document.title = full;
     meta("name", "description", description);
-    meta("name", "robots", noindex ? "noindex,nofollow" : "index,follow");
+    meta("name", "robots", noindex || !PROD() ? "noindex,nofollow" : "index,follow");
     meta("property", "og:title", full);
     meta("property", "og:description", description);
     meta("property", "og:type", type);
@@ -39,6 +41,21 @@ export const Seo = ({ title, description, path, image, type = "website", jsonLd,
       document.head.appendChild(s);
     }
   }, [title, description, path, image, type, jsonLd, noindex]);
+  return null;
+};
+
+/** Resets title/canonical/og:url/robots on every route change; runs before page-level <Seo> effects, so pages without one never keep a stale canonical. */
+export const RouteSeo = () => {
+  const { pathname } = useLocation();
+  useLayoutEffect(() => {
+    const url = `${origin()}${pathname}`;
+    document.title = `${SITE} — African marketplace`;
+    meta("name", "robots", PROD() ? "index,follow" : "noindex,nofollow");
+    meta("property", "og:url", url);
+    meta("property", "og:title", document.title);
+    upsert('link[rel="canonical"]', () => Object.assign(document.createElement("link"), { rel: "canonical" })).setAttribute("href", url);
+    document.getElementById("av-jsonld")?.remove();
+  }, [pathname]);
   return null;
 };
 

@@ -56,7 +56,8 @@ These redirects are handled by the 404 page using `/api/v1/redirects/resolve`, w
 ## 5. Launch testing
 - The automated suites cover registration, vendor onboarding and approval, product management, cart, checkout with Stripe test payments, fulfillment, refunds, notifications, administrator permissions, and the Phase 13 audit tests.
 - `tests/test_phase14_launch.py` covers redirects, the removed migration endpoints, robots and sitemap, and the backup/restore drill.
-- The independent testing results for this revision are in iteration_24.
+- The independent testing results for this revision are in iteration_24: 57/57 regression tests plus 26/26 clean-launch tests passed.
+- After testing, I fixed the clean-launch interface items it raised: the home page hides empty product and vendor sections, /vendors has an empty state, real vendors are labelled "Verified" instead of "Verified (sample)", the "applications open soon" text and developer phase notes are gone, and a route-level canonical reset stops stale canonicals. Preview hosts are marked noindex. I checked these by screenshot at desktop and mobile widths.
 
 ## 6. Backup and rollback
 - **New database:**

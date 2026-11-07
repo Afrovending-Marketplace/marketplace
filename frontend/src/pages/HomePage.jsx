@@ -11,6 +11,8 @@ import { getFeaturedProducts, getNewArrivals } from "@/lib/catalog";
 import { HOME } from "@/constants/testIds";
 
 export default function HomePage() {
+  const featured = getFeaturedProducts().slice(0, 8);
+  const fresh = getNewArrivals(4);
   return (
     <div data-testid={HOME.page}>
       <HeroSection />
@@ -18,10 +20,10 @@ export default function HomePage() {
       <HomepageContent />
       <div className="av-container"><DevDataNotice /></div>
       <ShopByCategory />
-      <ProductRail testId="home-featured-products" eyebrow="Featured" title="Featured products"
-        products={getFeaturedProducts().slice(0, 8)} viewAll="/shop" className="pt-4 lg:pt-8" />
+      {featured.length > 0 && <ProductRail testId="home-featured-products" eyebrow="Featured" title="Featured products"
+        products={featured} viewAll="/shop" className="pt-4 lg:pt-8" />}
       <TrendingCategories />
-      <ProductRail testId="home-new-arrivals" eyebrow="Just in" title="New arrivals" products={getNewArrivals(4)} viewAll="/shop?sort=newest" />
+      {fresh.length > 0 && <ProductRail testId="home-new-arrivals" eyebrow="Just in" title="New arrivals" products={fresh} viewAll="/shop?sort=newest" />}
       <FeaturedVendors />
       <HowItWorks />
       <VendorCta />

@@ -129,8 +129,9 @@ def test_04_content_banners_and_featured():
 
 
 def teardown_module():
-    ids = [u["_id"] for u in mongo.users.find({"email": {"$in": MADE}})]
-    for coll, f in (("sessions", "user_id"), ("support_tickets", "customer_id")):
+    from tests.test_phase03_vendors import CREATED  # users made via imported verified_client() (phase03's own cleanup fixture does not run here)
+    ids = [u["_id"] for u in mongo.users.find({"email": {"$in": MADE + CREATED}})]
+    for coll, f in (("sessions", "user_id"), ("support_tickets", "customer_id"), ("notifications", "user_id"), ("auth_tokens", "user_id")):
         mongo[coll].delete_many({f: {"$in": ids}})
     mongo.users.delete_many({"_id": {"$in": ids}})
     mongo.admin_invites.delete_many({"email": {"$in": MADE}})

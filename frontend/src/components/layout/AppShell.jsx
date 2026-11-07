@@ -5,6 +5,7 @@ import { AnnouncementBar } from "@/components/layout/AnnouncementBar";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SHELL } from "@/constants/testIds";
+import { RouteSeo } from "@/components/common/Seo";
 
 export const AppShell = () => {
   const { pathname, hash } = useLocation();
@@ -26,6 +27,7 @@ export const AppShell = () => {
       <AnnouncementBar />
       <SiteHeader />
       <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
+        <RouteSeo />
         <Outlet />
       </main>
       <SiteFooter />
