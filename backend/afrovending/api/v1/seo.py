@@ -10,7 +10,7 @@ from afrovending.core.config import settings
 from afrovending.core.db import db
 
 router = APIRouter(prefix="/seo", tags=["seo"])
-STATIC_PATHS = ["/", "/shop", "/vendors", "/about", "/contact", "/sell", "/privacy", "/terms"]
+STATIC_PATHS = ["/", "/shop", "/vendors", "/founding-vendors", "/about", "/contact", "/sell", "/privacy", "/terms"]
 
 
 @router.get("/sitemap.xml")

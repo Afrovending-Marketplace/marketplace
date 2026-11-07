@@ -131,6 +131,7 @@ def test_04_final_approval_gate_and_reopen():
 # --- Public launch record ---
 def test_05_public_launch_record():
     sup = admin_client()
+    mongo.platform_settings.delete_one({"key": founding.LAUNCH_KEY})  # isolate from other modules' launch fixtures
     pay_before = mongo.platform_settings.find_one({"key": "payments.config"})
     r = sup.post("/admin/launch/public-launch", json={"confirm": "RECORD PUBLIC LAUNCH"})
     assert r.status_code == 409 and r.json()["error"]["code"] == "not_approved"
@@ -204,8 +205,8 @@ def test_06_founding_edges_and_overrides():
     assert sup.put("/admin/founding-vendors/notanid", json={"value": True, "reason": "TEST xxxxx"}).status_code == 404
     assert sup.put(f"/admin/founding-vendors/{ObjectId()}", json={"value": True, "reason": "TEST xxxxx"}).status_code == 404
     assert sup.put(f"/admin/founding-vendors/{vid}", json={"value": True, "reason": "abcd"}).status_code == 422
-    # no launch recorded -> nobody is founding
+    # no launch recorded yet -> approved active vendors are pre-launch founding vendors (recruitment period)
     mongo.platform_settings.delete_one({"key": founding.LAUNCH_KEY})
-    assert store(at_launch).json()["founding_vendor"] is False
+    assert store(at_launch).json()["founding_vendor"] is True and store(qa_acct).json()["founding_vendor"] is False
     d = sup.get("/admin/founding-vendors").json()
     assert d["launched_at"] is None and d["window_ends_at"] is None

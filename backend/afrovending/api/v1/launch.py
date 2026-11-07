@@ -119,7 +119,10 @@ async def _check(key: str) -> tuple[str, str]:
         out = []
         async with httpx.AsyncClient(timeout=10) as c:
             for h in ("afrovending.com", "www.afrovending.com"):
-                d = (await c.get("https://dns.google/resolve", params={"name": h, "type": "A"})).json()
+                try:
+                    d = (await c.get("https://dns.google/resolve", params={"name": h, "type": "A"})).json()
+                except (httpx.HTTPError, ValueError) as e:
+                    d = {"Status": f"lookup failed ({type(e).__name__})"}
                 ans = [a["data"] for a in d.get("Answer", [])]
                 out.append((h, d.get("Status"), ans))
         ok = all(s == 0 and a for _, s, a in out)
@@ -192,12 +195,12 @@ async def record_launch(body: LaunchIn, request: Request, admin: User = Depends(
     if not fin or fin.get("status") != "verified":
         raise APIError(409, "not_approved", "Final launch approval must be verified before recording the public launch.")
     existing = await db.platform_settings.find_one({"key": founding.LAUNCH_KEY})
-    if existing and len(body.reason.strip()) < 5:
-        raise APIError(409, "already_recorded", "The launch is already recorded. Give a reason to correct it.")
     at = body.launched_at or utcnow()
     at = at if at.tzinfo else at.replace(tzinfo=timezone.utc)
     if at > utcnow() + timedelta(minutes=5):
         raise APIError(422, "validation_error", "The launch time can't be in the future.")
+    if existing and len(body.reason.strip()) < 5:
+        raise APIError(409, "already_recorded", "The launch is already recorded. Give a reason to correct it.")
     value = {"launched_at": at, "recorded_by": admin.email, "recorded_at": utcnow(), "reason": body.reason}
     await db.platform_settings.update_one({"key": founding.LAUNCH_KEY}, {"$set": {"value": value, "updated_at": utcnow()}}, upsert=True)
     await audit("launch.public_launch_recorded", "platform_settings", request=request, actor=admin, launched_at=at.isoformat(), correction=bool(existing))

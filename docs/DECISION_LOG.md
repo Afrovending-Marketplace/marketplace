@@ -68,6 +68,8 @@
 | D-070 | 2026-11-06 | Owner approved /species-products → /categories/food-groceries-spices and /other-fees → /sell. Launch-week welcome banner uses the existing scheduled content banners (migration 0014, seeded inactive; the Content Admin schedules launch day to +7 days). | Owner |
 | D-071 | 2026-11-06 | Launch Readiness Checklist (/admin/launch): 10 items, each Not Started, In Progress, Verified or Blocked. DNS, SSL, Stripe test, admin MFA and backup are verified only by automatic checks; the rest need documented evidence. Every change records time, administrator and evidence history, plus an audit log entry. The Super Admin edits all items; Finance Admin edits only the two payment items. Final approval is Super Admin only, needs every other item verified, and reopens if any item regresses. Recording the public launch date (typed confirmation) is the only effect; nothing activates DNS, payments, emails or launch. | Owner |
 | D-072 | 2026-11-06 | Founding Vendor badge: the vendor is active, approved in [recorded launch, launch + 30 days), and not a test account; computed from the recorded timestamp; kept after the window; hidden while suspended or terminated. The Super Admin can grant or remove it with a reason (audited). Display only: no commission, ranking or placement effect. | Owner |
+| D-073 | 2026-11-06 | Founding Vendor eligibility includes pre-launch approvals: an active, non-test vendor qualifies if approved before the recorded launch or within 30 days after it. Before the launch is recorded, every approved active vendor qualifies (recruitment period). There is a public /founding-vendors page listing badge holders. D-072 is amended accordingly. | Owner |
+
 
 
 

@@ -11,10 +11,12 @@ import json, os, sys
 from pymongo import MongoClient
 c = MongoClient(os.environ["MONGO_URL"])
 want = json.load(open(sys.argv[1] + ".counts.json"))
-got = {k: c[sys.argv[2]][k].estimated_document_count() for k in want}
-bad = {k: (want[k], got[k]) for k in want if want[k] != got[k]}
+got = {k: c[sys.argv[2]][k].count_documents({}) for k in want}
+VOLATILE = {"sessions", "audit_logs", "rate_limits", "notifications", "analytics_events", "cron_runs", "webhook_events", "email_log"}
+bad = {k: (want[k], got[k]) for k in want if want[k] != got[k] and (k not in VOLATILE or abs(want[k] - got[k]) > max(50, want[k] // 20))}
+drift = {k: (want[k], got[k]) for k in want if want[k] != got[k] and k not in bad}
 c.drop_database(sys.argv[2])
-res = {"restore_check": "PASS" if not bad else "FAIL", "collections": len(want), "documents": sum(want.values()), "mismatches": bad}
+res = {"restore_check": "PASS" if not bad else "FAIL", "collections": len(want), "documents": sum(want.values()), "mismatches": bad, "live_write_drift": drift}
 json.dump({**res, "checked_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}, open(sys.argv[1] + ".restore.json", "w"))
 print(json.dumps(res))
 sys.exit(1 if bad else 0)

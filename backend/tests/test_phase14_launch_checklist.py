@@ -109,19 +109,28 @@ def test_04_founding_eligibility_from_launch_timestamp():
     test_acct, _ = _vendor(f"t-{h}@example.com", launch + timedelta(days=3))
     store = lambda s: httpx.get(f"{BASE}/stores/{s}").json()  # noqa: E731
     assert store(inside)["founding_vendor"] is True  # retained after the window ended 10 days ago
-    assert store(edge)["founding_vendor"] is False and store(before)["founding_vendor"] is False and store(test_acct)["founding_vendor"] is False
+    assert store(edge)["founding_vendor"] is False and store(test_acct)["founding_vendor"] is False
+    assert store(before)["founding_vendor"] is True  # pre-launch approvals are founding vendors
+    pub = [s["slug"] for s in httpx.get(f"{BASE}/founding-vendors").json()["data"]]
+    assert inside in pub and before in pub and edge not in pub and test_acct not in pub and susp not in pub
     assert httpx.get(f"{BASE}/stores/{susp}").status_code == 404
     sf = {v["slug"]: v["founding_vendor"] for v in httpx.get(f"{BASE}/catalog/storefront").json()["vendors"]}
     assert sf[inside] is True and sf[edge] is False
     rows = {r["slug"]: r for r in admin_client().get("/admin/founding-vendors").json()["vendors"]}
     assert rows[susp]["eligible"] is False and "not active" in rows[susp]["reason"] and rows[test_acct]["reason"] == "Test account."
+    assert "pre-launch" in rows[before]["reason"]
+    saved = mongo.platform_settings.find_one_and_delete({"key": founding.LAUNCH_KEY})
+    try:  # before the launch is recorded every approved active vendor qualifies (recruitment period)
+        assert store(edge)["founding_vendor"] is True and store(test_acct)["founding_vendor"] is False
+    finally:
+        mongo.platform_settings.insert_one(saved)
 
 
 def test_05_admin_corrections_audited_and_super_only():
     sup = admin_client()
     h = uuid.uuid4().hex[:6]
     launch = mongo.platform_settings.find_one({"key": founding.LAUNCH_KEY})["value"]["launched_at"]
-    slug, vid = _vendor(f"fix-{h}@afvfounders.dev", launch - timedelta(days=5))
+    slug, vid = _vendor(f"fix-{h}@afvfounders.dev", launch + timedelta(days=35))
     assert sup.put(f"/admin/founding-vendors/{vid}", json={"value": True, "reason": "x"}).status_code == 422
     assert sup.put(f"/admin/founding-vendors/{vid}", json={"value": True, "reason": "Approval delayed by admin backlog"}).status_code == 200
     assert httpx.get(f"{BASE}/stores/{slug}").json()["founding_vendor"] is True

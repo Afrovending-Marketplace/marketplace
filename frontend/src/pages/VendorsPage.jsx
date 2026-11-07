@@ -12,6 +12,7 @@ export default function VendorsPage() {
         description="Independent businesses from the continent, the Caribbean and the diaspora." />
       <div className="av-container py-12 lg:py-16 space-y-8">
         <DevDataNotice />
+        <Link to="/founding-vendors" data-testid="vendors-founding-link" className="inline-flex items-center gap-2 text-sm font-semibold text-av-clay hover:underline">Meet our Founding Vendors →</Link>
         {vendors.length ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {vendors.map((v) => <VendorCard key={v.slug} vendor={v} />)}

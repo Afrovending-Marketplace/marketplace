@@ -84,6 +84,6 @@ These redirects are handled by the 404 page using `/api/v1/redirects/resolve`, w
 | LB-I | Confirm /species-products and /other-fees redirects | Done (approved and active) |
 | LB-J | Launch-week banner "Now open — be one of our first vendors": the Content Admin sets start = launch day, end = +7 days, status active (Admin → Content) | Seeded INACTIVE in production; active in preview for review |
 | LB-K | Launch Readiness Checklist in the app (Admin → Launch readiness): track every item above with evidence; record the public launch date only after the approved cutover | Built; the checklist tracks status only |
-| LB-L | Founding Vendor badge: vendors approved within 30 days after the recorded launch; use it in early vendor recruitment (no fee or ranking benefit) | Built; starts when the launch date is recorded |
+| LB-L | Founding Vendor badge: vendors approved before launch or within 30 days after the recorded launch (the pre-launch recruitment period counts). Public page /founding-vendors. No fee or ranking benefit | Built |
 
 | Final | Retire the old site, switch DNS, go live publicly | **Requires your explicit approval** |

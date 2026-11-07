@@ -1,4 +1,4 @@
-"""Founding Vendor badge: approved within 30 days after the recorded public launch, active, not a test account. Cosmetic only (no fee/ranking effect)."""
+"""Founding Vendor badge: active, non-test vendors approved before launch or within 30 days after the recorded public launch. Cosmetic only (no fee/ranking effect)."""
 from datetime import timedelta
 
 from afrovending.core.db import db
@@ -31,12 +31,16 @@ def eligibility(v: dict, launched, owner_email: str) -> tuple[bool, str]:
         return False, "Test account."
     if ov.get("value") is True:
         return True, f"Granted by admin correction: {ov.get('reason', '')}"
-    if not launched:
-        return False, "Public launch date not recorded yet."
     approved = _naive(v.get("approved_at"))
-    if approved and launched <= approved < launched + timedelta(days=FOUNDING_DAYS):
+    if not approved:
+        return False, "Not approved yet."
+    if not launched:
+        return True, "Approved before launch (pre-launch founding vendor)."
+    if approved < launched:
+        return True, "Approved before launch (pre-launch founding vendor)."
+    if approved < launched + timedelta(days=FOUNDING_DAYS):
         return True, "Approved within 30 days of public launch."
-    return False, "Approved outside the founding window."
+    return False, "Approved after the founding window closed."
 
 
 async def founding_ids(vendor_ids: list) -> set:

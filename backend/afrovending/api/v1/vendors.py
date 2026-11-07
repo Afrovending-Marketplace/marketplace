@@ -196,6 +196,16 @@ async def list_stores():
     return {"data": [_public_store(s) for s in stores]}
 
 
+@router.get("/founding-vendors")
+async def founding_vendors_public():
+    """Public 'Meet our Founding Vendors' list: published stores of active badge holders."""
+    from afrovending.core.founding import founding_ids
+    stores = await db.vendor_stores.find({"status": "published"}).sort("display_name", 1).to_list(1000)
+    active = {v["_id"] async for v in db.vendors.find({"_id": {"$in": [s["vendor_id"] for s in stores]}, "status": "active"}, {"_id": 1})}
+    fids = await founding_ids(list(active))
+    return {"data": [{**_public_store(s), "founding_vendor": True} for s in stores if s["vendor_id"] in fids]}
+
+
 @router.get("/stores/{slug}")
 async def public_store(slug: str):
     store = await db.vendor_stores.find_one({"slug": slug.lower(), "status": "published"})
