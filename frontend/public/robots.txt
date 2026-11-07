@@ -6,4 +6,4 @@ Disallow: /checkout
 Disallow: /cart
 Disallow: /api/
 Allow: /api/v1/seo/
-Sitemap: https://www.afrovending.com/api/v1/seo/sitemap.xml
+Sitemap: https://afrovending.com/api/v1/seo/sitemap.xml

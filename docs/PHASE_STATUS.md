@@ -16,7 +16,7 @@
 | 11 Customer trust & communication | ✅ Complete — approved | 2026-11-06 |
 | 12 Marketing & monetization | ✅ Complete — approved | 2026-11-06 |
 | 13 Full marketplace QA | ✅ Complete — report + Launch Blockers List submitted; **awaiting explicit owner approval** (Phase 14 blocked until then) | 2026-11-06 |
-| 14 | 🟡 Prepared — tooling built and tested in staging; waiting for old-site export files, DNS fix and owner approvals (docs/PHASE14_MIGRATION_PLAN.md). No migration, cutover, live payments or emails performed | 2026-11-06 |
+| 14 | 🟡 Clean launch preparation — legacy data migration NOT REQUIRED (clean launch); waiting for owner: old-site archive, DNS fix, live payments, final approval (docs/PHASE14_MIGRATION_PLAN.md) | 2026-11-06 |
 
 ## Phase 13 deliverables
 - Audit report: `docs/PHASE13_AUDIT_REPORT.md` (2 High + 5 Medium fixed with test evidence, 9 Low documented). Launch Blockers List LB1–LB9: LB1–LB2 resolved; LB3–LB9 open (Stripe Connect, live-payment authorization, restore drill and monitoring, admin MFA enrollment, sending domain and email approval, legal review, frontend security headers).

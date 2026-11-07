@@ -1,6 +1,0 @@
-legacy_id,vendor_legacy_id,category_legacy_id,title,slug,description,status,tags,image_urls,created_at,sku,price,stock
-P1,V1,C2,TEST Dar Cameron Pepper,dar-cameron-pepper,TEST sample product,active,pepper|spice,/storage/products/p1.png,2024-01-05,,,
-P2,V1,C3,TEST Dar Premium Cassava Flakes,dar-premium-cassava-flakes,TEST sample product,active,cassava,,2024-01-06,TEST-LEG-CASSAVA,12.50,40
-P3,V2,C1,TEST Kente Scarf,kente-scarf,TEST sample product,active,kente,,2024-02-01,,,
-P4,V9,C1,TEST Orphan Product,orphan,TEST row with unknown vendor,active,,,2024-02-02,TEST-LEG-ORPHAN,5,1
-P5,V1,C9,TEST Unmapped Category,unmapped,TEST row with unknown category,active,,,2024-02-03,TEST-LEG-UNMAPPED,5,1

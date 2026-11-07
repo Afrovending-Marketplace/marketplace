@@ -23,7 +23,7 @@ async def sitemap():
     for s in await db.vendor_stores.find({"vendor_id": {"$in": vids}, "status": "published"}, {"slug": 1, "updated_at": 1}).to_list(5000):
         urls.append((f"{base}/store/{s['slug']}", s.get("updated_at")))
     for c in await db.categories.find({"status": "active"}, {"slug": 1}).to_list(2000):
-        urls.append((f"{base}/shop?category={c['slug']}", None))
+        urls.append((f"{base}/categories/{c['slug']}", None))
     body = "".join(f"<url><loc>{escape(u)}</loc>{f'<lastmod>{d:%Y-%m-%d}</lastmod>' if d else ''}</url>" for u, d in urls)
     return Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + body + "</urlset>",
                     media_type="application/xml")

@@ -1,6 +1,0 @@
-legacy_id,email,name,phone,email_verified,status,created_at,marketing_opt_in
-U1,test.ada.legacy@example.com,TEST Ada Legacy,+15550001,1,active,2024-05-01 10:00:00,1
-U2,test.kofi.legacy@example.com,TEST Kofi Legacy,,0,active,2024-06-11,0
-U3,TEST.ADA.LEGACY@example.com,TEST Ada Duplicate,,1,active,2024-07-01,0
-U4,not-an-email,TEST Broken Email,,0,active,2024-07-02,0
-U5,test.vendor.legacy@example.com,TEST Vendor Owner As Customer,,1,active,2024-03-01,0

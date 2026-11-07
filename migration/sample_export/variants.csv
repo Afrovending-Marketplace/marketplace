@@ -1,6 +1,0 @@
-legacy_id,product_legacy_id,sku,price,option_names,option_values,stock,status
-PV1,P1,TEST-LEG-PEPPER-S,7.99,Size,Small,25,active
-PV2,P1,TEST-LEG-PEPPER-L,$13.49,Size,Large,0,active
-PV3,P3,TEST-LEG-KENTE,45.00,,,3,active
-PV4,P3,bad sku!,10,,,1,active
-PV5,P3,TEST-LEG-KENTE-NEG,-4,,,1,active

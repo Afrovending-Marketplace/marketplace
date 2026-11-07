@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { X } from "lucide-react";
 import { SHELL } from "@/constants/testIds";
-import { isDevData } from "@/lib/catalog";
+import { isDevData, isPreviewHost } from "@/lib/catalog";
 
 const KEY = "av_announcement_dismissed_v1";
 
 export const AnnouncementBar = () => {
   const [hidden, setHidden] = useState(() => localStorage.getItem(KEY) === "1");
-  if (hidden) return null;
+  if (hidden || !isPreviewHost()) return null;
   const dismiss = () => {
     localStorage.setItem(KEY, "1");
     setHidden(true);

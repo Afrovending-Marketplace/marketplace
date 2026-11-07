@@ -2,8 +2,11 @@
 import { CATEGORIES as DEV_CATEGORIES, VENDORS as DEV_VENDORS, PRODUCTS as DEV_PRODUCTS } from "@/data/dev/catalog";
 
 let CATEGORIES = DEV_CATEGORIES;
-let VENDORS = DEV_VENDORS;
-let PRODUCTS = DEV_PRODUCTS;
+// Sample products/vendors appear only on preview hosts; the live site starts with an empty catalog (clean launch).
+export const isPreviewHost = () => /(^localhost$)|(\.preview\.emergentagent\.com$)/.test(window.location.hostname) && localStorage.getItem("av_no_sample") !== "1";
+const USE_DEV = isPreviewHost();
+let VENDORS = USE_DEV ? DEV_VENDORS : [];
+let PRODUCTS = USE_DEV ? DEV_PRODUCTS : [];
 let LIVE = false;
 
 const FALLBACK_IMAGE = "/images/weaving.jpg";
@@ -21,7 +24,7 @@ export const setCatalog = ({ categories, products, vendors }) => {
   }
 };
 
-export const isDevData = () => !LIVE;
+export const isDevData = () => USE_DEV && !LIVE;
 export const IS_DEV_DATA = true;
 
 const childSlugs = (slug) => [slug, ...((CATEGORIES.find((c) => c.slug === slug)?.children || []).map((k) => k.slug))];

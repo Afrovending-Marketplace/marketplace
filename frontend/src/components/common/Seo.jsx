@@ -19,7 +19,8 @@ const meta = (attr, key, content) => {
 export const Seo = ({ title, description, path, image, type = "website", jsonLd, noindex }) => {
   useEffect(() => {
     const full = title ? `${title} | ${SITE}` : `${SITE} — African marketplace`;
-    const url = `${window.location.origin}${path ?? window.location.pathname}`;
+    const origin = /(^|\.)afrovending\.com$/.test(window.location.hostname) ? "https://afrovending.com" : window.location.origin;
+    const url = `${origin}${path ?? window.location.pathname}`;
     document.title = full;
     meta("name", "description", description);
     meta("name", "robots", noindex ? "noindex,nofollow" : "index,follow");

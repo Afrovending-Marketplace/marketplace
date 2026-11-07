@@ -168,15 +168,6 @@ def verification_email(name: str, raw_token: str) -> tuple[str, str]:
     return "Verify your AfroVending email", _layout("Confirm your email", body)
 
 
-def activation_email(name: str, raw_token: str) -> tuple[str, str]:
-    url = f"{settings.frontend_url}/activate?token={raw_token}"
-    body = (f"<p>Hi {escape(name)},</p><p>AfroVending has moved to a new, more secure marketplace. Your account, store and order history came with you. "
-            f"For your security we did not copy your old password, so please choose a new one to activate your account.</p>"
-            f"{_button(url, 'Activate my account')}<p style=\"font-size:13px;color:#6E675F\">This link expires in 24 hours and can be used once. "
-            f"If it has expired, use “Activate account” on the sign-in page to get a new link. We will never ask for your password by email.</p>")
-    return "Activate your new AfroVending account", _layout("Activate your account", body)
-
-
 def reset_email(name: str, raw_token: str) -> tuple[str, str]:
     url = f"{settings.frontend_url}/reset-password?token={raw_token}"
     body = (f"<p>Hi {escape(name)},</p><p>We received a request to reset your AfroVending password.</p>"

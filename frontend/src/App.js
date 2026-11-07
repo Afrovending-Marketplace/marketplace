@@ -21,7 +21,7 @@ import SellPage from "@/pages/SellPage";
 import { POLICY_PAGES } from "@/pages/LegalPages";
 import LoginPage from "@/pages/auth/LoginPage";
 import RegisterPage from "@/pages/auth/RegisterPage";
-import { ActivateAccountPage, ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from "@/pages/auth/RecoveryPages";
+import { ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from "@/pages/auth/RecoveryPages";
 import AccountLayout from "@/pages/account/AccountLayout";
 import AccountOverview from "@/pages/account/AccountOverview";
 import ProfilePage from "@/pages/account/ProfilePage";
@@ -95,7 +95,6 @@ function App() {
             <Route path="unsubscribe" element={<UnsubscribePage />} />
             <Route path="forgot-password" element={<ForgotPasswordPage />} />
             <Route path="reset-password" element={<ResetPasswordPage />} />
-            <Route path="activate" element={<ActivateAccountPage />} />
             <Route path="verify-email" element={<VerifyEmailPage />} />
             <Route path="forbidden" element={<ForbiddenPage />} />
             <Route element={<ProtectedRoute />}>

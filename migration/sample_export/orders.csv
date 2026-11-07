@@ -1,4 +1,0 @@
-legacy_id,order_number,customer_legacy_id,vendor_legacy_id,status,currency,subtotal,shipping,tax,discount,total,placed_at
-O1,LEG-1001,U1,V1,delivered,USD,28.48,5.00,0,0,33.48,2024-08-01 12:00:00
-O2,LEG-1002,U2,V1,cancelled,USD,7.99,0,0,0,9.99,2024-08-03
-O3,LEG-1001,U2,V1,delivered,USD,1,0,0,0,1,2024-08-04
