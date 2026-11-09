@@ -5,7 +5,7 @@ from afrovending.core.db import db
 
 FOUNDING_DAYS = 30
 LAUNCH_KEY = "launch.public"
-TEST_DOMAINS = ("example.com", "example.org", "example.net", "test.com", "afrovending.test")
+TEST_DOMAINS = ("example.com", "example.org", "example.net", "test.com", "afrovending.test", "resend.dev")
 
 
 def _naive(d):

@@ -121,10 +121,9 @@ async def cancel_vendor_order(vo: dict, role: str, actor_id, reason: str, key: s
     items = await db.order_items.find({"vendor_order_id": vo["_id"]}).to_list(100)
     lines = [(it["_id"], it["quantity"] - it["refunded_qty"]) for it in items if it["quantity"] - it["refunded_qty"] > 0]
     refund = await create_refund(vo, lines, include_shipping=True, reason=reason, key=key, actor_id=actor_id) if lines else None
-    for it in items:
+    for it in await db.order_items.find({"vendor_order_id": vo["_id"]}).to_list(100):  # re-read: the refund may already have cancelled units
         left = it["quantity"] - it.get("shipped_qty", 0) - it.get("cancelled_qty", 0)
-        if left > 0:
-            await db.order_items.update_one({"_id": it["_id"]}, {"$inc": {"cancelled_qty": left}})
+        if left > 0 and (await db.order_items.update_one({"_id": it["_id"], "cancelled_qty": it.get("cancelled_qty", 0)}, {"$inc": {"cancelled_qty": left}})).modified_count:
             await release(it["variant_id"], left)
     if vo["status"] != "cancelled":
         vo = await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "status": {"$ne": "cancelled"}},

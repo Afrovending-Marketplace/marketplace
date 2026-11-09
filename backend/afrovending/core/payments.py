@@ -165,18 +165,39 @@ async def apply_refund(refund: dict) -> bool:
         await db.order_items.update_one({"_id": line["order_item_id"]}, {"$inc": {"refunded_qty": line["quantity"], "refunded_minor": line["amount_minor"],
                                                                                  "commission_refunded_minor": line["commission_minor"],
                                                                                  "platform_discount_refunded_minor": line.get("promo_minor", 0)}})
+        await _cancel_unshipped(line["order_item_id"], line["quantity"])
     vo = await db.vendor_orders.find_one_and_update({"_id": vo["_id"]}, {"$inc": {
         "platform_discount_refunded_minor": refund.get("promo_reversal_minor", 0),
         "refunded_minor": refund["amount_minor"], "items_refunded_minor": refund["items_minor"], "shipping_refunded_minor": refund["shipping_minor"],
         "tax_refunded_minor": refund["tax_minor"], "commission_refunded_minor": refund["commission_returned_minor"]}}, return_document=ReturnDocument.AFTER)
     if vo["earning_status"] in ("transferred", "paid"):
         await _reverse_transfer(vo, refund["items_minor"] + refund["shipping_minor"] - refund["commission_returned_minor"], k)
+    await _close_if_nothing_left(vo)
     vos = await db.vendor_orders.find({"order_id": vo["order_id"]}).to_list(100)
     full = all(v["refunded_minor"] >= v["charged_minor"] for v in vos)
     await db.orders.update_one({"_id": vo["order_id"]}, {"$set": {"status": "refunded" if full else "partially_refunded", "updated_at": utcnow()}})
     await _notify_vendor(vo["vendor_id"], "Refund issued", f"A refund of {refund['amount_minor'] / 100:.2f} USD was issued on order {vo['order_number']}.")
     await audit("payment.refund_succeeded", "refunds", entity_id=str(refund["_id"]), amount=refund["amount_minor"])
     return True
+
+
+async def _cancel_unshipped(item_id, qty: int) -> None:
+    """Refunded units that never shipped can't ship later: cancel them and release their stock hold (idempotent)."""
+    from afrovending.core.fulfillment import release
+    it = await db.order_items.find_one({"_id": item_id})
+    n = min(qty, it["quantity"] - it.get("shipped_qty", 0) - it.get("cancelled_qty", 0))
+    if n > 0 and (await db.order_items.update_one({"_id": item_id, "shipped_qty": it.get("shipped_qty", 0), "cancelled_qty": it.get("cancelled_qty", 0)},
+                                                   {"$inc": {"cancelled_qty": n}})).modified_count:
+        await release(it["variant_id"], n)
+
+
+async def _close_if_nothing_left(vo: dict) -> None:
+    items = await db.order_items.find({"vendor_order_id": vo["_id"]}).to_list(100)
+    if items and all(i["shipped_qty"] + i["cancelled_qty"] >= i["quantity"] for i in items) and not any(i["shipped_qty"] for i in items):
+        done = await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "status": {"$in": ["pending", "accepted", "processing", "ready_for_pickup"]}},
+                                                          {"$set": {"status": "cancelled", "cancelled_at": utcnow(), "cancel_reason": "Fully refunded before shipping"}})
+        if done:
+            await event(done, "cancelled", "Cancelled: fully refunded before shipping.", "system")
 
 
 async def _reverse_transfer(vo: dict, debit: int, key: str) -> None:

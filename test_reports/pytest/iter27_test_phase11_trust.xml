@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="7" time="12.693" timestamp="2026-11-09T01:10:14.163067+00:00" hostname="agent-env-4b2b150f-8765-4048-a7c3-f9e7f63531e9"><testcase classname="tests.test_phase11_trust" name="test_01_eligibility_partial_multi_vendor_duplicates" time="9.756"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;checkout_blocked&quot;,&quot;message&quot;:&quot;Choose a shipping option for each vendor.&quot;,&quot;details&quot;:[{&quot;field&quot;:&quot;cart&quot;,&quot;message&quot;:&quot;Choose a shipping option for each vendor.&quot;}],&quot;request_id&quot;:&quot;8bc28ad92eeb498b929a8a0e0f3a8ef7&quot;}}&#10;assert 409 == 200&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">tests/test_phase11_trust.py:48: in test_01_eligibility_partial_multi_vendor_duplicates
+    oid_, vos = paid(c, [(w["scarf"][1], 2), (w["shea"][1], 1)])
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_phase08_fulfillment.py:17: in paid
+    order = draft(c, items)
+            ^^^^^^^^^^^^^^^
+tests/test_phase07_payments.py:63: in draft
+    assert r.status_code == 200, r.text
+E   AssertionError: {"error":{"code":"checkout_blocked","message":"Choose a shipping option for each vendor.","details":[{"field":"cart","message":"Choose a shipping option for each vendor."}],"request_id":"8bc28ad92eeb498b929a8a0e0f3a8ef7"}}
+E   assert 409 == 200
+E    +  where 409 = &lt;Response [409 Conflict]&gt;.status_code</failure></testcase><testcase classname="tests.test_phase11_trust" name="test_02_pickup_collection_enables_review" time="1.005"><failure message="KeyError: 'order'">tests/test_phase11_trust.py:94: in test_02_pickup_collection_enables_review
+    _, vo = _pickup_order(c, w, m["id"])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_phase08_fulfillment.py:278: in _pickup_order
+    order = c.post("/checkout/start", headers={"Idempotency-Key": f"t8-{uuid.uuid4().hex}"}).json()["order"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'order'</failure></testcase><testcase classname="tests.test_phase11_trust" name="test_03_moderation_flags_permissions_and_appeal" time="0.967"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;checkout_blocked&quot;,&quot;message&quot;:&quot;Choose a shipping option for each vendor.&quot;,&quot;details&quot;:[{&quot;field&quot;:&quot;cart&quot;,&quot;message&quot;:&quot;Choose a shipping option for each vendor.&quot;}],&quot;request_id&quot;:&quot;ca7e2611486340aaab458d42106b430b&quot;}}&#10;assert 409 == 200&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">tests/test_phase11_trust.py:107: in test_03_moderation_flags_permissions_and_appeal
+    oid_, vos = paid(c, [(w["shea"][1], 1)])
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_phase08_fulfillment.py:17: in paid
+    order = draft(c, items)
+            ^^^^^^^^^^^^^^^
+tests/test_phase07_payments.py:63: in draft
+    assert r.status_code == 200, r.text
+E   AssertionError: {"error":{"code":"checkout_blocked","message":"Choose a shipping option for each vendor.","details":[{"field":"cart","message":"Choose a shipping option for each vendor."}],"request_id":"ca7e2611486340aaab458d42106b430b"}}
+E   assert 409 == 200
+E    +  where 409 = &lt;Response [409 Conflict]&gt;.status_code</failure></testcase><testcase classname="tests.test_phase11_trust" name="test_04_vendor_responses_reports" time="0.000"><failure message="KeyError: 'rid'">tests/test_phase11_trust.py:139: in test_04_vendor_responses_reports
+    rid = T["rid"]
+          ^^^^^^^^
+E   KeyError: 'rid'</failure></testcase><testcase classname="tests.test_phase11_trust" name="test_05_order_messages_privacy" time="0.000"><failure message="KeyError: 'oid'">tests/test_phase11_trust.py:160: in test_05_order_messages_privacy
+    oid_, va = T["oid"], T["va"]
+               ^^^^^^^^
+E   KeyError: 'oid'</failure></testcase><testcase classname="tests.test_phase11_trust" name="test_06_notifications_center_and_preferences" time="0.584"><failure message="assert (0 &gt;= 1)">tests/test_phase11_trust.py:194: in test_06_notifications_center_and_preferences
+    assert d["unread"] &gt;= 1 and any(n["category"] == "orders" for n in d["data"])
+E   assert (0 &gt;= 1)</failure></testcase><testcase classname="tests.test_phase11_trust" name="test_07_rules_config_and_rate_limits" time="0.041"><failure message="KeyError: 'mkt'">tests/test_phase11_trust.py:209: in test_07_rules_config_and_rate_limits
+    mkt, sup = T["mkt"], T["sup"]
+               ^^^^^^^^
+E   KeyError: 'mkt'</failure></testcase></testsuite></testsuites>

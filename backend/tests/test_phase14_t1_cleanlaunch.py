@@ -26,8 +26,8 @@ def test_related_redirects(old, new):
     assert r.json() == {"to": new, "status": 301}
 
 
-# Unrelated old pages must 404, never home
-@pytest.mark.parametrize("old", ["/drop-off-warehouse", "/flash-sales", "/species-products", "/other-fees", "/product/anything",
+# Unrelated old pages must 404, never home (/species-products and /other-fees are owner-approved redirects, D-070)
+@pytest.mark.parametrize("old", ["/drop-off-warehouse", "/flash-sales", "/product/anything",
                                  "/store/anything", "/category/fitness-gear", "/", "/product-tag/", "/product-tag/UPPER"])
 def test_unrelated_404(old):
     r = resolve(old)
