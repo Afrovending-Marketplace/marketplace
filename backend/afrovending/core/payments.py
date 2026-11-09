@@ -445,8 +445,10 @@ async def create_refund(vo: dict, lines: list, *, include_shipping: bool, reason
     try:
         r = await call(stripe.Refund.create, payment_intent=payment["provider_payment_id"], amount=total, idempotency_key=f"refund:{doc['_id']}",
                        metadata={"refund_id": str(doc["_id"]), "vendor_order_id": str(vo["_id"])})
-    except APIError:
+    except APIError as e:
         await db.refunds.update_one({"_id": doc["_id"]}, {"$set": {"status": "failed"}})
+        from afrovending.core.ops import record_error
+        await record_error("refunds", "refund_create_failed", e.message, severity="critical")
         raise
     await db.refunds.update_one({"_id": doc["_id"]}, {"$set": {"provider_refund_id": r["id"]}})
     doc["provider_refund_id"] = r["id"]

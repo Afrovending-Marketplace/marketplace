@@ -10,7 +10,7 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from afrovending.core import founding
+from afrovending.core import founding, orders_gate
 from afrovending.core.audit import audit
 from afrovending.core.db import db
 from afrovending.core.errors import APIError
@@ -24,8 +24,9 @@ ITEMS = [  # key, label, mode, who may edit
     ("dns", "DNS and domain: afrovending.com and www resolve", "auto", SETTINGS),
     ("ssl", "SSL: both hosts serve AfroVending over valid HTTPS", "auto", SETTINGS),
     ("stripe_test", "Stripe test payments working (test mode)", "auto", FIN_MANAGE),
-    ("live_payments", "Live payment readiness: Connect enabled, live keys and approval recorded", "manual", FIN_MANAGE),
+    *[(k, label, "auto" if k == "super_admin_mfa" else "payment", SETTINGS if k == "super_admin_mfa" else FIN_MANAGE) for k, label in orders_gate.PAYMENT_ITEMS],
     ("admin_mfa", "Every active administrator has MFA enrolled", "auto", SETTINGS),
+    ("monitoring", "Uptime monitoring (external) and production error reporting configured and alert-tested", "manual", SETTINGS),
     ("email_domain", "Resend sending domain verified (SPF, DKIM, DMARC)", "manual", SETTINGS),
     ("phase13_audit", "Phase 13 audit cleared and launch blockers resolved", "manual", SETTINGS),
     ("marketplace_testing", "Buyer, vendor and admin end-to-end testing passed", "manual", SETTINGS),
@@ -110,11 +111,33 @@ async def update_item(key: str, body: ItemIn, request: Request, admin: User = De
             pending = [i["label"] for i in await _items() if i["key"] != key and i["status"] != "verified"]
             if pending:
                 raise APIError(409, "checklist_incomplete", f"{len(pending)} item(s) still need verification first.")
+        if mode == "payment":
+            problem = await _payment_guard(key)
+            if problem:
+                raise APIError(409, "test_mode_not_accepted", problem)
     await _set(key, body.status, body.evidence, body.note, admin, request, "manual")
     return {"items": await _items()}
 
 
+async def _payment_guard(key: str) -> str:
+    """Test-mode payments and simulated payouts never count as production payment readiness."""
+    from afrovending.core.stripe_client import MODE, is_live_key
+    if not is_live_key() or MODE != "live":
+        return "Payment items can only be verified in the production environment with live Stripe keys. Test-mode results don't count."
+    if key == "pay_connect" and not await db.connected_accounts.find_one({"simulated": False, "transfers_enabled": True}):
+        return "No real (non-simulated) connected vendor account with transfers enabled yet."
+    if key == "pay_payouts_real" and not await db.payouts.find_one({"simulated": False, "status": {"$in": ["transferred", "paid"]}}):
+        return "No real (non-simulated) vendor transfer or payout on record yet."
+    return ""
+
+
 async def _check(key: str) -> tuple[str, str]:
+    if key == "super_admin_mfa":
+        supers = await db.users.find({"roles": "super_admin", "status": "active"}, {"email": 1, "mfa_enabled_at": 1}).to_list(50)
+        missing = [a["email"] for a in supers if not a.get("mfa_enabled_at")]
+        if not supers:
+            return "blocked", "No active Super Admin found."
+        return ("verified", f"All {len(supers)} active Super Admin account(s) have MFA enrolled.") if not missing else ("blocked", f"Not enrolled: {', '.join(missing)}")
     if key == "dns":
         out = []
         async with httpx.AsyncClient(timeout=10) as c:
@@ -133,7 +156,7 @@ async def _check(key: str) -> tuple[str, str]:
             for url in ("https://afrovending.com/api/v1/health", "https://www.afrovending.com/api/v1/health"):
                 try:
                     r = await c.get(url)
-                    good = r.status_code == 200 and str(r.json().get("service", "")).startswith("AfroVending")
+                    good = r.status_code == 200 and r.json().get("service") == "afrovending"
                     notes.append(f"{url}: HTTP {r.status_code}{' (AfroVending)' if good else ' (not this app)'}")
                     ok &= good
                 except Exception as e:
@@ -205,6 +228,89 @@ async def record_launch(body: LaunchIn, request: Request, admin: User = Depends(
     await db.platform_settings.update_one({"key": founding.LAUNCH_KEY}, {"$set": {"value": value, "updated_at": utcnow()}}, upsert=True)
     await audit("launch.public_launch_recorded", "platform_settings", request=request, actor=admin, launched_at=at.isoformat(), correction=bool(existing))
     return {"public_launch": {k: _iso(v) for k, v in value.items()}}
+
+
+class GateIn(BaseModel):
+    code: str = Field(default="", max_length=6)
+    confirm: str = Field(default="", max_length=40)
+    reason: str = Field(default="", max_length=300)
+
+
+ACTIVATE_CONFIRM = "ACTIVATE LIVE ORDERS"
+
+
+def _super(admin: User):
+    if "super_admin" not in admin.roles:
+        raise APIError(403, "forbidden", "Only the Super Admin can change live-order status.")
+
+
+async def _step_up(admin: User, code: str):
+    from afrovending.api.v1.mfa import _check as mfa_check
+    if len(code) != 6 or not code.isdigit():
+        raise APIError(422, "step_up_required", "Enter a fresh 6-digit authenticator code.")
+    doc = await db.users.find_one({"_id": ObjectId(admin.id)}, {"mfa_secret": 1})
+    if not doc.get("mfa_secret"):
+        raise APIError(409, "mfa_not_enrolled", "Set up two-step sign-in first.")
+    await mfa_check(admin.id, doc["mfa_secret"], code)
+
+
+async def _gate_view() -> dict:
+    s = await orders_gate.state()
+    ok, msg = await orders_gate.accepting()
+    log = await db.orders_gate_log.find({}).sort("at", -1).limit(10).to_list(10)
+    return {"accepting": ok, "message": msg, "enabled": bool(s.get("enabled")), "paused": bool(s.get("paused")), "live_environment": orders_gate.live_environment(),
+            "blockers": await orders_gate.blockers(), "history": [{k: _iso(v) for k, v in h.items() if k != "_id"} for h in log]}
+
+
+async def _gate_set(action: str, changes: dict, admin: User, request: Request, reason: str = ""):
+    now = utcnow()
+    s = {**await orders_gate.state(), **changes, "updated_by": admin.email, "updated_at": now}
+    await db.platform_settings.update_one({"key": orders_gate.KEY}, {"$set": {"value": s, "updated_at": now}}, upsert=True)
+    snapshot = {i["key"]: i["status"] for i in await _items()}
+    await db.orders_gate_log.insert_one({"action": action, "by": admin.email, "at": now, "reason": reason, "checklist": snapshot})
+    await audit(f"orders.{action}", "platform_settings", request=request, actor=admin, entity_id=orders_gate.KEY, reason=reason)
+
+
+@router.get("/launch/orders-gate")
+async def gate(admin: User = Depends(ADMIN)):
+    _viewer(admin)
+    return await _gate_view()
+
+
+@router.post("/launch/orders-gate/activate")
+async def gate_activate(body: GateIn, request: Request, admin: User = Depends(require_perm(SETTINGS))):
+    _super(admin)
+    if body.confirm != ACTIVATE_CONFIRM:
+        raise APIError(422, "validation_error", f"Type “{ACTIVATE_CONFIRM}” to confirm.")
+    pending = await orders_gate.blockers()
+    if pending:
+        raise APIError(409, "checklist_incomplete", f"{len(pending)} payment readiness item(s) are not verified yet.", [{"field": "checklist", "message": p} for p in pending])
+    await _step_up(admin, body.code)
+    await _gate_set("live_orders_activated", {"enabled": True}, admin, request, body.reason)
+    return await _gate_view()
+
+
+@router.post("/launch/orders-gate/deactivate")
+async def gate_deactivate(body: GateIn, request: Request, admin: User = Depends(require_perm(SETTINGS))):
+    _super(admin)
+    await _gate_set("live_orders_deactivated", {"enabled": False}, admin, request, body.reason)
+    return await _gate_view()
+
+
+@router.post("/launch/orders-gate/stop")
+async def gate_stop(body: GateIn, request: Request, admin: User = Depends(require_perm(SETTINGS))):
+    """Emergency Stop New Orders: immediate, no checklist or code needed."""
+    _super(admin)
+    await _gate_set("new_orders_stopped", {"paused": True}, admin, request, body.reason)
+    return await _gate_view()
+
+
+@router.post("/launch/orders-gate/resume")
+async def gate_resume(body: GateIn, request: Request, admin: User = Depends(require_perm(SETTINGS))):
+    _super(admin)
+    await _step_up(admin, body.code)
+    await _gate_set("new_orders_resumed", {"paused": False}, admin, request, body.reason)
+    return await _gate_view()
 
 
 @router.get("/founding-vendors")

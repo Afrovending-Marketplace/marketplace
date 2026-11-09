@@ -62,5 +62,11 @@ async def api_root():
     return {"service": APP_NAME, "versions": ["v1"], "current": "/api/v1"}
 
 
+@app.get("/api/health")
+async def health_alias():
+    from afrovending.api.v1.system import health
+    return await health()
+
+
 app.include_router(v1_router)
 app.include_router(webhook_router)

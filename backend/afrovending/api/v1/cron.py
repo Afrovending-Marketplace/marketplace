@@ -19,13 +19,44 @@ SECRET = os.environ["WEBHOOK_CRON_SECRET"]
 log = logging.getLogger("afrovending.cron")
 
 
-async def _run(run_id: str, job) -> None:
+async def _run(run_id: str, job, schedule: str = "") -> None:
+    from afrovending.core import ops
     try:
         result = await job()
         await db.cron_runs.update_one({"run_id": run_id}, {"$set": {"status": "done", "result": result, "finished_at": utcnow()}})
-    except Exception:
+        await ops.job_heartbeat(schedule, True)
+    except Exception as exc:
         log.exception("cron job failed run_id=%s", run_id)
         await db.cron_runs.update_one({"run_id": run_id}, {"$set": {"status": "failed", "finished_at": utcnow()}})
+        await ops.job_heartbeat(schedule, False)
+        await ops.record_exception("background_jobs", exc, severity="error", path=f"cron {schedule}")
+
+
+async def ops_tick() -> dict:
+    """Every 15 min: health check + abandoned carts; hourly jobs run in their usual quarter-hour slot."""
+    from afrovending.core import ops
+    from afrovending.core import marketing as mk
+    from afrovending.core.wishlist_alerts import run_wishlist_alerts
+    quarter = utcnow().minute // 15
+    jobs = [("health", ops.health_tick), ("abandoned-carts", mk.run_abandoned_carts)]
+    jobs += {0: [("wishlist-alerts", run_wishlist_alerts)], 1: [("fulfillment-escalations", escalate_overdue)], 3: [("handling-alerts", handling_alerts)]}.get(quarter, [])
+    out = {}
+    for name, fn in jobs:
+        try:
+            await fn()
+            out[name] = "ok"
+            await ops.job_heartbeat(name, True)
+        except Exception as exc:
+            log.exception("ops-tick job failed: %s", name)
+            out[name] = "failed"
+            await ops.job_heartbeat(name, False)
+            await ops.record_exception("background_jobs", exc, path=f"cron {name}")
+    return out
+
+
+@router.post("/ops-tick", status_code=202)
+async def ops_tick_job(request: Request, background: BackgroundTasks, authorization: str = Header(default="")):
+    return await _accept(request, background, authorization, "ops-tick", ops_tick)
 
 
 @router.post("/low-stock-digest", status_code=202)
@@ -69,5 +100,5 @@ async def _accept(request: Request, background: BackgroundTasks, authorization: 
                                        "created_at": now, "expires_at": now + timedelta(days=30)})
     except DuplicateKeyError:
         return {"status": "duplicate"}
-    background.add_task(_run, str(run_id)[:100], job)
+    background.add_task(_run, str(run_id)[:100], job, schedule)
     return {"status": "accepted"}

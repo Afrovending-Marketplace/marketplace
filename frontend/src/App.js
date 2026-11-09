@@ -8,6 +8,7 @@ import AdminMfaPage from "@/pages/admin/AdminMfaPage";
 import AdminTicketsPage, { SupportPage, SupportTicketPage } from "@/pages/admin/AdminTicketsPage";
 import AdminContentPage from "@/pages/admin/AdminContentPage";
 import AdminLaunchPage from "@/pages/admin/AdminLaunchPage";
+import AdminOpsPage from "@/pages/admin/AdminOpsPage";
 import FoundingVendorsPage from "@/pages/FoundingVendorsPage";
 import ShopPage from "@/pages/ShopPage";
 import SearchPage from "@/pages/SearchPage";
@@ -129,6 +130,7 @@ function App() {
               <Route path="admin/tickets" element={<AdminTicketsPage />} />
               <Route path="admin/content" element={<AdminContentPage />} />
               <Route path="admin/launch" element={<AdminLaunchPage />} />
+              <Route path="admin/ops" element={<AdminOpsPage />} />
               <Route path="admin/moderation" element={<AdminModerationPage />} />
               <Route path="admin/marketing" element={<AdminMarketingPage />} />
             </Route>

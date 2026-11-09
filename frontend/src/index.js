@@ -3,6 +3,10 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/index.css";
 import App from "@/App";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { installErrorReporter } from "@/lib/errorReporter";
+
+installErrorReporter();
 
 if (window.location.hostname === "www.afrovending.com") {
   const { pathname, search, hash } = window.location;
@@ -21,8 +25,10 @@ const queryClient = new QueryClient({
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );

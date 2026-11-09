@@ -27,8 +27,10 @@ def register_request_logging(app: FastAPI) -> None:
         start = time.perf_counter()
         try:
             response = await call_next(request)
-        except Exception:
+        except Exception as exc:
             logger.exception("Unhandled error request_id=%s", request_id)
+            from afrovending.core import ops
+            await ops.record_exception(ops.service_for(request.url.path), exc, request_id=request_id, path=request.url.path)
             response = error_response(request, 500, "internal_error", "An unexpected error occurred.")
         duration_ms = (time.perf_counter() - start) * 1000
         response.headers["X-Request-ID"] = request_id

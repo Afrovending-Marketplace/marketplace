@@ -43,6 +43,10 @@ def error_response(request: Request, status_code: int, code: str, message: str, 
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def _api_error(request: Request, exc: APIError):
+        if exc.status_code >= 500 and exc.code not in ("payments_disabled", "orders_closed", "webhook_failed"):
+            from afrovending.core import ops
+            await ops.record_error(ops.service_for(request.url.path), exc.code, exc.message, severity="error",
+                                   request_id=getattr(request.state, "request_id", None), path=request.url.path)
         return error_response(request, exc.status_code, exc.code, exc.message, exc.details)
 
     @app.exception_handler(StarletteHTTPException)
@@ -61,4 +65,8 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception):
         logger.exception("Unhandled error request_id=%s", getattr(request.state, "request_id", None))
+        from afrovending.core import ops
+        svc = ops.service_for(request.url.path)
+        await ops.record_exception(svc, exc, severity="critical" if svc in ("payments", "stripe_webhook", "refunds") else "error",
+                                   request_id=getattr(request.state, "request_id", None), path=request.url.path)
         return error_response(request, 500, "internal_error", "An unexpected error occurred.")

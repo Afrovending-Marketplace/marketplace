@@ -123,7 +123,10 @@ async def try_send(**kwargs) -> bool:
     try:
         await send_email(**kwargs)
         return True
-    except HTTPException:
+    except HTTPException as e:
+        from afrovending.core.ops import record_error
+        if "[AfroVending alert]" not in kwargs.get("subject", ""):
+            await record_error("email", f"send_failed_{e.status_code}", str(e.detail), severity="warning")
         return False
 
 

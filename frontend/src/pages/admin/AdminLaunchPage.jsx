@@ -20,13 +20,14 @@ function Item({ it, canEdit, onSaved }) {
     try { onSaved((await fn()).data); toast.success("Checklist updated"); } catch (e) { toast.error(getErrorMessage(e)); } finally { setBusy(false); }
   };
   const statuses = Object.keys(LABEL).filter((s) => it.mode !== "auto" || s !== "verified" || it.status === "verified");
+  const modeText = { auto: "Automatic check", final: "Super Admin only, after every item is verified", payment: "Payment readiness: verifiable only in production with live Stripe keys (test mode doesn't count)" }[it.mode] || "Manual verification with evidence";
   return (
     <li className="space-y-2 rounded-2xl border border-av-line bg-white p-4" data-testid={`launch-item-${it.key}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-semibold text-av-ink">{it.label}</p>
         <StatusBadge tone={TONE[it.status]} testId={`launch-status-${it.key}`}>{LABEL[it.status]}</StatusBadge>
       </div>
-      <p className="text-xs text-av-muted">{it.mode === "auto" ? "Automatic check" : it.mode === "final" ? "Super Admin only, after every item is verified" : "Manual verification with evidence"}
+      <p className="text-xs text-av-muted">{modeText}
         {it.verified_at && ` · Verified ${when(it.verified_at)} by ${it.verified_by}`}{!it.verified_at && it.updated_at && ` · Updated ${when(it.updated_at)} by ${it.updated_by}`}</p>
       {it.evidence && <p className="break-words rounded-lg bg-av-sand p-2 text-xs" data-testid={`launch-evidence-${it.key}`}>{it.evidence}</p>}
       {it.note && <p className="text-xs text-av-clay">{it.note}</p>}
@@ -59,6 +60,38 @@ function LaunchRecord({ data, reload }) {
           <Button size="sm" onClick={save} data-testid="launch-record-button">Record launch (now)</Button>
         </div>
       )}
+    </section>
+  );
+}
+
+function OrdersGate({ isSuper }) {
+  const [g, setG] = useState(null);
+  const [code, setCode] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const load = useCallback(() => api.get("/admin/launch/orders-gate").then((r) => setG(r.data)).catch(() => setG(null)), []);
+  useEffect(() => { load(); }, [load]);
+  if (!g) return null;
+  const act = (path, body, msg) => api.post(`/admin/launch/orders-gate/${path}`, body).then((r) => { setG(r.data); setCode(""); toast.success(msg); }).catch((e) => toast.error(getErrorMessage(e)));
+  const stop = () => { const reason = window.prompt("Reason for stopping new orders (logged):"); if (reason !== null) act("stop", { reason }, "New orders stopped"); };
+  return (
+    <section className="space-y-3 rounded-2xl border border-av-line bg-white p-5 text-sm" data-testid="orders-gate">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold">Live orders</h2>
+        <StatusBadge tone={g.accepting ? "success" : "danger"} testId="orders-gate-status">{g.paused ? "Stopped" : g.accepting ? "Accepting orders" : "Locked"}</StatusBadge>
+      </div>
+      <p className="text-av-muted">{g.live_environment ? "Production: checkout stays locked until every payment readiness item is verified and the Super Admin activates it." : "Preview (test mode): test checkout stays open so flows can be tested; the lock applies in production."}</p>
+      {g.blockers.length > 0 && <div data-testid="orders-gate-blockers"><p className="font-semibold">Outstanding before live orders ({g.blockers.length}):</p><ul className="list-disc pl-5 text-av-muted">{g.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>}
+      {isSuper && (
+        <div className="flex flex-wrap items-end gap-2">
+          <Input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} placeholder="Authenticator code" className="w-40" data-testid="orders-gate-code" />
+          {!g.enabled && <><Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Type ACTIVATE LIVE ORDERS" className="max-w-xs" data-testid="orders-gate-confirm" />
+            <Button size="sm" onClick={() => act("activate", { code, confirm }, "Live orders activated")} data-testid="orders-gate-activate">Activate live orders</Button></>}
+          {g.enabled && <Button size="sm" variant="outline" onClick={() => act("deactivate", { reason: "Deactivated by Super Admin" }, "Live orders deactivated")} data-testid="orders-gate-deactivate">Deactivate</Button>}
+          {g.paused ? <Button size="sm" variant="outline" onClick={() => act("resume", { code }, "New orders resumed")} data-testid="orders-gate-resume">Resume new orders</Button>
+            : <Button size="sm" variant="destructive" onClick={stop} data-testid="orders-gate-stop">Emergency: stop new orders</Button>}
+        </div>
+      )}
+      {g.history.length > 0 && <ul className="text-xs text-av-muted" data-testid="orders-gate-history">{g.history.map((h) => <li key={h.at}>{when(h.at)} · {h.action.replace(/_/g, " ")} by {h.by}{h.reason && ` — ${h.reason}`}</li>)}</ul>}
     </section>
   );
 }
@@ -102,6 +135,7 @@ export default function AdminLaunchPage() {
       <div><p className="av-eyebrow">Phase 14 · clean launch</p><h1 className="mt-2 text-4xl font-bold text-av-ink">Launch readiness</h1>
         <p className="mt-1 text-sm text-av-muted" data-testid="launch-progress">{d.verified} of {d.total} verified. {d.safety} Cutover and live payments need separate explicit approval.</p></div>
       <ol className="space-y-3">{d.items.map((it) => <Item key={`${it.key}-${it.updated_at}`} it={it} canEdit={d.can_edit.includes(it.key)} onSaved={() => load()} />)}</ol>
+      <OrdersGate isSuper={d.is_super_admin} />
       <LaunchRecord data={d} reload={load} />
       {d.is_super_admin && <FoundingReview />}
     </div>

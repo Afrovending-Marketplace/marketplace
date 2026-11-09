@@ -18,6 +18,8 @@ from afrovending.core.deps import get_current_user
 from afrovending.core.errors import APIError
 from afrovending.core.fulfillment import release, reserve
 from afrovending.core.models import User, utcnow
+from afrovending.core.ops import record_error
+from afrovending.core.orders_gate import assert_accepting
 from afrovending.core.stripe_client import WEBHOOK_SECRET, call, guard
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -81,6 +83,7 @@ def _origin(url: str) -> str:
 @router.post("/orders/{order_id}/checkout")
 async def start_payment(order_id: str, body: CheckoutIn, request: Request, user: User = Depends(get_current_user)):
     await guard()
+    await assert_accepting()
     order = await _own_order(order_id, user)
     origin = _origin(body.origin_url)
     if order["status"] in ("paid", "partially_refunded", "refunded"):
@@ -142,6 +145,8 @@ async def start_payment(order_id: str, body: CheckoutIn, request: Request, user:
         await call(stripe.checkout.Session.expire, session["id"])
         await db.payments.update_one({"_id": doc["_id"]}, {"$set": {"status": "failed", "failure": "amount_mismatch", "updated_at": utcnow()}})
         await release_payment_stock(doc["_id"])
+        await record_error("payments", "amount_mismatch", f"Order {order['order_number']}: Stripe total differs from server total", severity="critical",
+                           request_id=getattr(request.state, "request_id", None))
         raise APIError(500, "amount_mismatch", "Payment amount check failed. Nothing was charged.")
     await db.payments.update_one({"_id": doc["_id"]}, {"$set": {"provider_session_id": session["id"], "checkout_url": session["url"],
                                                                  "session_expires_at": now + timedelta(minutes=SESSION_MINUTES)}})
@@ -249,6 +254,7 @@ async def _handle(event) -> None:
             await pay.apply_refund(r)
         elif r and obj["status"] in ("failed", "canceled"):
             await db.refunds.update_one({"_id": r["_id"], "status": {"$in": ["processing", "pending"]}}, {"$set": {"status": "failed"}})
+            await record_error("refunds", "refund_failed", f"Stripe refund {obj['status']}", severity="critical")
     elif t == "charge.dispute.created":
         await pay.dispute_opened(obj)
     elif t == "charge.dispute.updated":
@@ -288,9 +294,11 @@ async def stripe_webhook(request: Request):
         await db.webhook_events.update_one({"event_id": event["id"]}, {"$set": {"status": "processing"}})
     try:
         await _handle(event)
-    except Exception:
+    except Exception as exc:
         log.exception("webhook failed id=%s type=%s", event["id"], event["type"])
         await db.webhook_events.update_one({"event_id": event["id"]}, {"$set": {"status": "failed"}})
+        from afrovending.core.ops import record_exception
+        await record_exception("stripe_webhook", exc, severity="critical", request_id=getattr(request.state, "request_id", None), path=f"event {event['type']}")
         raise APIError(500, "webhook_failed", "Processing failed; Stripe will retry.")
     await db.webhook_events.update_one({"event_id": event["id"]}, {"$set": {"status": "processed", "processed_at": utcnow()}})
     return {"status": "ok"}

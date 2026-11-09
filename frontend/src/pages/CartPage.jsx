@@ -8,6 +8,7 @@ import { CartLine, TotalsCard } from "@/components/cart/CartParts";
 import { useCart } from "@/context/CartContext";
 import { getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
+import { OrdersClosedNotice, useOrdersStatus } from "@/components/common/OrdersClosedNotice";
 
 const Coupon = ({ cart, c }) => {
   const [code, setCode] = useState("");
@@ -50,6 +51,7 @@ const Saved = ({ cart, c, run }) => !cart.saved?.length ? null : (
 export default function CartPage() {
   const c = useCart();
   const cart = c.cart;
+  const orders = useOrdersStatus();
   const run = (fn) => fn().catch((err) => toast.error(getErrorMessage(err)));
   if (!cart) return null;
   if (!cart.item_count) {
@@ -63,6 +65,7 @@ export default function CartPage() {
     );
   }
   const priceChanged = cart.groups.some((g) => g.items.some((l) => l.previous_price_minor != null));
+  const closed = !orders.accepting;
   return (
     <div data-testid="cart-page" className="av-container py-12">
       <h1 className="text-4xl font-bold tracking-tight text-av-ink">Your cart <span className="text-lg font-normal text-av-muted">({cart.item_count} {cart.item_count === 1 ? "item" : "items"})</span></h1>
@@ -86,8 +89,9 @@ export default function CartPage() {
         <TotalsCard totals={cart.totals}>
           <Coupon cart={cart} c={c} />
           {cart.blocking.length > 0 && <ul className="space-y-1 text-xs text-red-700" data-testid="cart-blocking">{cart.blocking.map((b) => <li key={b}>{b}</li>)}</ul>}
-          <Button asChild={!cart.blocking.length} className="w-full" disabled={!!cart.blocking.length} data-testid="cart-checkout-button">
-            {cart.blocking.length ? <span>Checkout</span> : <Link to="/checkout">Checkout</Link>}
+          <OrdersClosedNotice status={orders} testId="cart-orders-closed" />
+          <Button asChild={!cart.blocking.length && !closed} className="w-full" disabled={!!cart.blocking.length || closed} data-testid="cart-checkout-button">
+            {cart.blocking.length || closed ? <span>Checkout</span> : <Link to="/checkout">Checkout</Link>}
           </Button>
         </TotalsCard>
       </div>

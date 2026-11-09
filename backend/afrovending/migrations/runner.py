@@ -86,6 +86,19 @@ async def m0014_launch_banner(db) -> None:
         "status": "inactive", "sort": 0, "created_by": None, "created_at": utcnow(), "updated_at": utcnow()}}, upsert=True)
 
 
+async def m0015_ops_monitoring(db) -> None:
+    for c in ("error_events", "health_checks", "ops_alert_log"):
+        await db[c].create_index("expires_at", name="expires_at_ttl", expireAfterSeconds=0)
+    await db.error_events.create_index([("source", 1), ("at", -1)], name="source_at")
+    await db.error_events.create_index([("service", 1), ("at", -1)], name="service_at")
+    await db.error_incidents.create_index("fingerprint", name="fingerprint_1", unique=True)
+    await db.error_incidents.create_index([("last_at", -1)], name="last_at")
+    await db.ops_alerts.create_index("key", name="key_1", unique=True)
+    await db.ops_incidents.create_index([("component", 1), ("status", 1)], name="component_status")
+    await db.job_heartbeats.create_index("job", name="job_1", unique=True)
+    await db.health_checks.create_index([("at", -1)], name="at")
+
+
 async def m0005_phase05_search(db) -> None:
     for idx in await db.products.list_indexes().to_list(50):
         if "textIndexVersion" in idx and "weights" in idx and idx["weights"].get("title") != 10:
@@ -126,6 +139,7 @@ MIGRATIONS = (
     ("0012", "phase12_marketing", m0012_phase12_marketing),
     ("0013", "wishlist_alerts", m0013_wishlist_alerts),
     ("0014", "launch_banner", m0014_launch_banner),
+    ("0015", "ops_monitoring", m0015_ops_monitoring),
 )
 
 

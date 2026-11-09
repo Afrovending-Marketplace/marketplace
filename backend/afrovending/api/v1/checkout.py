@@ -13,6 +13,7 @@ from afrovending.core.db import db
 from afrovending.core.deps import get_current_user
 from afrovending.core.errors import APIError
 from afrovending.core.models import User, utcnow
+from afrovending.core.orders_gate import assert_accepting
 from afrovending.core.pricing import cart_fingerprint, evaluate
 
 router = APIRouter(prefix="/checkout", tags=["checkout"])
@@ -31,6 +32,7 @@ async def start(request: Request, idempotency_key: str = Header(default="", alia
     """Create (or replay) a draft order from the server-evaluated cart. No payment is taken."""
     if not 8 <= len(idempotency_key) <= 100:
         raise APIError(422, "validation_error", "Missing Idempotency-Key header.")
+    await assert_accepting()
     uid = ObjectId(user.id)
     existing = await db.orders.find_one({"customer_id": uid, "idempotency_key": idempotency_key})
     cart, _, _ = await resolve(request)

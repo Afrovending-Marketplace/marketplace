@@ -10,6 +10,7 @@ import { useCart } from "@/context/CartContext";
 import { api, getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
 import { track } from "@/lib/analytics";
+import { OrdersClosedNotice, useOrdersStatus } from "@/components/common/OrdersClosedNotice";
 
 const Option = ({ value, id, children, testId }) => (
   <label htmlFor={id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-av-line bg-white p-3 text-sm has-[[data-state=checked]]:border-av-ink">
@@ -42,6 +43,7 @@ export default function CheckoutPage() {
   const cart = c.cart;
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
+  const orders = useOrdersStatus();
   const key = useMemo(() => `chk-${crypto.randomUUID()}`, []);
   if (!cart) return null;
   if (!cart.item_count) return <div className="av-container py-24 text-center" data-testid="checkout-empty">Your cart is empty. <Link to="/shop" className="underline">Shop now</Link></div>;
@@ -83,7 +85,8 @@ export default function CheckoutPage() {
         </div>
         <TotalsCard totals={cart.totals}>
           {blocking.length > 0 && <ul className="space-y-1 text-xs text-red-700" data-testid="checkout-blocking">{blocking.map((b) => <li key={b}>{b}</li>)}</ul>}
-          <Button className="w-full" onClick={start} disabled={busy || blocking.length > 0} data-testid="checkout-start-button">Continue — create order draft</Button>
+          <OrdersClosedNotice status={orders} testId="checkout-orders-closed" />
+          <Button className="w-full" onClick={start} disabled={busy || blocking.length > 0 || !orders.accepting} data-testid="checkout-start-button">Continue — create order draft</Button>
           <p className="text-xs text-av-muted">You'll review the draft, then pay securely with Stripe (test mode — no real money).</p>
         </TotalsCard>
       </div>
