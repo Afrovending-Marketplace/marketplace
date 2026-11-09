@@ -182,10 +182,12 @@ async def apply_refund(refund: dict) -> bool:
 
 
 async def _cancel_unshipped(item_id, qty: int) -> None:
-    """Refunded units that never shipped can't ship later: cancel them and release their stock hold (idempotent)."""
+    """Refunded units beyond those already shipped never left the store: cancel them and release their stock hold (idempotent).
+    A refund that covers shipped units (returns, damage) never cancels the still-unshipped ones."""
     from afrovending.core.fulfillment import release
     it = await db.order_items.find_one({"_id": item_id})
-    n = min(qty, it["quantity"] - it.get("shipped_qty", 0) - it.get("cancelled_qty", 0))
+    shipped, cancelled = it.get("shipped_qty", 0), it.get("cancelled_qty", 0)
+    n = min(it.get("refunded_qty", 0) - shipped - cancelled, it["quantity"] - shipped - cancelled)
     if n > 0 and (await db.order_items.update_one({"_id": item_id, "shipped_qty": it.get("shipped_qty", 0), "cancelled_qty": it.get("cancelled_qty", 0)},
                                                    {"$inc": {"cancelled_qty": n}})).modified_count:
         await release(it["variant_id"], n)
@@ -193,6 +195,10 @@ async def _cancel_unshipped(item_id, qty: int) -> None:
 
 async def _close_if_nothing_left(vo: dict) -> None:
     items = await db.order_items.find({"vendor_order_id": vo["_id"]}).to_list(100)
+    if items and all(i["shipped_qty"] + i["cancelled_qty"] >= i["quantity"] for i in items) and any(i["shipped_qty"] for i in items):
+        if await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "status": "partially_shipped"}, {"$set": {"status": "shipped", "updated_at": utcnow()}}):
+            await event(vo, "shipped", "Remaining units were refunded; everything else has shipped.", "system")
+        return
     if items and all(i["shipped_qty"] + i["cancelled_qty"] >= i["quantity"] for i in items) and not any(i["shipped_qty"] for i in items):
         done = await db.vendor_orders.find_one_and_update({"_id": vo["_id"], "status": {"$in": ["pending", "accepted", "processing", "ready_for_pickup"]}},
                                                           {"$set": {"status": "cancelled", "cancelled_at": utcnow(), "cancel_reason": "Fully refunded before shipping"}})

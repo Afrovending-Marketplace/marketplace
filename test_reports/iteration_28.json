@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 28 (iteration 27 was never written). The iteration-27 defect is FIXED. When an admin refunds units that never shipped, they are now cancelled: cancelled_qty goes up, the stock hold is released exactly once, and create_shipment rejects them with 422 'Ship quantity is more than what's left to ship'. A fully refunded, unshipped vendor order moves to 'cancelled' with a 'cancelled' order_event. After that, accept and ship return 409 and another refund returns 422. Refunding 1 of 2 units leaves 1 unit shippable. Refunds of units that already shipped leave cancelled_qty alone. cancel_vendor_order, with or without an earlier partial refund, does not double-count cancelled_qty or release stock twice. New file test_phase15_t1_refund_cancel.py: 5/5 pass. test_phase15_t1_prelaunch: 6/6. Regression, each file run separately: phase07 7/7, phase13_qa_audit 10/10, phase13_retest_fixes 5/5, phase13_iter21 4/4, phase15_t1_admin_spot 3/3, phase14_launch_checklist 5/5, phase14_t1_cleanlaunch 24/24. phase08 failed 3 tests on the 1st run (test_06, test_07 KeyError, test_12), then passed 12/12 on runs 2 and 3. UI smoke: admin partial refund through Payments > Orders & refunds works (toast shown, refunded total updated, DB has cancelled_qty=1 and stock released by 1). On the vendor orders page at 1920 and 390, the fully refunded order shows 'cancelled' with no Accept or Add shipment button and appears under the cancelled tab. No horizontal overflow on mobile. Auth checks pass: bcrypt $2b$, credentialed CORS allows only the app origin (an evil origin gets no allow-origin header), lockout works (prelaunch test_02), seed_admin only creates the admin if missing. The Founding Vendor TEST_DOMAINS list includes resend.dev.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "apply_refund -> _cancel_unshipped (partially shipped orders)", "issue": "Steps: qty 2, ship 1, then refund 1 (for example the shipped unit after a return). _cancel_unshipped can't tell which unit the refund is for, so it cancels the unshipped unit. The remaining unit can no longer ship (422), and the vendor order stays 'partially_shipped' forever. _close_if_nothing_left only handles orders where nothing shipped, so the order never moves to 'shipped'. Seen in test_05_partially_shipped_refund_observe. Decide the business rule; at least move the order to 'shipped' when shipped+cancelled >= quantity and some units shipped."},
+      {"endpoint": "_cancel_unshipped", "issue": "The conditional update has no retry. If a shipment or cancel changes shipped_qty or cancelled_qty at the same moment, modified_count is 0 and the refunded units are silently left shippable. Rare, but a retry loop (or a single atomic $expr update) would close the gap."},
+      {"endpoint": "POST /vendor/orders/{id}/shipments on a cancelled order", "issue": "Returns 409 with the message 'Accept the order before shipping it.' For a cancelled order it should say the order is cancelled."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin Payments > Orders & refunds", "issues": ["The only badge shown is earning_status ('pending'). A fully refunded, cancelled vendor order looks the same as a live one. Show the fulfilment status (cancelled).", "'Place hold' is still offered on a fully refunded, cancelled vendor order."]},
+      {"screen": "Vendor orders page", "issues": ["A partially refunded order still shows 'Item × 2 (0 shipped)' with no 'refunded/cancelled' count. The vendor can enter 2 in the ship form and gets a 422. Show cancelled_qty and default the ship qty to what's left.", "A cancelled row doesn't say it was fully refunded.", "'Pending packing slips' uses the browser's native date inputs (type=date) instead of the shadcn calendar.", "On mobile at 390 the cookie banner covers most of the screen until it is dismissed (expected for consent, but it hides the orders list)."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase15_t1_refund_cancel.py", "/app/backend/tests/test_phase15_t1_prelaunch.py", "/app/backend/tests/seed_iter28_ui.py", "/app/test_reports/pytest/iter28_refund_cancel.xml", "/app/test_reports/pytest/iter28_prelaunch.xml"],
+  "action_items": [
+    "Decide and fix the partially-shipped refund case: refunding a shipped unit cancels the unshipped one and the order stays stuck in partially_shipped (see test_05 in test_phase15_t1_refund_cancel.py).",
+    "Show cancelled/refunded quantity on the vendor order row and in the ship form. In the admin vendor-order list, show the fulfilment status and hide 'Place hold' on cancelled, fully refunded orders.",
+    "Find which test file leaves orphan rows. At the start of this run (before any T1 test) the DB already had 11 commission_ledger rows (vendor 6af11ff09137de0de2f0bb3d and order 6af120909137de0de2f0bb53, created 01:27 UTC, neither exists any more), 17 commission_rules (an extra active 'default' rule created 01:09:50 that superseded the previous one), and 1 orphan wishlist (user 6af11fef…). T1 did not touch these (not created by T1). E1 should remove them by id so the target state (0 ledger, 16 rules) is met.",
+    "Optional: make phase08 test_06/test_07/test_12 robust when xdist workers share state (3 failures on 1 of 3 runs)."
+  ],
+  "critical_code_review_comments": [
+    "payments.py _cancel_unshipped and _close_if_nothing_left are correct for the unshipped case and idempotent through the conditional update. release() guards quantity_reserved >= qty, so it can't go negative.",
+    "fulfillment.cancel_vendor_order re-reads items after create_refund and only increments the remaining units, guarded by cancelled_qty. Verified: no double count and no double release.",
+    "_close_if_nothing_left is skipped once anything has shipped (see the partially-shipped issue above)."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase15_t1_refund_cancel.py (new)", "/app/backend/tests/seed_iter28_ui.py (new, UI seed/cleanup by id)"],
+  "success_rate": {"backend": "100% (all requested suites pass; phase08 flaky on 1 of 3 runs)", "frontend": "100% of smoke checks"},
+  "flaky_tests": ["test_phase08_fulfillment.py test_06, test_07, test_12: failed on 1 of 3 runs (33%); runs 2 and 3 passed 12/12"],
+  "test_credentials": "Super admin from /app/memory/test_credentials.md (MFA via the admin_client helper in tests/test_phase03_vendors.py). Test users are delivered+…@resend.dev / TestPass12345, created and deleted by the tests.",
+  "seed_data_creation": "tests/seed_iter28_ui.py seed created 1 vendor, 1 buyer, 1 product, 2 paid orders and 1 shipping method; all of it was removed by id with 'cleanup'. Final DB after T1: users 1 (super admin), 0 vendors, stores, products, orders, payments, refunds and shipping methods. commission_ledger 11 and commission_rules 17 are the same as before T1 started (pre-existing leftovers, see action_items). New admin session records were created by the test logins.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run each file on its own; pytest.ini adds -n/xdist, so use '-n 0' when you need -s output. Run test_phase15_t1_refund_cancel.py for the refund/cancel matrix. Admin UI needs MFA: get cookies from admin_client() and inject them into Playwright (see /tmp/sess28.py approach). Admin refund UI: [data-testid=admin-pay-tab-orders] -> admin-vo-refund-toggle-{voId} -> admin-refund-qty-{sku}, admin-refund-reason, admin-refund-submit. Vendor rows: vo-{order_number}, vo-accept-*, vo-ship-toggle-*."
+}
