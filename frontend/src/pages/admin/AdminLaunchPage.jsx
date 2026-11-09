@@ -91,7 +91,7 @@ function OrdersGate({ isSuper }) {
             : <Button size="sm" variant="destructive" onClick={stop} data-testid="orders-gate-stop">Emergency: stop new orders</Button>}
         </div>
       )}
-      {g.history.length > 0 && <ul className="text-xs text-av-muted" data-testid="orders-gate-history">{g.history.map((h) => <li key={h.at}>{when(h.at)} · {h.action.replace(/_/g, " ")} by {h.by}{h.reason && ` — ${h.reason}`}</li>)}</ul>}
+      {g.history.length > 0 && <ul className="text-xs text-av-muted" data-testid="orders-gate-history">{g.history.map((h) => <li key={h.at}>{new Date(h.at).toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" })} ET · {h.action.replace(/_/g, " ")} by {h.by}{h.reason && ` — ${h.reason}`}</li>)}</ul>}
     </section>
   );
 }

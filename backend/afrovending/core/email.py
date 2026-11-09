@@ -110,7 +110,9 @@ async def send_email(*, to: str, subject: str, html: str) -> str | None:
             logger.warning(f"Email paused: {code} ({e.response.status_code}): {e.response.json().get('message', '')}")
             raise HTTPException(status_code=503, detail="Email is temporarily unavailable")
         logger.error(f"Email send failed: {e.response.status_code} {e.response.text}")
-        raise HTTPException(status_code=502, detail="Failed to send email")
+        err = HTTPException(status_code=502, detail=f"Failed to send email (provider HTTP {e.response.status_code})")
+        err.upstream = e.response.status_code
+        raise err
     except Exception as e:
         logger.error(f"Email send error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send email")
@@ -126,7 +128,7 @@ async def try_send(**kwargs) -> bool:
     except HTTPException as e:
         from afrovending.core.ops import record_error
         if "[AfroVending alert]" not in kwargs.get("subject", ""):
-            await record_error("email", f"send_failed_{e.status_code}", str(e.detail), severity="warning")
+            await record_error("email", f"send_failed_{getattr(e, 'upstream', e.status_code)}", str(e.detail), severity="warning")
         return False
 
 

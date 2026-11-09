@@ -70,6 +70,9 @@
 | D-072 | 2026-11-06 | Founding Vendor badge: the vendor is active, approved in [recorded launch, launch + 30 days), and not a test account; computed from the recorded timestamp; kept after the window; hidden while suspended or terminated. The Super Admin can grant or remove it with a reason (audited). Display only: no commission, ranking or placement effect. | Owner |
 | D-073 | 2026-11-06 | Founding Vendor eligibility includes pre-launch approvals: an active, non-test vendor qualifies if approved before the recorded launch or within 30 days after it. Before the launch is recorded, every approved active vendor qualifies (recruitment period). There is a public /founding-vendors page listing badge holders. D-072 is amended accordingly. | Owner |
 | D-074 | 2026-11-09 | Refund ↔ fulfilment rule: units refunded beyond those already shipped are cancelled and their stock hold released (idempotent). A fully refunded, unshipped vendor order becomes cancelled; a partially shipped order whose remaining units are refunded becomes shipped. Refunding shipped units (returns, damage) never cancels unshipped ones. | Phase 14 verification |
+| D-075 | 2026-11-09 | Live orders locked in production until all 10 payment readiness items are Verified (only verifiable with live Stripe keys; Connect/payout items need real non-simulated records) and the Super Admin activates with a fresh TOTP code. Emergency Stop New Orders is immediate in every environment; resume needs a fresh code. Checked server-side on every order attempt. | Final pre-launch |
+| D-076 | 2026-11-09 | Monitoring: built-in health + error log (no Sentry yet; record_error is the single hook). Platform crons are limited to 5 and ≥15 min in production, so jobs were consolidated into one 15-minute ops-tick; external UptimeRobot (5 min) covers full hosting outages. Alerts to info@afrovending.com with 60-min cooldown; logs kept 30 days. | Final pre-launch |
+
 
 
 

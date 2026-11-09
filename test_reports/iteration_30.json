@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 30: tested the new monitoring, error log and live-order gate features, plus regressions. Backend: new suite tests/test_phase16_t1_ops_gate.py passes 14/14. It covers public health and the DB-down 503 unit test; health/ready permissions with no secrets in the output; cron ops-tick auth, replay and heartbeats; the crons.yml schema; health incidents open, are not duplicated and resolve with duration_s; client-error dedupe, redaction, query-string stripping and the 20-per-5-min cap; spike alert plus cooldown suppression; critical alerts; the admin errors API with filters, ack/resolve audit, reopen on recurrence and 403 for non-super admins; the payment checklist test_mode_not_accepted guard; and the orders gate. For the gate: activate returns 409, stop makes checkout/start and payments checkout return 503 orders_closed, existing orders and refunds still work while stopped, as do catalog and wishlist, finance_admin gets 403, resume without a code returns 422 and with a code succeeds. Sample products are rejected by the cart API. Regression: test_phase15_t1_refund_cancel.py and test_phase15_t1_prelaunch.py pass 13/13 (refund-cancel, last-unit race, lockout with spoofed X-Forwarded-For). Frontend (Playwright, 1920 and 390): the /admin link to ops works; all ops-* test ids are present; Run check, ack/resolve, filters and config save work; times show in ET; no horizontal overflow. Emergency stop from /admin/launch makes /cart and /checkout show the closed notice with disabled buttons. Resume without a code shows an error toast; with a code it reopens checkout. The window error probe created a frontend error_incidents doc. The sample product page shows 'not for sale' with Add to cart disabled.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "core/ops.py _spike_check", "issue": "The spike counter counts every source=server error_event, warnings included. During the regression run, Resend test-sink 429 rate limits (email send_failed warnings) set off 'Server errors: 81/100 in 5 minutes' spike alerts. Spikes should count only error and critical severities, or email warnings should be excluded."},
+      {"endpoint": "core/ops.py _alert / core/email.py try_send", "issue": "try_send returns True when an email is suppressed outside production, so ops_alert_log records delivered=true for alerts that were never sent. Add an explicit 'suppressed' status so the alert log shows what really happened."},
+      {"endpoint": "core/email.py try_send -> record_error", "issue": "The incident kind is 'send_failed_502' even when the upstream returned 429 rate_limited, which hides the root cause in the error log."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/launch Live orders history", "issues": ["Gate history timestamps use the browser locale and timezone (e.g. '11/9/2026, 2:35:15 AM'), not ET as on /admin/ops"]},
+      {"screen": "/admin/ops filters and /admin/launch stop", "issues": ["ops-filter-since is a native <input type=date>, not the shadcn Calendar/Popover", "service, severity and status filters are native <select> elements, not shadcn Select", "Emergency stop asks for the reason with window.prompt; a shadcn Dialog would match the rest of the UI"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase16_t1_ops_gate.py", "/app/backend/tests/test_phase15_t1_refund_cancel.py", "/app/backend/tests/test_phase15_t1_prelaunch.py", "/app/test_reports/pytest/iter30_ops_gate.xml", "/app/test_reports/pytest/iter30_regression.xml"],
+  "action_items": [
+    "Exclude warning severity (or the email service) from the server-error spike count",
+    "Record 'suppressed' instead of delivered=true in ops_alert_log when an alert email is not sent outside production",
+    "Keep the real upstream status (429) in the email send failure kind",
+    "Optional UI polish: show orders-gate history in ET; use shadcn Select, Calendar and Dialog instead of native select, date input and prompt"
+  ],
+  "critical_code_review_comments": [
+    "orders_gate.accepting(): a pause applies in every environment and the lock only in live environments; checkout.start and payments.start_payment both call assert_accepting. This is correct backend enforcement.",
+    "_payment_guard requires is_live_key() and MODE=='live', so test-mode evidence can never verify payment items. Correct.",
+    "record_error is fully wrapped in try/except so monitoring never breaks requests. Fingerprinting replaces digits so recurring errors deduplicate. Correct.",
+    "health_tick: the alert key for a new incident includes the timestamp; this is fine because incidents open only once per component while one is open. Recovery alerts are keyed per incident.",
+    "ops_alerts cooldown relies on the unique index key_1 (m0015) for the insert race fallback. Verified the index exists.",
+    "_spike_check runs count_documents on every server error. Acceptable at this scale, but consider caching if error volume grows."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase16_t1_ops_gate.py (new)", "/app/backend/tests/fe_setup_iter30.py (new helper: TEST customer + live TEST product for cart UI checks, with cleanup mode)", "/app/backend/tests/totp_iter30.py (new helper: prints a fresh super-admin TOTP for UI automation)"],
+  "success_rate": {"backend": "100% (27/27 incl. regression)", "frontend": "100% of tested flows"},
+  "test_credentials": "Super admin from /app/memory/test_credentials.md (works; MFA via pyotp from users.mfa_secret). Bcrypt hash is $2b$; httpOnly access/refresh cookies set on login; CORS echoes the explicit origin with credentials=true; preflight from an unknown origin returns 400.",
+  "seed_data_creation": "None persistent. All TEST data was cleaned up: TEST inventory doc, TEST error_incidents and error_events, my ops_incidents, TEST customers, vendor and product from the FE helper. The spike ops_alert was restored. orders.live paused=false and ops.config is 10/5/60. Orders, refunds and buyers from the phase07 fixtures were handled by the existing cleanup7 fixture.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run with: cd /app/backend && python -m pytest tests/test_phase16_t1_ops_gate.py -n 0. It restores the gate and config in teardown. One open 'email' ops_incident remains; it is real, caused by Resend test-sink 429 rate limits during the regression run, and auto-resolves once email errors_1h drops to 0. Preview has no active real products, so sample catalog data shows; fe_setup_iter30.py creates a live TEST product and customer for cart and checkout UI checks (run 'cleanup <email>' afterwards). The browser automation can call /root/.venv/bin/python tests/totp_iter30.py via subprocess for MFA codes."
+}

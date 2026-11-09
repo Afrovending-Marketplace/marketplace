@@ -73,7 +73,7 @@ async def record_error(service: str, kind: str, message: str = "", *, severity: 
         log.error("ops.error service=%s kind=%s severity=%s request_id=%s", service, kind, severity, request_id)
         if severity == "critical":
             await _alert(f"incident:{fp}", f"Critical: {service} — {kind}", f"{msg or kind} (occurrences: {inc.get('count', 1)}). Request ID: {request_id or 'n/a'}.")
-        if source == "server":
+        if source == "server" and severity != "warning":
             await _spike_check()
     except Exception:
         log.exception("record_error failed")
@@ -87,7 +87,7 @@ def record_exception(service: str, exc: BaseException, **kw):
 async def _spike_check() -> None:
     cfg = await get_config()
     since = utcnow() - timedelta(minutes=cfg["window_minutes"])
-    n = await db.error_events.count_documents({"source": "server", "at": {"$gte": since}})
+    n = await db.error_events.count_documents({"source": "server", "severity": {"$in": ["error", "critical"]}, "at": {"$gte": since}})
     if n >= cfg["error_threshold"]:
         await _alert("spike", f"Server errors: {n} in {cfg['window_minutes']} minutes",
                      f"{n} server errors in the last {cfg['window_minutes']} minutes (threshold {cfg['error_threshold']}). See Admin → Operations.")
@@ -95,7 +95,7 @@ async def _spike_check() -> None:
 
 async def _alert(key: str, subject: str, text: str) -> bool:
     """One alert per key per cooldown window. Returns True when an alert was sent (or suppressed outside production)."""
-    from afrovending.core.email import payment_notice_email, try_send
+    from afrovending.core.email import _allowed_outside_production, payment_notice_email, try_send
     cfg = await get_config()
     now = utcnow()
     res = await db.ops_alerts.update_one({"key": key, "$or": [{"last_sent_at": {"$lt": now - timedelta(minutes=cfg["cooldown_minutes"])}}, {"last_sent_at": None}]},
@@ -107,8 +107,12 @@ async def _alert(key: str, subject: str, text: str) -> bool:
             await db.ops_alerts.update_one({"key": key}, {"$inc": {"suppressed": 1}})
             return False
     s, html = payment_notice_email("AfroVending operations", subject, text, "/admin/ops")
-    ok = await try_send(to=ALERT_EMAIL, subject=f"[AfroVending alert] {subject}", html=html)
-    await db.ops_alert_log.insert_one({"key": key, "subject": subject, "to": ALERT_EMAIL, "delivered": ok, "at": now, "expires_at": now + timedelta(days=RETENTION_DAYS)})
+    if not _allowed_outside_production(ALERT_EMAIL):
+        outcome = "suppressed_non_production"
+    else:
+        outcome = "delivered" if await try_send(to=ALERT_EMAIL, subject=f"[AfroVending alert] {subject}", html=html) else "failed"
+    await db.ops_alert_log.insert_one({"key": key, "subject": subject, "to": ALERT_EMAIL, "outcome": outcome, "delivered": outcome == "delivered", "at": now,
+                                       "expires_at": now + timedelta(days=RETENTION_DAYS)})
     return True
 
 
