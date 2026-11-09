@@ -1,3 +1,5 @@
+# ruff: noqa: F811
+
 # Iteration 28 (T1): refund of unshipped units cancels them, releases stock once, closes fully refunded vendor orders; cancel_vendor_order no double count
 import uuid
 
@@ -139,3 +141,51 @@ def test_05_partially_shipped_refund_observe(w):
     print("partially shipped + refund 1: cancelled_qty", i["cancelled_qty"], "inv", inv(vid), "ship remaining:", s.status_code, s.text[:120],
           "vo status", vo_(vo)["status"])
     assert i["cancelled_qty"] == 0 and s.status_code == 201  # refunding a shipped unit never cancels the unshipped one
+
+
+# Iter29 retest: ship 1 of 2, refund the shipped unit -> no cancel, stock untouched, remaining ships, vo shipped -> delivered
+def test_06_partial_ship_refund_shipped_unit(w):
+    c, o, vo, item, vid = paid(w, 2)
+    assert w["a"].post(f"/vendor/orders/{vo['_id']}/status", json={"to": "accepted"}).status_code == 200
+    s1 = ship(w, vo, item, 1)
+    assert s1.status_code == 201
+    before = inv(vid)
+    assert before == (9, 1), before
+    assert vo_(vo)["status"] == "partially_shipped"
+    assert refund(w, vo, item, 1).status_code == 201
+    i = it(item)
+    assert i["cancelled_qty"] == 0 and i["refunded_qty"] == 1 and i["shipped_qty"] == 1
+    assert inv(vid) == before, inv(vid)
+    assert vo_(vo)["status"] == "partially_shipped"
+    s = ship(w, vo, item, 1)
+    assert s.status_code == 201, s.text
+    assert inv(vid) == (8, 0)
+    assert vo_(vo)["status"] == "shipped", vo_(vo)["status"]
+    assert ship(w, vo, item, 1).status_code in (409, 422)  # 409 status gate (order already shipped)
+    for sh in (s1.json()["shipment"], s.json()["shipment"]):
+        d = w["a"].post(f"/vendor/shipments/{sh['id']}/status", json={"status": "delivered"})
+        assert d.status_code == 200, d.text
+    assert vo_(vo)["status"] == "delivered"
+
+
+# Iter29 retest: ship 1 of 2, refund 2 -> exactly 1 cancelled, hold released once, vo partially_shipped -> shipped + event, ship more 422
+def test_07_partial_ship_refund_all(w):
+    c, o, vo, item, vid = paid(w, 2)
+    assert w["a"].post(f"/vendor/orders/{vo['_id']}/status", json={"to": "accepted"}).status_code == 200
+    assert ship(w, vo, item, 1).status_code == 201
+    assert inv(vid) == (9, 1)
+    ev0 = mongo.order_events.count_documents({"vendor_order_id": vo["_id"]})
+    r = refund(w, vo, item, 2, ship=True)
+    assert r.status_code == 201, r.text
+    i = it(item)
+    assert i["cancelled_qty"] == 1 and i["refunded_qty"] == 2 and i["shipped_qty"] == 1
+    assert inv(vid) == (9, 0), inv(vid)
+    v = vo_(vo)
+    assert v["status"] == "shipped", v["status"]
+    evs = list(mongo.order_events.find({"vendor_order_id": vo["_id"]}).sort("_id", 1))
+    assert len(evs) > ev0 and any(e.get("type") == "shipped" and e.get("actor_role") == "system" for e in evs[ev0:]), [e.get("type") for e in evs]
+    s = ship(w, vo, item, 1)
+    assert s.status_code in (409, 422), s.text  # 409 status gate; 422 expected by E1 brief
+    again = refund(w, vo, item, 1)
+    assert again.status_code >= 400
+    assert inv(vid) == (9, 0) and it(item)["cancelled_qty"] == 1

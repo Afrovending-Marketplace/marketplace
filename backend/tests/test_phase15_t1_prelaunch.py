@@ -1,3 +1,5 @@
+# ruff: noqa: F811
+
 # Iteration 27 pre-launch verification (T1): F1 concurrent last-unit race, F2 public lockout, admin access, tenant isolation, refund ledger immutability
 import concurrent.futures
 import uuid

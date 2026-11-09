@@ -6,7 +6,6 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from bson import ObjectId
 
 from afrovending.core import founding
 from tests.test_phase03_vendors import BASE, admin_client, mongo
@@ -137,7 +136,6 @@ def test_02_launch_window_rule():
 def test_03_public_no_auth_and_sitemap():
     r = httpx.get(f"{BASE}/founding-vendors", timeout=30)
     assert r.status_code == 200 and "data" in r.json()
-    root = BASE.rsplit("/api/v1", 1)[0]
     sm = None
     for u in (f"{BASE}/seo/sitemap.xml",):
         x = httpx.get(u, timeout=30)
