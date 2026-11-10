@@ -22,6 +22,20 @@ export const PolicyMarkdown = ({ body, testId }) => (
   </div>
 );
 
+const ChangeLog = ({ changes }) => (
+  <section className="mt-12 border-t border-av-line pt-6" data-testid="policy-changelog">
+    <h2 className="text-lg font-semibold text-av-ink">What changed</h2>
+    <ol className="mt-3 space-y-3 text-sm">
+      {changes.map((c) => (
+        <li key={c.version} className="rounded-xl bg-av-sand p-3" data-testid={`policy-change-v${c.version}`}>
+          <p className="font-semibold text-av-ink">Version {c.version}{c.current && " (current)"} · effective {fmt(c.effective_date)}{c.material && " · important change"}</p>
+          <p className="mt-1 text-av-ink/80">{c.change_summary || "No summary provided."}</p>
+        </li>
+      ))}
+    </ol>
+  </section>
+);
+
 function PolicyPage({ slug, title, testId }) {
   const [p, setP] = useState(null);
   useEffect(() => {
@@ -40,6 +54,7 @@ function PolicyPage({ slug, title, testId }) {
           <>
             <p className="mb-6 text-xs text-av-muted" data-testid="policy-meta">Version {p.version} · Effective {fmt(p.effective_date)}</p>
             <PolicyMarkdown body={p.body} testId="policy-body" />
+            <ChangeLog changes={p.changes || []} />
           </>
         )}
       </div>

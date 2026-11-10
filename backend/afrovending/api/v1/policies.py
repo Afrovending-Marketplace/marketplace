@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Literal, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -78,7 +78,14 @@ async def get_public(slug: str):
     if not cur:
         return {**m, "status": "finalising"}
     return {**m, "status": "published", "version": cur["version"], "effective_date": cur.get("effective_date"), "published_at": _iso(cur.get("published_at")),
-            "change_summary": cur.get("change_summary", ""), "body": cur["body"]}
+            "change_summary": cur.get("change_summary", ""), "body": cur["body"], "changes": await _changes(slug)}
+
+
+async def _changes(slug: str) -> list[dict]:
+    """Public change log: every version that has been published (current or since archived)."""
+    docs = await db.policy_versions.find({"slug": slug, "published_at": {"$ne": None}}, {"body": 0, "history": 0, "legal_review": 0}).sort("version", -1).to_list(100)
+    return [{"version": d["version"], "effective_date": d.get("effective_date"), "published_at": _iso(d["published_at"]),
+             "change_summary": d.get("change_summary", ""), "material": d.get("classification") == "material", "current": d["status"] == "published"} for d in docs]
 
 
 # ---------- account acceptance ----------
@@ -266,9 +273,11 @@ MIME = {"docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.
 
 
 def _pack_out(d: dict) -> dict:
-    return {"id": str(d["_id"]), "created_by": d["created_by"], "created_at": _iso(d["created_at"]), "sizes": d["sizes"],
+    recs = [{k: _iso(v) for k, v in r.items() if k != "storage_path"} for r in d.get("attorney_records", [])]
+    return {"id": str(d["_id"]), "pack_number": d.get("pack_number", 1), "created_by": d["created_by"], "created_at": _iso(d["created_at"]), "sizes": d["sizes"],
             "policy_versions": d["policy_versions"], "external_sharing_approved": d.get("external_sharing_approved", False),
-            "sharing_approved_by": d.get("sharing_approved_by"), "sharing_approved_at": _iso(d.get("sharing_approved_at")), "downloads": d.get("downloads", 0)}
+            "sharing_approved_by": d.get("sharing_approved_by"), "sharing_approved_at": _iso(d.get("sharing_approved_at")), "downloads": d.get("downloads", 0),
+            "attorney_records": recs}
 
 
 def _render(data: dict) -> dict:
@@ -292,7 +301,7 @@ async def make_pack(request: Request, admin: User = Depends(EDITOR)):
     files = await run_in_threadpool(_render, data)
     doc = {"created_by": admin.email, "created_at": utcnow(), "files": {k: Binary(v) for k, v in files.items()}, "sizes": {k: len(v) for k, v in files.items()},
            "policy_versions": [{"slug": p["slug"], "version": p["version"], "status": p["status"]} for p in data["policies"]],
-           "external_sharing_approved": False, "downloads": 0}
+           "external_sharing_approved": False, "downloads": 0, "pack_number": await db.review_packs.count_documents({}) + 1, "attorney_records": []}
     doc["_id"] = (await db.review_packs.insert_one(doc)).inserted_id
     await audit("policy.review_pack_generated", "review_packs", request=request, actor=admin, entity_id=str(doc["_id"]))
     return _pack_out(doc)
@@ -309,8 +318,10 @@ async def download_pack(pid: str, request: Request, format: Literal["docx", "pdf
     d = await db.review_packs.find_one({"_id": ObjectId(pid)}) if ObjectId.is_valid(pid) else None
     if not d:
         raise APIError(404, "not_found", "Review pack not found.")
+    if not d.get("external_sharing_approved"):
+        raise APIError(403, "sharing_not_approved", "The Super Admin must approve this pack for external sharing before it can be downloaded.")
     await db.review_packs.update_one({"_id": d["_id"]}, {"$inc": {"downloads": 1}})
-    await audit("policy.review_pack_downloaded", "review_packs", request=request, actor=admin, entity_id=pid, format=format)
+    await audit("policy.review_pack_downloaded", "review_packs", request=request, actor=admin, entity_id=pid, format=format, pack_number=d.get("pack_number", 1))
     from zoneinfo import ZoneInfo
     local = d["created_at"].replace(tzinfo=d["created_at"].tzinfo or ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York"))
     name = f"AfroVending-Legal-Policy-Review-Pack-CONFIDENTIAL-{local:%Y-%m-%d}.{format}"
@@ -318,9 +329,16 @@ async def download_pack(pid: str, request: Request, format: Literal["docx", "pdf
                     headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
 
+class ShareIn(BaseModel):
+    confirm: bool = False
+    acknowledge_not_legal_approval: bool = False
+
+
 @router.post("/admin/policies/review-pack/{pid}/approve-sharing")
-async def approve_sharing(pid: str, request: Request, admin: User = Depends(EDITOR)):
+async def approve_sharing(pid: str, body: ShareIn, request: Request, admin: User = Depends(EDITOR)):
     _super(admin)
+    if not (body.confirm and body.acknowledge_not_legal_approval):
+        raise APIError(422, "validation_error", "Confirm the approval and acknowledge that sharing approval is not legal approval.")
     d = await db.review_packs.find_one({"_id": ObjectId(pid)}, {"files": 0}) if ObjectId.is_valid(pid) else None
     if not d:
         raise APIError(404, "not_found", "Review pack not found.")
@@ -330,6 +348,55 @@ async def approve_sharing(pid: str, request: Request, admin: User = Depends(EDIT
                                          {"$set": {"external_sharing_approved": True, "sharing_approved_by": admin.email, "sharing_approved_at": utcnow()}})
     if not r.matched_count:
         raise APIError(404, "not_found", "Review pack not found.")
-    await audit("policy.review_pack_sharing_approved", "review_packs", request=request, actor=admin, entity_id=pid)
+    await audit("policy.review_pack_sharing_approved", "review_packs", request=request, actor=admin, entity_id=pid, pack_number=d.get("pack_number", 1),
+                policy_versions=[f"{p['slug']}-v{p['version']}" for p in d["policy_versions"]])
     return {"ok": True}
+
+
+ATTORNEY_TYPES = {"application/pdf": "pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx"}
+
+
+@router.post("/admin/policies/review-pack/{pid}/attorney-review", status_code=201)
+async def attorney_review(pid: str, request: Request, reviewer_name: str = Form(..., min_length=2, max_length=200), reviewer_firm: str = Form("", max_length=200),
+                          received_on: date = Form(...), comments: str = Form("", max_length=10000), recommendations: str = Form("", max_length=10000),
+                          requested_changes: str = Form("", max_length=10000), file: Optional[UploadFile] = File(None), admin: User = Depends(EDITOR)):
+    """Records attorney feedback (optionally with the reviewed document). Never changes policy status; publication has its own approval."""
+    import uuid
+    from afrovending.core.storage import APP_PREFIX, put_object
+    _super(admin)
+    d = await db.review_packs.find_one({"_id": ObjectId(pid)}, {"files": 0}) if ObjectId.is_valid(pid) else None
+    if not d:
+        raise APIError(404, "not_found", "Review pack not found.")
+    if received_on > date.today():
+        raise APIError(422, "validation_error", "The received date can't be in the future.")
+    rec = {"id": str(ObjectId()), "reviewer_name": reviewer_name, "reviewer_firm": reviewer_firm, "received_on": received_on.isoformat(), "comments": comments,
+           "recommendations": recommendations, "requested_changes": requested_changes, "recorded_by": admin.email, "recorded_at": utcnow(), "filename": None, "size": None}
+    if file is not None and file.filename:
+        if file.content_type not in ATTORNEY_TYPES:
+            raise APIError(422, "validation_error", "Upload a PDF or Word (.docx) file.")
+        data = await file.read()
+        if not data or len(data) > 15_000_000:
+            raise APIError(422, "validation_error", "File must be under 15 MB.")
+        path = f"{APP_PREFIX}/private/legal-review/{pid}/{uuid.uuid4()}.{ATTORNEY_TYPES[file.content_type]}"
+        try:
+            res = await run_in_threadpool(put_object, path, data, file.content_type)
+        except Exception:
+            raise APIError(503, "storage_unavailable", "File storage is unavailable. Please try again.")
+        rec.update(filename=(file.filename or "attorney-review")[:200], size=len(data), content_type=file.content_type, storage_path=res["path"])
+    await db.review_packs.update_one({"_id": d["_id"]}, {"$push": {"attorney_records": rec}})
+    await audit("policy.attorney_review_recorded", "review_packs", request=request, actor=admin, entity_id=pid, record_id=rec["id"], reviewer=reviewer_name,
+                has_file=bool(rec["filename"]))
+    return _pack_out(await db.review_packs.find_one({"_id": d["_id"]}, {"files": 0}))
+
+
+@router.get("/admin/policies/review-pack/{pid}/attorney-review/{rid}/file")
+async def attorney_file(pid: str, rid: str, request: Request, admin: User = Depends(EDITOR)):
+    from afrovending.core.storage import get_object
+    d = await db.review_packs.find_one({"_id": ObjectId(pid)}, {"files": 0}) if ObjectId.is_valid(pid) else None
+    rec = next((r for r in (d or {}).get("attorney_records", []) if r["id"] == rid and r.get("storage_path")), None)
+    if not rec:
+        raise APIError(404, "not_found", "File not found.")
+    data, _ = await run_in_threadpool(get_object, rec["storage_path"])
+    await audit("policy.attorney_review_downloaded", "review_packs", request=request, actor=admin, entity_id=pid, record_id=rid)
+    return Response(content=data, media_type=rec["content_type"], headers={"Content-Disposition": f'attachment; filename="{rec["filename"]}"', "Cache-Control": "no-store"})
 

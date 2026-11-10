@@ -147,24 +147,94 @@ function ReviewPack({ isSuper }) {
       load();
     } catch (e) { toast.error(getErrorMessage(e)); }
   };
-  const share = (p) => window.confirm("Approve this pack for sharing with the reviewing attorney?") &&
-    api.post(`/admin/policies/review-pack/${p.id}/approve-sharing`).then(() => { toast.success("External sharing approved"); load(); }).catch((e) => toast.error(getErrorMessage(e)));
   return (
     <section className="space-y-3 rounded-2xl border border-av-line bg-white p-5" data-testid="review-pack">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div><h2 className="font-semibold">Lawyer review pack</h2><p className="text-xs text-av-muted">Confidential Word and PDF documents with all seven current drafts, the open questions and the review record. Admin-only downloads.</p></div>
+        <div><h2 className="font-semibold">Lawyer review pack</h2><p className="text-xs text-av-muted">Confidential Word and PDF documents with all seven current drafts, the open questions and the review record. Downloads unlock only after the Super Admin approves the pack for external sharing. Nothing is emailed automatically.</p></div>
         <Button size="sm" onClick={make} disabled={busy} data-testid="review-pack-generate">{busy ? "Generating…" : "Generate new pack"}</Button>
       </div>
       {packs.length === 0 ? <p className="text-sm text-av-muted" data-testid="review-pack-empty">No pack generated yet.</p> : (
-        <ul className="divide-y divide-av-line text-sm">{packs.map((p) => (
-          <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid={`review-pack-${p.id}`}>
-            <span>{ET(p.created_at)} · {p.created_by} · {p.downloads} download(s) · <StatusBadge tone={p.external_sharing_approved ? "success" : "gold"} testId={`review-pack-share-status-${p.id}`}>{p.external_sharing_approved ? "Approved for external sharing" : "Internal only"}</StatusBadge></span>
-            <span className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => download(p, "docx")} data-testid={`review-pack-docx-${p.id}`}>Word</Button>
-              <Button size="sm" variant="outline" onClick={() => download(p, "pdf")} data-testid={`review-pack-pdf-${p.id}`}>PDF</Button>
-              {isSuper && !p.external_sharing_approved && <Button size="sm" onClick={() => share(p)} data-testid={`review-pack-approve-share-${p.id}`}>Approve sharing</Button>}
-            </span>
-          </li>))}</ul>)}
+        <ul className="divide-y divide-av-line text-sm">{packs.map((p) => <PackRow key={p.id} p={p} isSuper={isSuper} download={download} reload={load} />)}</ul>)}
     </section>
+  );
+}
+
+function PackRow({ p, isSuper, download, reload }) {
+  const [ok1, setOk1] = useState(false);
+  const [ok2, setOk2] = useState(false);
+  const approve = () => api.post(`/admin/policies/review-pack/${p.id}/approve-sharing`, { confirm: ok1, acknowledge_not_legal_approval: ok2 })
+    .then(() => { toast.success("Approved for external sharing"); reload(); }).catch((e) => toast.error(getErrorMessage(e)));
+  return (
+    <li className="space-y-3 py-3" data-testid={`review-pack-${p.id}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span>Pack #{p.pack_number} · {ET(p.created_at)} · {p.created_by} · {p.downloads} download(s)</span>
+        <span className="flex flex-wrap gap-2">
+          <StatusBadge tone={p.external_sharing_approved ? "success" : "gold"} testId={`review-pack-share-status-${p.id}`}>{p.external_sharing_approved ? "Approved for External Sharing" : "Internal only — not approved for sharing"}</StatusBadge>
+          <StatusBadge tone="neutral" testId={`review-pack-legal-status-${p.id}`}>Not legally approved</StatusBadge>
+        </span>
+      </div>
+      {p.external_sharing_approved ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-av-muted">Approved for sharing by {p.sharing_approved_by} on {ET(p.sharing_approved_at)}.</span>
+          <Button size="sm" variant="outline" onClick={() => download(p, "docx")} data-testid={`review-pack-docx-${p.id}`}>Download Word</Button>
+          <Button size="sm" variant="outline" onClick={() => download(p, "pdf")} data-testid={`review-pack-pdf-${p.id}`}>Download PDF</Button>
+        </div>
+      ) : isSuper ? (
+        <div className="space-y-2 rounded-xl bg-av-sand p-3" data-testid={`review-pack-approve-box-${p.id}`}>
+          <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={ok1} onChange={(e) => setOk1(e.target.checked)} data-testid={`review-pack-confirm-${p.id}`} />
+            <span>I approve this pack for sharing with AfroVending's reviewing attorney.</span></label>
+          <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={ok2} onChange={(e) => setOk2(e.target.checked)} data-testid={`review-pack-ack-${p.id}`} />
+            <span>I understand this is <b>not</b> legal approval. All policies stay Pending Legal Review.</span></label>
+          <Button size="sm" disabled={!ok1 || !ok2} onClick={approve} data-testid={`review-pack-approve-share-${p.id}`}>Approve for External Sharing</Button>
+        </div>
+      ) : <p className="text-xs text-av-muted">Waiting for the Super Admin to approve external sharing.</p>}
+      <AttorneyRecords p={p} isSuper={isSuper} reload={reload} />
+    </li>
+  );
+}
+
+function AttorneyRecords({ p, isSuper, reload }) {
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ reviewer_name: "", reviewer_firm: "", received_on: "", comments: "", recommendations: "", requested_changes: "" });
+  const [file, setFile] = useState(null);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const save = () => {
+    const fd = new FormData();
+    Object.entries(f).forEach(([k, v]) => fd.append(k, v));
+    if (file) fd.append("file", file);
+    api.post(`/admin/policies/review-pack/${p.id}/attorney-review`, fd).then(() => { toast.success("Attorney review recorded"); setOpen(false); reload(); }).catch((e) => toast.error(getErrorMessage(e)));
+  };
+  const getFile = (r) => api.get(`/admin/policies/review-pack/${p.id}/attorney-review/${r.id}/file`, { responseType: "blob" }).then((res) => {
+    const url = URL.createObjectURL(res.data);
+    Object.assign(document.createElement("a"), { href: url, download: r.filename }).click();
+    URL.revokeObjectURL(url);
+  }).catch((e) => toast.error(getErrorMessage(e)));
+  return (
+    <div className="space-y-2" data-testid={`attorney-records-${p.id}`}>
+      {p.attorney_records.map((r) => (
+        <div key={r.id} className="rounded-xl border border-av-line p-3 text-xs" data-testid={`attorney-record-${r.id}`}>
+          <p className="font-semibold">Attorney feedback — {r.reviewer_name}{r.reviewer_firm && `, ${r.reviewer_firm}`} · received {r.received_on} · recorded by {r.recorded_by}</p>
+          {r.comments && <p className="mt-1 whitespace-pre-wrap"><b>Comments:</b> {r.comments}</p>}
+          {r.recommendations && <p className="mt-1 whitespace-pre-wrap"><b>Recommendations:</b> {r.recommendations}</p>}
+          {r.requested_changes && <p className="mt-1 whitespace-pre-wrap"><b>Requested changes:</b> {r.requested_changes}</p>}
+          {r.filename && <Button size="sm" variant="outline" className="mt-2" onClick={() => getFile(r)} data-testid={`attorney-file-${r.id}`}>Download {r.filename}</Button>}
+        </div>))}
+      {isSuper && !open && <Button size="sm" variant="outline" onClick={() => setOpen(true)} data-testid={`attorney-add-${p.id}`}>Record attorney feedback / upload reviewed document</Button>}
+      {isSuper && open && (
+        <div className="space-y-2 rounded-xl border border-av-line p-3" data-testid={`attorney-form-${p.id}`}>
+          <p className="text-xs text-av-muted">Recording feedback doesn't approve or publish any policy. Each policy still needs its own legal approval and publication.</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Input placeholder="Attorney name" value={f.reviewer_name} onChange={set("reviewer_name")} data-testid="attorney-name" />
+            <Input placeholder="Law firm (optional)" value={f.reviewer_firm} onChange={set("reviewer_firm")} data-testid="attorney-firm" />
+            <label className="text-xs">Received on<Input type="date" value={f.received_on} onChange={set("received_on")} data-testid="attorney-received" /></label>
+          </div>
+          <Textarea placeholder="Comments" value={f.comments} onChange={set("comments")} data-testid="attorney-comments" />
+          <Textarea placeholder="Recommendations" value={f.recommendations} onChange={set("recommendations")} data-testid="attorney-recommendations" />
+          <Textarea placeholder="Requested changes" value={f.requested_changes} onChange={set("requested_changes")} data-testid="attorney-requested" />
+          <input type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-xs" data-testid="attorney-file-input" />
+          <div className="flex gap-2"><Button size="sm" onClick={save} data-testid="attorney-save">Save record</Button><Button size="sm" variant="outline" onClick={() => setOpen(false)} data-testid="attorney-cancel">Cancel</Button></div>
+        </div>
+      )}
+    </div>
   );
 }
