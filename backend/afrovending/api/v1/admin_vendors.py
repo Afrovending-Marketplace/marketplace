@@ -59,6 +59,14 @@ async def decide(app_id: str, body: DecisionIn, request: Request, admin: User = 
     if body.decision != "approve" and len(body.note.strip()) < 5:
         await db.vendor_applications.update_one({"_id": app["_id"]}, {"$set": {"status": app["status"]}})
         raise APIError(422, "validation_error", "Add a note for the applicant.")
+    if body.decision == "approve":
+        from afrovending.core import policies as pol
+        try:
+            await pol.gate("vendor")
+            await pol.assert_accepted(app["user_id"], pol.VENDOR, who="the applicant hasn't accepted the current Vendor Agreement and Prohibited Products Policy")
+        except APIError:
+            await db.vendor_applications.update_one({"_id": app["_id"]}, {"$set": {"status": app["status"]}})
+            raise
     now = utcnow()
     status = {"approve": "approved", "reject": "rejected", "request_info": "changes_requested"}[body.decision]
     sets = {"status": status, "admin_note": body.note, "reviewed_by": ObjectId(admin.id), "reviewed_at": now}

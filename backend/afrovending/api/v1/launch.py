@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from afrovending.core import founding, orders_gate
+from afrovending.core import policies as pol_core
 from afrovending.core.audit import audit
 from afrovending.core.db import db
 from afrovending.core.errors import APIError
@@ -26,6 +27,7 @@ ITEMS = [  # key, label, mode, who may edit
     ("stripe_test", "Stripe test payments working (test mode)", "auto", FIN_MANAGE),
     *[(k, label, "auto" if k == "super_admin_mfa" else "payment", SETTINGS if k == "super_admin_mfa" else FIN_MANAGE) for k, label in orders_gate.PAYMENT_ITEMS],
     ("admin_mfa", "Every active administrator has MFA enrolled", "auto", SETTINGS),
+    *[(f"policy_{s}", f"{m['title']}: legal review approved and published", "auto", SETTINGS) for s, m in pol_core.META.items()],
     ("monitoring", "Uptime monitoring (external) and production error reporting configured and alert-tested", "manual", SETTINGS),
     ("email_domain", "Resend sending domain verified (SPF, DKIM, DMARC)", "manual", SETTINGS),
     ("phase13_audit", "Phase 13 audit cleared and launch blockers resolved", "manual", SETTINGS),
@@ -132,6 +134,15 @@ async def _payment_guard(key: str) -> str:
 
 
 async def _check(key: str) -> tuple[str, str]:
+    if key.startswith("policy_"):
+        from afrovending.core import policies as pol
+        slug = key[len("policy_"):]
+        cur = await pol.published(slug)
+        approved = cur or await db.policy_versions.find_one({"slug": slug, "status": "approved"})
+        if cur and (cur.get("legal_review") or {}).get("confirmed"):
+            lr = cur["legal_review"]
+            return "verified", f"v{cur['version']} published; legal review by {lr['reviewer_name']} on {lr['review_date']}."
+        return "blocked", f"Legal approval: {'yes' if approved else 'no'} · Published: no · Draft — Pending Legal Review."
     if key == "super_admin_mfa":
         supers = await db.users.find({"roles": "super_admin", "status": "active"}, {"email": 1, "mfa_enabled_at": 1}).to_list(50)
         missing = [a["email"] for a in supers if not a.get("mfa_enabled_at")]

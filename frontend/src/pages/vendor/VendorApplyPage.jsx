@@ -93,7 +93,7 @@ export default function VendorApplyPage() {
           <ImageUpload label="Store banner" purpose="banner" fileId={form.banner_file_id} onChange={(f) => setForm({ ...form, banner_file_id: f.id })} testId="vendor-banner-upload" />
           <label className="sm:col-span-2 flex items-start gap-2 text-sm">
             <Checkbox checked={accept} onCheckedChange={(v) => setAccept(!!v)} data-testid="vendor-policy-checkbox" className="mt-0.5" />
-            <span>I accept the <Link to="/vendor-agreement" target="_blank" className="font-semibold text-av-clay underline">Vendor Agreement</Link> (version {state.policy_version}, draft pending legal review).</span>
+            <span>I accept the <Link to="/vendor-agreement" target="_blank" className="font-semibold text-av-clay underline">Vendor Agreement</Link> and the <Link to="/prohibited-products" target="_blank" className="font-semibold text-av-clay underline">Prohibited Products Policy</Link> (version {state.policy_version}).</span>
           </label>
           <Button type="submit" size="lg" className="sm:col-span-2" disabled={!user.email_verified} data-testid="vendor-application-submit">Submit application</Button>
         </form>

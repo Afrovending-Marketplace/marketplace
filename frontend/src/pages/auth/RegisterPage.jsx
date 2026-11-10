@@ -26,12 +26,13 @@ export default function RegisterPage() {
     if (!/^\S+@\S+\.\S+$/.test(form.email)) errs.email = "Enter a valid email address.";
     if (pwProblem(form.password)) errs.password = pwProblem(form.password);
     if (form.confirm !== form.password) errs.confirm = "Passwords don't match.";
+    if (!form.accept) errs.accept = "Please accept the Terms of Service and Privacy Policy.";
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
     setError("");
     try {
-      const data = await register({ name: form.name, email: form.email, password: form.password, marketing_opt_in: !!form.marketing, referral_code: storedReferral() });
+      const data = await register({ name: form.name, email: form.email, password: form.password, marketing_opt_in: !!form.marketing, accept_policies: !!form.accept, referral_code: storedReferral() });
       toast.success(data.verification_email_sent ? "Account created — check your inbox to verify your email." : "Account created. We couldn't send the verification email yet; you can resend it from your account.");
       navigate("/account", { replace: true });
     } catch (err) {
@@ -54,7 +55,9 @@ export default function RegisterPage() {
           error={errors.confirm} testId="register-password-confirm-input" />
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={!!form.marketing} onChange={(e) => setForm({ ...form, marketing: e.target.checked })} data-testid="register-marketing-optin" />
           <span>Email me AfroVending offers, new arrivals and reminders about items left in my cart. Optional — unsubscribe any time.</span></label>
-        <p className="text-xs text-av-muted">By creating an account you agree to our <Link to="/terms" className="underline">Terms</Link> and <Link to="/privacy" className="underline">Privacy Policy</Link> (drafts pending legal review).</p>
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={!!form.accept} onChange={(e) => setForm({ ...form, accept: e.target.checked })} data-testid="register-accept-policies" />
+          <span>I agree to the <Link to="/terms" target="_blank" className="underline">Terms of Service</Link> and acknowledge the <Link to="/privacy" target="_blank" className="underline">Privacy Policy</Link>.</span></label>
+        {errors.accept && <p className="text-xs text-red-700" data-testid="register-accept-error">{errors.accept}</p>}
         <Button type="submit" size="lg" className="w-full" disabled={busy} data-testid="register-submit-button">{busy ? "Creating account…" : "Create account"}</Button>
       </form>
     </AuthCard>

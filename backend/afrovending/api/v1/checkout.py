@@ -40,6 +40,8 @@ async def start(request: Request, idempotency_key: str = Header(default="", alia
         if existing:
             return {"order": _public(existing), "replayed": True}
         raise APIError(409, "cart_empty", "Your cart is empty.")
+    from afrovending.core.policies import checkout_ready
+    await checkout_ready(user.id, {i["vendor_id"] for i in cart["items"]})
     address = await address_for(cart, user)
     ev = await evaluate(cart, address)
     fingerprint = cart_fingerprint(cart, ev)

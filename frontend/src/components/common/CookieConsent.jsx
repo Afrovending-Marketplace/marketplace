@@ -21,7 +21,7 @@ export const CookieConsent = () => {
   return (
     <div role="dialog" aria-label="Cookie preferences" className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-2xl rounded-2xl border border-av-line bg-white p-5 shadow-xl" data-testid="cookie-consent">
       <p className="text-sm font-semibold">Cookies on AfroVending</p>
-      <p className="mt-1 text-sm text-av-ink/80">We use essential cookies to run the site. With your OK we also use analytics cookies to understand what shoppers look for. <Link to="/privacy" className="underline" data-testid="cookie-privacy-link">Privacy policy</Link></p>
+      <p className="mt-1 text-sm text-av-ink/80">We use essential cookies to run the site. With your OK we also use analytics cookies to understand what shoppers look for. <Link to="/cookie-policy" className="underline" data-testid="cookie-privacy-link">Cookie policy</Link></p>
       {manage && <div className="mt-3 space-y-2 text-sm" data-testid="cookie-manage">
         <label className="flex items-center justify-between">Essential (always on)<Switch checked disabled /></label>
         <label className="flex items-center justify-between">Analytics<Switch checked={c.analytics} onCheckedChange={(v) => setC({ ...c, analytics: v })} data-testid="cookie-analytics-switch" /></label>

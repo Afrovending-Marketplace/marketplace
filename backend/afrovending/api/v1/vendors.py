@@ -7,6 +7,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from afrovending.api.v1.files import file_out
 from afrovending.core import email as mail
+from afrovending.core import policies as pol
 from afrovending.core.audit import audit
 from afrovending.core.db import db
 from afrovending.core.deps import get_current_user
@@ -15,7 +16,6 @@ from afrovending.core.models import User, utcnow
 from afrovending.core.security import client_ip
 
 router = APIRouter(tags=["vendors"])
-VENDOR_POLICY_VERSION = "vendor-agreement-draft-2026-10-17"
 CATEGORIES = {"fashion", "beauty", "food-groceries", "home-living", "arts-crafts", "jewelry", "electronics", "books", "cultural-products"}
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$")
 RESERVED = {"admin", "api", "account", "vendor", "vendors", "store", "stores", "shop", "afrovending", "support", "help", "login"}
@@ -98,14 +98,16 @@ async def my_vendor(user: User) -> dict:
 
 @router.get("/vendor/policy")
 async def vendor_policy():
-    return {"version": VENDOR_POLICY_VERSION, "url": "/vendor-agreement", "status": "draft_pending_legal_review"}
+    published = all([await pol.published(s) for s in pol.VENDOR])
+    return {"version": await pol.label(pol.VENDOR), "url": "/vendor-agreement", "prohibited_url": "/prohibited-products",
+            "status": "published" if published else "pending_legal_review"}
 
 
 @router.get("/vendor/application")
 async def get_application(user: User = Depends(get_current_user)):
     app = await my_application(user)
     docs = await db.files.find({"owner_user_id": ObjectId(user.id), "purpose": "verification_doc", "is_deleted": False}).to_list(20) if app else []
-    return {"application": ser(app), "documents": [file_out(d) for d in docs], "policy_version": VENDOR_POLICY_VERSION}
+    return {"application": ser(app), "documents": [file_out(d) for d in docs], "policy_version": await pol.label(pol.VENDOR)}
 
 
 @router.put("/vendor/application")
@@ -136,20 +138,23 @@ async def submit_application(body: SubmitIn, request: Request, user: User = Depe
     app = await my_application(user)
     if not app or app["status"] not in EDITABLE:
         raise APIError(409, "conflict", "There is no draft application to submit.")
-    if not body.accept_policy or body.policy_version != VENDOR_POLICY_VERSION:
-        raise APIError(422, "validation_error", "You must accept the current Vendor Agreement.")
+    await pol.gate("vendor")
+    policy_version = await pol.label(pol.VENDOR)
+    if not body.accept_policy or body.policy_version != policy_version:
+        raise APIError(422, "validation_error", "You must accept the current Vendor Agreement and Prohibited Products Policy.")
     if app.get("verification_status") == "requested" and not await db.files.find_one({"owner_user_id": ObjectId(user.id), "purpose": "verification_doc", "is_deleted": False}):
         raise APIError(422, "validation_error", "Please upload the requested verification document first.")
     now = utcnow()
-    await db.vendor_policy_acceptances.insert_one({"user_id": ObjectId(user.id), "policy": "vendor_agreement", "version": VENDOR_POLICY_VERSION,
+    await db.vendor_policy_acceptances.insert_one({"user_id": ObjectId(user.id), "policy": "vendor_agreement", "version": policy_version,
                                                    "accepted_at": now, "ip": client_ip(request), "application_id": app["_id"]})
+    await pol.record(user.id, pol.VENDOR, "vendor_application", request)
     await db.files.update_many({"owner_user_id": ObjectId(user.id), "purpose": "verification_doc", "application_id": None}, {"$set": {"application_id": app["_id"]}})
     verification = "pending" if app.get("verification_status") == "requested" else app.get("verification_status", "not_required")
     await db.vendor_applications.update_one({"_id": app["_id"]}, {
-        "$set": {"status": "submitted", "submitted_at": now, "policy_version": VENDOR_POLICY_VERSION, "policy_accepted_at": now, "verification_status": verification},
+        "$set": {"status": "submitted", "submitted_at": now, "policy_version": policy_version, "policy_accepted_at": now, "verification_status": verification},
         "$push": {"history": {"status": "submitted", "note": "", "at": now, "by": ObjectId(user.id)}}})
     await db.users.update_one({"_id": ObjectId(user.id)}, {"$addToSet": {"roles": "vendor_applicant"}})
-    await audit("vendor.application_submitted", "vendor_applications", request=request, actor=user, entity_id=str(app["_id"]), policy_version=VENDOR_POLICY_VERSION)
+    await audit("vendor.application_submitted", "vendor_applications", request=request, actor=user, entity_id=str(app["_id"]), policy_version=policy_version)
     subject, html = mail.vendor_notice_email(user.name, "We received your vendor application", "Our team will review it and email you with a decision.")
     from afrovending.core.notify import notify
     await notify(user.id, "vendor", "We received your vendor application", "Our team will review it and email you with a decision.", "/vendor/apply",

@@ -85,6 +85,8 @@ async def start_payment(order_id: str, body: CheckoutIn, request: Request, user:
     await guard()
     await assert_accepting()
     order = await _own_order(order_id, user)
+    from afrovending.core.policies import checkout_ready
+    await checkout_ready(user.id, {vo["vendor_id"] async for vo in db.vendor_orders.find({"order_id": order["_id"]}, {"vendor_id": 1})})
     origin = _origin(body.origin_url)
     if order["status"] in ("paid", "partially_refunded", "refunded"):
         raise APIError(409, "already_paid", "This order is already paid.")

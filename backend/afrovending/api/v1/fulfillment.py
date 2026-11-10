@@ -276,6 +276,9 @@ async def vendor_queue(status: Optional[str] = None, user: User = Depends(get_cu
 @router.post("/vendor/orders/{vo_id}/status")
 async def vendor_status(vo_id: str, body: StatusIn, user: User = Depends(get_current_user)):
     _, vo = await _own_vo(vo_id, user)
+    if body.to == "accepted":
+        from afrovending.core import policies as pol
+        await pol.assert_accepted(user.id, pol.VENDOR)
     if body.to == "ready_for_pickup" and vo["fulfillment_type"] != "pickup":
         raise APIError(409, "invalid_transition", "Only local pickup orders can be marked ready for pickup.")
     if body.to == "delivered" and vo["status"] != "ready_for_pickup":

@@ -8,7 +8,7 @@ import { download } from "@/components/vendor/Statements";
 import { api, getErrorMessage } from "@/lib/api";
 import { formatPrice } from "@/lib/catalog";
 
-const LINKS = [["settings.manage", "/admin/launch", "Launch readiness checklist"], ["ops.monitor", "/admin/ops", "Operations: health & errors"], ["finance.manage", "/admin/launch", "Launch readiness checklist"], ["vendors.manage", "/admin/vendors", "Vendors & applications"], ["catalog.moderate", "/admin/products", "Product moderation"],
+const LINKS = [["settings.manage", "/admin/launch", "Launch readiness checklist"], ["ops.monitor", "/admin/ops", "Operations: health & errors"], ["policy.edit", "/admin/policies", "Policy management"], ["finance.manage", "/admin/launch", "Launch readiness checklist"], ["vendors.manage", "/admin/vendors", "Vendors & applications"], ["catalog.moderate", "/admin/products", "Product moderation"],
   ["catalog.moderate", "/admin/categories", "Categories"], ["commerce.manage", "/admin/commerce", "Shipping & tax"], ["orders.manage", "/admin/fulfillment", "Orders, cancellations & returns"],
   ["finance.view", "/admin/payments", "Payments, refunds, disputes & payouts"], ["tickets.manage", "/admin/tickets", "Support tickets"], ["content.manage", "/admin/content", "Homepage & banners"],
   ["admins.manage", "/admin/team", "Admin team & invites"], ["catalog.moderate", "/admin/search-insights", "Search insights"], ["messages.review", "/admin/moderation", "Reviews & message moderation"], ["analytics.view", "/admin/marketing", "Marketing & analytics"]];

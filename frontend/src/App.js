@@ -9,6 +9,7 @@ import AdminTicketsPage, { SupportPage, SupportTicketPage } from "@/pages/admin/
 import AdminContentPage from "@/pages/admin/AdminContentPage";
 import AdminLaunchPage from "@/pages/admin/AdminLaunchPage";
 import AdminOpsPage from "@/pages/admin/AdminOpsPage";
+import AdminPoliciesPage from "@/pages/admin/AdminPoliciesPage";
 import FoundingVendorsPage from "@/pages/FoundingVendorsPage";
 import ShopPage from "@/pages/ShopPage";
 import SearchPage from "@/pages/SearchPage";
@@ -131,6 +132,7 @@ function App() {
               <Route path="admin/content" element={<AdminContentPage />} />
               <Route path="admin/launch" element={<AdminLaunchPage />} />
               <Route path="admin/ops" element={<AdminOpsPage />} />
+              <Route path="admin/policies" element={<AdminPoliciesPage />} />
               <Route path="admin/moderation" element={<AdminModerationPage />} />
               <Route path="admin/marketing" element={<AdminMarketingPage />} />
             </Route>

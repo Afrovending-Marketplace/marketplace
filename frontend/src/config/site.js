@@ -58,6 +58,7 @@ export const FOOTER_COLUMNS = [
       { label: "Shipping & Delivery", path: "/shipping-policy" },
       { label: "Returns & Refunds", path: "/returns-policy" },
       { label: "Prohibited Products", path: "/prohibited-products" },
+      { label: "Cookie Policy", path: "/cookie-policy" },
     ],
   },
 ];

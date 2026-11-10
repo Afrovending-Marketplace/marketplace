@@ -99,6 +99,26 @@ async def m0015_ops_monitoring(db) -> None:
     await db.health_checks.create_index([("at", -1)], name="at")
 
 
+async def m0016_policies(db) -> None:
+    from pathlib import Path
+    from afrovending.core.models import utcnow
+    from afrovending.core.policies import META
+    await db.policy_versions.create_index([("slug", 1), ("version", 1)], name="slug_version", unique=True)
+    await db.policy_versions.create_index([("slug", 1), ("status", 1)], name="slug_status")
+    await db.policy_acceptances.create_index([("user_id", 1), ("slug", 1), ("version", -1)], name="user_slug_version")
+    await db.policy_acceptances.create_index("version_id", name="version_id")
+    folder = Path(__file__).resolve().parent.parent / "policies"
+    now = utcnow()
+    for slug in META:
+        if await db.policy_versions.find_one({"slug": slug}):
+            continue
+        await db.policy_versions.insert_one({"slug": slug, "version": 1, "status": "pending_review", "body": (folder / f"{slug}.md").read_text(),
+                                             "change_summary": "First version for legal review.", "effective_date": None, "created_by": "system (initial draft)",
+                                             "created_at": now, "updated_at": now, "published_at": None, "requires_reacceptance": False,
+                                             "history": [{"status": "draft", "by": "system", "at": now, "note": "Initial draft prepared for legal review"},
+                                                         {"status": "pending_review", "by": "system", "at": now, "note": "Draft — Pending Legal Review"}]})
+
+
 async def m0005_phase05_search(db) -> None:
     for idx in await db.products.list_indexes().to_list(50):
         if "textIndexVersion" in idx and "weights" in idx and idx["weights"].get("title") != 10:
@@ -140,6 +160,7 @@ MIGRATIONS = (
     ("0013", "wishlist_alerts", m0013_wishlist_alerts),
     ("0014", "launch_banner", m0014_launch_banner),
     ("0015", "ops_monitoring", m0015_ops_monitoring),
+    ("0016", "policies", m0016_policies),
 )
 
 

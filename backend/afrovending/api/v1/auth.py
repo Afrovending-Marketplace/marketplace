@@ -26,6 +26,7 @@ class RegisterIn(BaseModel):
     password: str
     marketing_opt_in: bool = False
     referral_code: str = Field(default="", max_length=20)
+    accept_policies: bool = False
 
 
 class LoginIn(BaseModel):
@@ -60,6 +61,10 @@ async def _send_verification(user: User) -> bool:
 @router.post("/register", status_code=201)
 async def register(body: RegisterIn, request: Request, response: Response):
     await rate_limit.hit(f"register:{client_ip(request)}", 10, 3600)
+    from afrovending.core import policies as pol
+    await pol.gate("registration")
+    if not body.accept_policies and (await pol.published("terms") or await pol.published("privacy")):
+        raise APIError(422, "validation_error", "Please accept the Terms of Service and Privacy Policy to create an account.")
     require_valid_password(body.password)
     email = body.email.lower()
     if await db.users.find_one({"email": email}):
@@ -67,6 +72,7 @@ async def register(body: RegisterIn, request: Request, response: Response):
     user = User(email=email, name=body.name.strip(), password_hash=hash_password(body.password),
                 auth_providers=[{"provider": "password", "linked_at": utcnow()}])
     user.id = str((await db.users.insert_one(user.to_mongo())).inserted_id)
+    await pol.record(user.id, pol.CUSTOMER, "registration", request)
     from afrovending.core import marketing as mk
     if body.marketing_opt_in:
         await mk.set_consent(ObjectId(user.id), True, "registration")

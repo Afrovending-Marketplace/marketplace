@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SHELL } from "@/constants/testIds";
 import { RouteSeo } from "@/components/common/Seo";
+import { PolicyAcceptancePrompt } from "@/components/common/PolicyAcceptancePrompt";
 
 export const AppShell = () => {
   const { pathname, hash } = useLocation();
@@ -31,6 +32,7 @@ export const AppShell = () => {
         <Outlet />
       </main>
       <SiteFooter />
+      <PolicyAcceptancePrompt />
       <Toaster position="bottom-right" />
     </div>
   );

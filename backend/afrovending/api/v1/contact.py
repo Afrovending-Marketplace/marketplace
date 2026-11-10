@@ -22,6 +22,8 @@ class ContactIn(BaseModel):
 @router.post("/contact", status_code=201)
 async def contact(body: ContactIn, request: Request):
     await rate_limit.hit(f"contact:{client_ip(request)}", 5, 3600)
+    from afrovending.core import policies as pol
+    await pol.gate("personal_info")
     subject, html = mail.contact_inbox_email(body.name, body.email, body.subject, body.message)
     sent = await mail.try_send(to=settings.contact_inbox, subject=subject, html=html)
     await db.contact_messages.insert_one({**body.model_dump(), "status": "sent" if sent else "failed",

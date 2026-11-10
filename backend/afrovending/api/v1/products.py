@@ -398,6 +398,9 @@ async def product_action(product_id: str, action: str, request: Request, user: U
     vendor = await writable_vendor(user)
     product = await own_product(product_id, vendor)
     if action == "submit":
+        from afrovending.core import policies as pol
+        await pol.gate("vendor")
+        await pol.assert_accepted(user.id, pol.VENDOR)
         if product["status"] not in ("draft", "rejected"):
             raise APIError(409, "conflict", "Only draft or rejected products can be submitted for review.")
         problems = []
