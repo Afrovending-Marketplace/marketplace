@@ -1,0 +1,37 @@
+{
+  "summary": "Lawyer Review Pack fully tested. Backend: new suite tests/test_phase17_t1_review_pack.py passes 10/10. It covers generate (201; docx and pdf each >30 KB; 7 slugs x v1 pending_review; external_sharing_approved=false; no file bytes; audit log), list, and download headers (docx/pdf MIME, attachment, CONFIDENTIAL filename, Cache-Control no-store). It also covers xls -> 422, unknown or invalid id -> 404, and the downloads counter plus the policy.review_pack_downloaded audit log. RBAC checked: anonymous 401; customer, support_admin and finance_admin 403; content_admin 200. Approve-sharing: content_admin 403, Super Admin 200 with an audit log. Launch item legal_review_pack (mode auto): not_started, then in_progress with 'NOT yet approved' and '0/7', then 'approved by'. Policies untouched. Content was checked with python-docx and pymupdf. Every paragraph, list item and callout of all 7 DB policy bodies appears in both files, and the DB bodies match policies/*.md. All required titles, confidentiality markers, Parts A/B/C, question IDs, section headings and info@afrovending.com are present, and [BUSINESS ADDRESS] stays a placeholder. No phone number or street address was found, the docx footer has PAGE and NUMPAGES fields, and highlighting is present. Regression test_phase17_t1_policies.py passes 14/14 (its teardown restores policy data). Frontend /admin/policies as Super Admin, after a UI login with MFA, worked at desktop width: empty state, then Generate, then a new row with Word/PDF buttons that download correctly named files. The download count updated to 2, Approve sharing (confirm dialog) changed the badge to 'Approved for external sharing', and the button disappeared. Mobile 390 px: no horizontal overflow, and the card and buttons lay out well.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/v1/admin/policies/review-pack/{id}/approve-sharing", "issue": "Not idempotent: approving an already-approved pack overwrites sharing_approved_by/at and writes another audit entry. Consider returning 409, or no-op when already approved."},
+      {"endpoint": "GET /api/v1/admin/launch", "issue": "Returns 404. The review request mentioned this path, but the checklist actually lives at GET /api/v1/admin/launch/checklist, which works and includes legal_review_pack with mode auto. Informational only."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Review pack row", "issues": ["The download filename uses the UTC date (e.g. 2026-11-10) while the row shows the ET date (Nov 9, 2026, 8:27 PM ET). The date can differ by a day in the evening ET."]},
+      {"screen": "PDF footer", "issues": ["The PDF footer shows 'Page N' only, while the docx shows 'Page N of M'. Optional: add the total with a two-pass canvas (NumberedCanvas) for consistency."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase17_t1_review_pack.py", "/app/backend/tests/test_phase17_t1_policies.py", "/app/test_reports/pytest/pytest_review_pack.xml", "/app/test_reports/pytest/pytest_phase17_regression.xml"],
+  "action_items": [
+    "Optional: make approve-sharing idempotent (409 or no-op if already approved).",
+    "Optional: use the ET date (or the same date as the UI) in the download filename.",
+    "Optional: add the 'of N' page total to the PDF footer."
+  ],
+  "critical_code_review_comments": [
+    "The pack is generated from DB policy bodies, not the .md files. That is correct, and the test confirms they match today.",
+    "gather() uses datetime.now() (server local/UTC) for 'Pack generated', and draft dates are UTC. Fine, but there is no timezone label.",
+    "Files are stored as BSON Binary in review_packs (about 100 KB per pack), well under the 16 MB limit. list_packs caps at 10, so older packs are never listed but stay stored. Consider a retention or delete action.",
+    "'Admin-only until approval' is enforced by the policy.edit RBAC on download. external_sharing_approved is only a recorded flag, with no external link. That matches the requirement."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase17_t1_review_pack.py"],
+  "success_rate": {"backend": "100% (10/10 new + 14/14 regression)", "frontend": "100%"},
+  "test_credentials": "Super Admin from /app/memory/test_credentials.md. For MFA in browser automation, Playwright has no pymongo, so compute the TOTP with stdlib hmac from users.mfa_secret and unset mfa_last_step before verifying.",
+  "seed_data_creation": "None kept. Cleaned up: all review_packs (0 left), the launch_checklist legal_review_pack doc, test staff (content, support and finance admins) and TEST customers. Policies verified as 7 x v1 pending_review with 0 acceptances.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run tests/test_phase17_t1_review_pack.py with -n 0. Its teardown deletes only the packs it created plus the legal_review_pack checklist doc. The PDF text check strips the running header and footer, because paragraphs split across pages. No packs exist now; the main agent will generate the final one."
+}

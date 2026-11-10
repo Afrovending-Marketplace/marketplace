@@ -311,7 +311,9 @@ async def download_pack(pid: str, request: Request, format: Literal["docx", "pdf
         raise APIError(404, "not_found", "Review pack not found.")
     await db.review_packs.update_one({"_id": d["_id"]}, {"$inc": {"downloads": 1}})
     await audit("policy.review_pack_downloaded", "review_packs", request=request, actor=admin, entity_id=pid, format=format)
-    name = f"AfroVending-Legal-Policy-Review-Pack-CONFIDENTIAL-{d['created_at']:%Y-%m-%d}.{format}"
+    from zoneinfo import ZoneInfo
+    local = d["created_at"].replace(tzinfo=d["created_at"].tzinfo or ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York"))
+    name = f"AfroVending-Legal-Policy-Review-Pack-CONFIDENTIAL-{local:%Y-%m-%d}.{format}"
     return Response(content=bytes(d["files"][format]), media_type=MIME[format],
                     headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
@@ -319,7 +321,12 @@ async def download_pack(pid: str, request: Request, format: Literal["docx", "pdf
 @router.post("/admin/policies/review-pack/{pid}/approve-sharing")
 async def approve_sharing(pid: str, request: Request, admin: User = Depends(EDITOR)):
     _super(admin)
-    r = await db.review_packs.update_one({"_id": ObjectId(pid)} if ObjectId.is_valid(pid) else {"_id": None},
+    d = await db.review_packs.find_one({"_id": ObjectId(pid)}, {"files": 0}) if ObjectId.is_valid(pid) else None
+    if not d:
+        raise APIError(404, "not_found", "Review pack not found.")
+    if d.get("external_sharing_approved"):
+        return {"ok": True, "already_approved": True}
+    r = await db.review_packs.update_one({"_id": d["_id"]},
                                          {"$set": {"external_sharing_approved": True, "sharing_approved_by": admin.email, "sharing_approved_at": utcnow()}})
     if not r.matched_count:
         raise APIError(404, "not_found", "Review pack not found.")

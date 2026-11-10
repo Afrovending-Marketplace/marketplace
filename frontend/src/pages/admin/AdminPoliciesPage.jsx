@@ -141,7 +141,7 @@ function ReviewPack({ isSuper }) {
     try {
       const r = await api.get(`/admin/policies/review-pack/${p.id}/download`, { params: { format }, responseType: "blob" });
       const url = URL.createObjectURL(r.data);
-      const a = Object.assign(document.createElement("a"), { href: url, download: `AfroVending-Legal-Policy-Review-Pack-CONFIDENTIAL-${p.created_at.slice(0, 10)}.${format}` });
+      const a = Object.assign(document.createElement("a"), { href: url, download: `AfroVending-Legal-Policy-Review-Pack-CONFIDENTIAL-${new Date(p.created_at).toLocaleDateString("en-CA", { timeZone: "America/New_York" })}.${format}` });
       a.click();
       URL.revokeObjectURL(url);
       load();
