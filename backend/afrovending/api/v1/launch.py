@@ -28,6 +28,7 @@ ITEMS = [  # key, label, mode, who may edit
     *[(k, label, "auto" if k == "super_admin_mfa" else "payment", SETTINGS if k == "super_admin_mfa" else FIN_MANAGE) for k, label in orders_gate.PAYMENT_ITEMS],
     ("admin_mfa", "Every active administrator has MFA enrolled", "auto", SETTINGS),
     *[(f"policy_{s}", f"{m['title']}: legal review approved and published", "auto", SETTINGS) for s, m in pol_core.META.items()],
+    ("legal_review_pack", "Attorney review pack generated, approved for external sharing and sent for legal review", "auto", SETTINGS),
     ("monitoring", "Uptime monitoring (external) and production error reporting configured and alert-tested", "manual", SETTINGS),
     ("email_domain", "Resend sending domain verified (SPF, DKIM, DMARC)", "manual", SETTINGS),
     ("phase13_audit", "Phase 13 audit cleared and launch blockers resolved", "manual", SETTINGS),
@@ -134,6 +135,14 @@ async def _payment_guard(key: str) -> str:
 
 
 async def _check(key: str) -> tuple[str, str]:
+    if key == "legal_review_pack":
+        p = await db.review_packs.find_one({}, {"files": 0}, sort=[("created_at", -1)])
+        if not p:
+            return "not_started", "No review pack generated yet."
+        pub = await db.policy_versions.count_documents({"status": "published"})
+        share = f"external sharing approved by {p['sharing_approved_by']}" if p.get("external_sharing_approved") else "external sharing NOT yet approved"
+        detail = f"Pack generated {p['created_at']:%Y-%m-%d} by {p['created_by']}; {share}; {pub}/7 policies published after legal review."
+        return ("verified" if pub == len(pol_core.META) else "in_progress"), detail
     if key.startswith("policy_"):
         from afrovending.core import policies as pol
         slug = key[len("policy_"):]

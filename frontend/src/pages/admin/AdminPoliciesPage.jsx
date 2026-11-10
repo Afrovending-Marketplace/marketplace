@@ -123,6 +123,48 @@ export default function AdminPoliciesPage() {
         <button key={x.slug} type="button" onClick={() => setSlug(x.slug)} className={`rounded-full border px-3 py-1.5 text-sm ${x.slug === slug ? "border-av-ink bg-av-ink text-white" : "border-av-line"}`} data-testid={`policy-tab-${x.slug}`}>
           {x.title} <span className="opacity-70">· {x.published ? `v${x.published.version} live` : "not published"}</span></button>))}</div>
       <PolicyDetail p={p} isSuper={d.is_super_admin} reload={load} />
+      <ReviewPack isSuper={d.is_super_admin} />
     </div>
+  );
+}
+
+function ReviewPack({ isSuper }) {
+  const [packs, setPacks] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => api.get("/admin/policies/review-pack").then((r) => setPacks(r.data.data)).catch(() => {}), []);
+  useEffect(() => { load(); }, [load]);
+  const make = async () => {
+    setBusy(true);
+    try { await api.post("/admin/policies/review-pack"); toast.success("Review pack generated"); load(); } catch (e) { toast.error(getErrorMessage(e)); } finally { setBusy(false); }
+  };
+  const download = async (p, format) => {
+    try {
+      const r = await api.get(`/admin/policies/review-pack/${p.id}/download`, { params: { format }, responseType: "blob" });
+      const url = URL.createObjectURL(r.data);
+      const a = Object.assign(document.createElement("a"), { href: url, download: `AfroVending-Legal-Policy-Review-Pack-CONFIDENTIAL-${p.created_at.slice(0, 10)}.${format}` });
+      a.click();
+      URL.revokeObjectURL(url);
+      load();
+    } catch (e) { toast.error(getErrorMessage(e)); }
+  };
+  const share = (p) => window.confirm("Approve this pack for sharing with the reviewing attorney?") &&
+    api.post(`/admin/policies/review-pack/${p.id}/approve-sharing`).then(() => { toast.success("External sharing approved"); load(); }).catch((e) => toast.error(getErrorMessage(e)));
+  return (
+    <section className="space-y-3 rounded-2xl border border-av-line bg-white p-5" data-testid="review-pack">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><h2 className="font-semibold">Lawyer review pack</h2><p className="text-xs text-av-muted">Confidential Word and PDF documents with all seven current drafts, the open questions and the review record. Admin-only downloads.</p></div>
+        <Button size="sm" onClick={make} disabled={busy} data-testid="review-pack-generate">{busy ? "Generating…" : "Generate new pack"}</Button>
+      </div>
+      {packs.length === 0 ? <p className="text-sm text-av-muted" data-testid="review-pack-empty">No pack generated yet.</p> : (
+        <ul className="divide-y divide-av-line text-sm">{packs.map((p) => (
+          <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid={`review-pack-${p.id}`}>
+            <span>{ET(p.created_at)} · {p.created_by} · {p.downloads} download(s) · <StatusBadge tone={p.external_sharing_approved ? "success" : "gold"} testId={`review-pack-share-status-${p.id}`}>{p.external_sharing_approved ? "Approved for external sharing" : "Internal only"}</StatusBadge></span>
+            <span className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => download(p, "docx")} data-testid={`review-pack-docx-${p.id}`}>Word</Button>
+              <Button size="sm" variant="outline" onClick={() => download(p, "pdf")} data-testid={`review-pack-pdf-${p.id}`}>PDF</Button>
+              {isSuper && !p.external_sharing_approved && <Button size="sm" onClick={() => share(p)} data-testid={`review-pack-approve-share-${p.id}`}>Approve sharing</Button>}
+            </span>
+          </li>))}</ul>)}
+    </section>
   );
 }

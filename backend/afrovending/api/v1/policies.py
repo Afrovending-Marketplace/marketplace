@@ -4,7 +4,9 @@ from typing import Literal, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from afrovending.core import policies as pol
 from afrovending.core.audit import audit
@@ -257,3 +259,70 @@ async def acceptances(slug: str, _: User = Depends(EDITOR)):
     users = {u["_id"]: u["email"] async for u in db.users.find({"_id": {"$in": [r["user_id"] for r in recent]}}, {"email": 1})}
     return {"by_version": [{"version": b["_id"], "count": b["n"]} for b in by_v],
             "recent": [{"email": users.get(r["user_id"], "deleted user"), "version": r["version"], "context": r["context"], "accepted_at": _iso(r["accepted_at"])} for r in recent]}
+
+
+# ---------- attorney review pack (admin-only files, stored in the database) ----------
+MIME = {"docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "pdf": "application/pdf"}
+
+
+def _pack_out(d: dict) -> dict:
+    return {"id": str(d["_id"]), "created_by": d["created_by"], "created_at": _iso(d["created_at"]), "sizes": d["sizes"],
+            "policy_versions": d["policy_versions"], "external_sharing_approved": d.get("external_sharing_approved", False),
+            "sharing_approved_by": d.get("sharing_approved_by"), "sharing_approved_at": _iso(d.get("sharing_approved_at")), "downloads": d.get("downloads", 0)}
+
+
+def _render(data: dict) -> dict:
+    import tempfile
+    from pathlib import Path
+    from afrovending.core import review_pack as rp
+    out = {}
+    with tempfile.TemporaryDirectory() as tmp:
+        for fmt, fn in (("docx", rp.build_docx), ("pdf", rp.build_pdf)):
+            p = Path(tmp) / f"pack.{fmt}"
+            fn(data, p)
+            out[fmt] = p.read_bytes()
+    return out
+
+
+@router.post("/admin/policies/review-pack", status_code=201)
+async def make_pack(request: Request, admin: User = Depends(EDITOR)):
+    from bson import Binary
+    from afrovending.core import review_pack as rp
+    data = await rp.gather()
+    files = await run_in_threadpool(_render, data)
+    doc = {"created_by": admin.email, "created_at": utcnow(), "files": {k: Binary(v) for k, v in files.items()}, "sizes": {k: len(v) for k, v in files.items()},
+           "policy_versions": [{"slug": p["slug"], "version": p["version"], "status": p["status"]} for p in data["policies"]],
+           "external_sharing_approved": False, "downloads": 0}
+    doc["_id"] = (await db.review_packs.insert_one(doc)).inserted_id
+    await audit("policy.review_pack_generated", "review_packs", request=request, actor=admin, entity_id=str(doc["_id"]))
+    return _pack_out(doc)
+
+
+@router.get("/admin/policies/review-pack")
+async def list_packs(_: User = Depends(EDITOR)):
+    docs = await db.review_packs.find({}, {"files": 0}).sort("created_at", -1).limit(10).to_list(10)
+    return {"data": [_pack_out(d) for d in docs]}
+
+
+@router.get("/admin/policies/review-pack/{pid}/download")
+async def download_pack(pid: str, request: Request, format: Literal["docx", "pdf"] = "docx", admin: User = Depends(EDITOR)):
+    d = await db.review_packs.find_one({"_id": ObjectId(pid)}) if ObjectId.is_valid(pid) else None
+    if not d:
+        raise APIError(404, "not_found", "Review pack not found.")
+    await db.review_packs.update_one({"_id": d["_id"]}, {"$inc": {"downloads": 1}})
+    await audit("policy.review_pack_downloaded", "review_packs", request=request, actor=admin, entity_id=pid, format=format)
+    name = f"AfroVending-Legal-Policy-Review-Pack-CONFIDENTIAL-{d['created_at']:%Y-%m-%d}.{format}"
+    return Response(content=bytes(d["files"][format]), media_type=MIME[format],
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
+@router.post("/admin/policies/review-pack/{pid}/approve-sharing")
+async def approve_sharing(pid: str, request: Request, admin: User = Depends(EDITOR)):
+    _super(admin)
+    r = await db.review_packs.update_one({"_id": ObjectId(pid)} if ObjectId.is_valid(pid) else {"_id": None},
+                                         {"$set": {"external_sharing_approved": True, "sharing_approved_by": admin.email, "sharing_approved_at": utcnow()}})
+    if not r.matched_count:
+        raise APIError(404, "not_found", "Review pack not found.")
+    await audit("policy.review_pack_sharing_approved", "review_packs", request=request, actor=admin, entity_id=pid)
+    return {"ok": True}
+
