@@ -45,14 +45,15 @@ function VersionPanel({ id, meta, isSuper, reload }) {
   const [v, setV] = useState(null);
   const [edit, setEdit] = useState(null);
   const [note, setNote] = useState("");
+  const [typed, setTyped] = useState("");
   const load = useCallback(() => api.get(`/admin/policies/versions/${id}`).then((r) => { setV(r.data); setEdit(null); }), [id]);
   useEffect(() => { load(); }, [load]);
   if (!v) return null;
   const done = () => { load(); reload(); };
   const save = () => api.put(`/admin/policies/versions/${id}`, { body: edit.body, change_summary: edit.change_summary, effective_date: edit.effective_date || null })
     .then(() => { toast.success("Draft saved"); done(); }).catch((e) => toast.error(getErrorMessage(e)));
-  const publish = () => window.confirm(`Publish ${meta.title} v${v.version} publicly?`) && act(`${id}/publish`, { confirm: "PUBLISH" }, "Published", done);
-  const archive = () => { const reason = window.prompt("Reason for archiving (logged):"); if (reason) act(`${id}/archive`, { reason }, "Archived", done); };
+  const publish = () => act(`${id}/publish`, { confirm: typed }, "Published", done);
+  const archive = () => (note.trim().length >= 5 ? act(`${id}/archive`, { reason: note }, "Archived", done) : toast.error("Write the reason for archiving (at least 5 characters) in the note box first."));
   return (
     <div className="space-y-4" data-testid="policy-version-panel">
       <div className="flex flex-wrap items-center gap-2">
@@ -66,10 +67,11 @@ function VersionPanel({ id, meta, isSuper, reload }) {
         {v.status === "draft" && !edit && <Button size="sm" variant="outline" onClick={() => setEdit({ body: v.body, change_summary: v.change_summary || "", effective_date: v.effective_date || "" })} data-testid="policy-edit">Edit draft</Button>}
         {v.status === "draft" && <Button size="sm" onClick={() => act(`${id}/submit`, { note }, "Submitted for legal review", done)} data-testid="policy-submit">Submit for legal review</Button>}
         {isSuper && v.status === "pending_review" && <Button size="sm" variant="outline" onClick={() => (note.trim().length >= 5 ? act(`${id}/request-changes`, { note }, "Sent back for changes", done) : toast.error("Write the requested changes in the note box first."))} data-testid="policy-request-changes">Request changes</Button>}
-        {isSuper && v.status === "approved" && <Button size="sm" onClick={publish} data-testid="policy-publish">Publish</Button>}
+        {isSuper && v.status === "approved" && <><Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type PUBLISH to confirm" className="w-48" data-testid="policy-publish-confirm" />
+          <Button size="sm" disabled={typed !== "PUBLISH"} onClick={publish} data-testid="policy-publish">Publish</Button></>}
         {isSuper && v.status !== "archived" && <Button size="sm" variant="outline" onClick={archive} data-testid="policy-archive">Archive</Button>}
       </div>
-      {(v.status === "draft" || (isSuper && v.status === "pending_review")) && <Textarea placeholder="Note / feedback (saved in the version history)" value={note} onChange={(e) => setNote(e.target.value)} data-testid="policy-note" />}
+      {(v.status === "draft" || isSuper) && v.status !== "archived" && <Textarea placeholder={isSuper ? "Note / feedback / archive reason (saved in the version history)" : "Note (saved in the version history)"} value={note} onChange={(e) => setNote(e.target.value)} data-testid="policy-note" />}
       {isSuper && v.status === "pending_review" && <ApproveForm v={v} acceptance={!!meta.acceptance} done={done} />}
       {edit ? (
         <div className="space-y-2" data-testid="policy-editor">

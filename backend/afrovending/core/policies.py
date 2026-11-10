@@ -65,7 +65,13 @@ async def pending_for(user_id, slugs: list[str]) -> list[dict]:
     return out
 
 
+STAFF_ROLES = {"super_admin", "marketplace_admin", "finance_admin", "support_admin", "content_admin"}
+
+
 def slugs_for(roles: list[str]) -> list[str]:
+    """Staff-only accounts aren't prompted; they still must accept before buying (checkout checks CUSTOMER directly)."""
+    if roles and set(roles) <= STAFF_ROLES:
+        return []
     return CUSTOMER + (VENDOR if "vendor" in roles else [])
 
 

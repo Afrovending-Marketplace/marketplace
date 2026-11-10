@@ -1,0 +1,40 @@
+{
+  "summary": "Policy Management (iteration 31) tested end to end on backend and frontend. Backend: a new 14-test pytest module (tests/test_phase17_t1_policies.py, run serially with -n 0) passes 14/14. It covers public finalising responses with no body, the production gate unit test (503 policies_unavailable, then passing once terms and privacy are published), preview registration with nothing published, RBAC across 7 roles, the full terms lifecycle (409 version_locked, request-changes, edit, submit, approval validation 422s, PUBLISH confirm, publish, launch check going from blocked to verified, audit and history entries), customer acceptance and the checkout block, registration acceptance with context 'registration', vendor gates (product submit, order accept, vendor_unavailable at checkout, refunds still work, applicant approval 409, application label check), the assert_vendors_ready unit test, v2 non-material (no re-prompt, v1 archived automatically, only one open draft allowed), v3 material (re-prompt), and archive needing a reason. Regression: test_phase15_t1_refund_cancel (7/7) and test_phase16_t1_ops_gate (14/14) pass when each is run serially. orders-status shows accepting=true. Frontend: all 7 public pages show policy-finalising with no draft text, the footer has a Cookie Policy link, and there is no horizontal overflow at 1920 or 390. Register: the checkbox starts unchecked and submitting without it shows register-accept-error. Admin as Super Admin: Policy management link on /admin, 7 tabs, status 'Draft — Pending Legal Review', markdown preview renders headings, lists and the cookie table, history shows 2 entries, approve-confirm starts unchecked, and approve-submit stays disabled until it is ticked and a classification is chosen. Content admin: no approve form, publish or archive buttons, and new-draft is disabled while v1 is open. Policy prompt: the dialog lists the pending items, the button stays disabled until the box is ticked, Escape leaves policy-review-reopen visible, and accepting closes the dialog with pending=[]. All policy data was restored exactly from a mongodump taken before testing (7 x v1 pending_review, bodies identical to the .md files, 2 history entries each). policy_acceptances is empty, there are no launch_checklist policy_* docs, and all TEST users, staff, vendors, products and orders created by the tests are gone.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/v1/admin/policies/versions/{id}/publish", "issue": "Publishing the new version and archiving the previous one are two separate updates, and no unique constraint allows only one 'published' version per slug. Two concurrent publishes, or a crash between the two writes, can leave two published versions, and pol.published() would then pick one at random. Consider a partial unique index on {slug} where status='published', or archive the previous version first inside one guarded sequence."},
+      {"endpoint": "core/policies.slugs_for", "issue": "Every user, including staff and the Super Admin, must accept the customer Terms and Privacy. Once these are published, admin accounts get the acceptance dialog over the admin UI (seen for the content admin). This may be intended, but please confirm it."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/policies approve form and draft editor", "issues": ["Uses the browser's native <input type=date> pickers for review date and effective date instead of the shadcn Calendar/Popover date picker."]},
+      {"screen": "/admin/policies publish/archive", "issues": ["Publish uses window.confirm() and archive uses window.prompt(). The UI then sends confirm='PUBLISH' automatically, so the typed-confirmation safeguard the backend expects is skipped in the UI. Use a shadcn AlertDialog where the user types PUBLISH and enters an archive reason (with the 5-char minimum shown in the UI)."]},
+      {"screen": "Footer Legal column", "issues": ["The link is labelled 'Terms & Conditions' but the page title and policy are 'Terms of Service'. Use one name."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase17_t1_policies.py", "/app/backend/tests/t17_ui_setup.py"],
+  "action_items": [
+    "Optional hardening: guarantee a single published version per slug (partial unique index, or ordered archive→publish).",
+    "Replace window.confirm/window.prompt in AdminPoliciesPage with shadcn AlertDialogs (typed PUBLISH confirmation, archive reason input).",
+    "Replace native date inputs in AdminPoliciesPage with the shadcn date picker.",
+    "Decide whether staff/admin accounts should be prompted for customer Terms/Privacy acceptance.",
+    "Align the footer label 'Terms & Conditions' with 'Terms of Service'."
+  ],
+  "critical_code_review_comments": [
+    "Draft text never leaks publicly: get_public returns only metadata when nothing is published, and the admin list and versions endpoints omit body. Verified.",
+    "Approval and publish permissions are enforced server-side (_super), and the state machine is guarded atomically with update_one filtered on status. Good.",
+    "Re-acceptance logic (required_version = highest published version with requires_reacceptance) handles non-material vs material changes correctly. Verified with v2 and v3.",
+    "Test infra (pre-existing): test_phase15 and test_phase16 fail when run together under xdist (-n 2), with 'Choose a shipping option for each vendor'. test_phase06_cart.cleanup deletes every shipping_method/tax_rate matching ^TEST, which wipes the other worker's fixtures. Each module passes on its own. Scope that cleanup to the module TAG."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase17_t1_policies.py", "/app/backend/tests/t17_ui_setup.py"],
+  "success_rate": {"backend": "100% (14/14 new + 21/21 regression run serially)", "frontend": "100% of requested flows"},
+  "test_credentials": "Super Admin from /app/memory/test_credentials.md works (TOTP from users.mfa_secret). A content admin was created via admin_with('content_admin') and deleted afterwards.",
+  "seed_data_creation": "None left behind. Policy versions were temporarily approved and published for testing, then restored exactly from a mongodump of policy_versions taken before testing (/tmp/polbak).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run `cd /app/backend && python -m pytest tests/test_phase17_t1_policies.py -n 0`. The module dumps policy_versions at setup and restores it at teardown, then deletes all policy_acceptances and launch_checklist policy_* docs. It relies on phase06/07 fixtures to clean up TEST6_ users, vendors and orders. For UI checks with published policies, use `python -m tests.t17_ui_setup setup` and then `restore` (restore needs /tmp/polbak from a pristine mongodump). The browser automation sandbox has no pymongo, so compute TOTP inline with hmac and the secret read via mongosh. Launch checklist endpoint is /api/v1/admin/launch/checklist, not /admin/launch."
+}

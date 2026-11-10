@@ -53,7 +53,7 @@ export const FOOTER_COLUMNS = [
     title: "Legal",
     links: [
       { label: "Privacy Policy", path: "/privacy" },
-      { label: "Terms & Conditions", path: "/terms" },
+      { label: "Terms of Service", path: "/terms" },
       { label: "Vendor Agreement", path: "/vendor-agreement" },
       { label: "Shipping & Delivery", path: "/shipping-policy" },
       { label: "Returns & Refunds", path: "/returns-policy" },

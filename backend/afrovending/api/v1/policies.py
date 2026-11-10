@@ -228,9 +228,14 @@ async def publish(vid: str, body: ConfirmIn, request: Request, admin: User = Dep
     if d["status"] != "approved" or not (d.get("legal_review") or {}).get("confirmed"):
         raise APIError(409, "conflict", "Only legally approved versions can be published.")
     prev = await pol.published(d["slug"])
-    await _move(d, ("approved",), "published", admin, request, body.reason or "Published", {"published_at": utcnow(), "published_by": admin.email})
     if prev:
         await _move(prev, ("published",), "archived", admin, request, f"Replaced by v{d['version']}", {"archived_at": utcnow()})
+    try:
+        await _move(d, ("approved",), "published", admin, request, body.reason or "Published", {"published_at": utcnow(), "published_by": admin.email})
+    except Exception:
+        if prev:
+            await db.policy_versions.update_one({"_id": prev["_id"]}, {"$set": {"status": "published"}, "$unset": {"archived_at": ""}})
+        raise
     return _v(await _version(vid))
 
 
