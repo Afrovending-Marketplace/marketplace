@@ -301,7 +301,7 @@ async def make_pack(request: Request, admin: User = Depends(EDITOR)):
     files = await run_in_threadpool(_render, data)
     doc = {"created_by": admin.email, "created_at": utcnow(), "files": {k: Binary(v) for k, v in files.items()}, "sizes": {k: len(v) for k, v in files.items()},
            "policy_versions": [{"slug": p["slug"], "version": p["version"], "status": p["status"]} for p in data["policies"]],
-           "external_sharing_approved": False, "downloads": 0, "pack_number": await db.review_packs.count_documents({}) + 1, "attorney_records": []}
+           "external_sharing_approved": False, "downloads": 0, "pack_number": ((await db.review_packs.find_one({}, {"pack_number": 1}, sort=[("pack_number", -1)])) or {}).get("pack_number", 0) + 1, "attorney_records": []}
     doc["_id"] = (await db.review_packs.insert_one(doc)).inserted_id
     await audit("policy.review_pack_generated", "review_packs", request=request, actor=admin, entity_id=str(doc["_id"]))
     return _pack_out(doc)
@@ -344,10 +344,10 @@ async def approve_sharing(pid: str, body: ShareIn, request: Request, admin: User
         raise APIError(404, "not_found", "Review pack not found.")
     if d.get("external_sharing_approved"):
         return {"ok": True, "already_approved": True}
-    r = await db.review_packs.update_one({"_id": d["_id"]},
+    r = await db.review_packs.update_one({"_id": d["_id"], "external_sharing_approved": {"$ne": True}},
                                          {"$set": {"external_sharing_approved": True, "sharing_approved_by": admin.email, "sharing_approved_at": utcnow()}})
-    if not r.matched_count:
-        raise APIError(404, "not_found", "Review pack not found.")
+    if not r.modified_count:
+        return {"ok": True, "already_approved": True}
     await audit("policy.review_pack_sharing_approved", "review_packs", request=request, actor=admin, entity_id=pid, pack_number=d.get("pack_number", 1),
                 policy_versions=[f"{p['slug']}-v{p['version']}" for p in d["policy_versions"]])
     return {"ok": True}
@@ -377,6 +377,8 @@ async def attorney_review(pid: str, request: Request, reviewer_name: str = Form(
         data = await file.read()
         if not data or len(data) > 15_000_000:
             raise APIError(422, "validation_error", "File must be under 15 MB.")
+        if not data.startswith(b"%PDF" if ATTORNEY_TYPES[file.content_type] == "pdf" else b"PK"):
+            raise APIError(422, "validation_error", "The file content doesn't match a PDF or Word document.")
         path = f"{APP_PREFIX}/private/legal-review/{pid}/{uuid.uuid4()}.{ATTORNEY_TYPES[file.content_type]}"
         try:
             res = await run_in_threadpool(put_object, path, data, file.content_type)

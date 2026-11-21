@@ -169,7 +169,7 @@ function PackRow({ p, isSuper, download, reload }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span>Pack #{p.pack_number} · {ET(p.created_at)} · {p.created_by} · {p.downloads} download(s)</span>
         <span className="flex flex-wrap gap-2">
-          <StatusBadge tone={p.external_sharing_approved ? "success" : "gold"} testId={`review-pack-share-status-${p.id}`}>{p.external_sharing_approved ? "Approved for External Sharing" : "Internal only — not approved for sharing"}</StatusBadge>
+          <StatusBadge tone={p.external_sharing_approved ? "indigo" : "gold"} testId={`review-pack-share-status-${p.id}`}>{p.external_sharing_approved ? "Approved for External Sharing" : "Internal only — not approved for sharing"}</StatusBadge>
           <StatusBadge tone="neutral" testId={`review-pack-legal-status-${p.id}`}>Not legally approved</StatusBadge>
         </span>
       </div>
@@ -185,7 +185,7 @@ function PackRow({ p, isSuper, download, reload }) {
             <span>I approve this pack for sharing with AfroVending's reviewing attorney.</span></label>
           <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={ok2} onChange={(e) => setOk2(e.target.checked)} data-testid={`review-pack-ack-${p.id}`} />
             <span>I understand this is <b>not</b> legal approval. All policies stay Pending Legal Review.</span></label>
-          <Button size="sm" disabled={!ok1 || !ok2} onClick={approve} data-testid={`review-pack-approve-share-${p.id}`}>Approve for External Sharing</Button>
+          <Button size="sm" variant={ok1 && ok2 ? "default" : "outline"} disabled={!ok1 || !ok2} onClick={approve} data-testid={`review-pack-approve-share-${p.id}`}>Approve for External Sharing</Button>
         </div>
       ) : <p className="text-xs text-av-muted">Waiting for the Super Admin to approve external sharing.</p>}
       <AttorneyRecords p={p} isSuper={isSuper} reload={reload} />
@@ -195,14 +195,15 @@ function PackRow({ p, isSuper, download, reload }) {
 
 function AttorneyRecords({ p, isSuper, reload }) {
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ reviewer_name: "", reviewer_firm: "", received_on: "", comments: "", recommendations: "", requested_changes: "" });
+  const EMPTY = { reviewer_name: "", reviewer_firm: "", received_on: "", comments: "", recommendations: "", requested_changes: "" };
+  const [f, setF] = useState(EMPTY);
   const [file, setFile] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const save = () => {
     const fd = new FormData();
     Object.entries(f).forEach(([k, v]) => fd.append(k, v));
     if (file) fd.append("file", file);
-    api.post(`/admin/policies/review-pack/${p.id}/attorney-review`, fd).then(() => { toast.success("Attorney review recorded"); setOpen(false); reload(); }).catch((e) => toast.error(getErrorMessage(e)));
+    api.post(`/admin/policies/review-pack/${p.id}/attorney-review`, fd).then(() => { toast.success("Attorney review recorded"); setF(EMPTY); setFile(null); setOpen(false); reload(); }).catch((e) => toast.error(getErrorMessage(e)));
   };
   const getFile = (r) => api.get(`/admin/policies/review-pack/${p.id}/attorney-review/${r.id}/file`, { responseType: "blob" }).then((res) => {
     const url = URL.createObjectURL(res.data);

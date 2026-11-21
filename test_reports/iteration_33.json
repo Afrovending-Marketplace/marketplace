@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 33: tested the Lawyer Review Pack sharing-approval gate, attorney feedback records, and the public Policy Change Log, on both backend and frontend. I updated backend/tests/test_phase17_t1_review_pack.py (13 tests) and extended test_phase17_t1_policies.py with change-log assertions (14 tests). All 27 pass. Results: downloads are 403 sharing_not_approved for the Super Admin and content_admin until a pack is approved. approve-sharing needs both JSON flags and returns 422 if either is missing or false. A repeat call is a no-op (already_approved, a single audit entry). The audits include pack_number and policy_versions. Policies stay pending_review. The backend log shows no outbound email around approve-sharing or attorney calls. Attorney feedback: 201 for the Super Admin, 403 for content_admin and customers, 422 for a future date, .txt or .png, 404 for an unknown pack. No storage_path is exposed. The file downloads for the Super Admin and content_admin, 403 for a customer, 401 without a session, 404 for an unknown rid, and the download is audited. Change log: v2 current then v1, with exactly the 6 fields and no legal_review or body. The newest version comes first after v3 too. Unpublished slugs return finalising with no changes or body. UI checks: badges, the two-checkbox gate, Word/PDF downloads after approval, the attorney form with PDF upload and download, content-admin restrictions, /terms change log, and the 390 px layout. One real bug found: the attorney form keeps its old values after saving.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/v1/admin/policies/review-pack/{id}/attorney-review", "issue": "The file type is checked only against the content_type the client sends (no magic-byte check). Any bytes sent as application/pdf are accepted and stored."},
+      {"endpoint": "POST /api/v1/admin/policies/review-pack/{id}/approve-sharing", "issue": "Possible race: the check that the pack is not yet approved and the update_one are separate steps, and the update filter doesn't include external_sharing_approved != true. Two calls at the same moment could both write approver/date and two audit entries. Fix: add {'external_sharing_approved': {'$ne': True}} to the filter and return already_approved when modified_count == 0."},
+      {"endpoint": "POST /api/v1/admin/policies/review-pack", "issue": "pack_number = count_documents + 1. Once any pack is deleted, numbers can repeat. The real pack #1 has no pack_number field stored (the API falls back to 1)."},
+      {"endpoint": "attorney-review storage", "issue": "There is no delete for uploaded objects in object storage. Deleting a pack record leaves its attorney files behind. TEST PDFs from this run remain under afrovending/private/legal-review/<test pack id>/ (only the DB records were removed)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AttorneyRecords form (AdminPoliciesPage.jsx)", "issue": "After a successful save the form state (f) and the selected file are not reset. Reopening 'Record attorney feedback' showed the previous name and date (verified). Because the file input re-renders empty while the `file` state still holds the old file, a second save silently re-attaches the previous document. Fix: in the save handler's success callback, reset f to empty values and call setFile(null).", "selector": "[data-testid^=attorney-add-], [data-testid=attorney-save]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/policies review pack row", "issues": ["The 'Approved for External Sharing' badge uses the same success (green) tone as the policy statuses 'Approved' and 'Published'. The requirement says sharing approval must look clearly different from legal approval. Use a distinct tone (e.g. blue or info) and/or an icon.", "At 390 px the page is 1 px wider than the screen (scrollWidth 391 vs clientWidth 390), so there is a tiny horizontal scroll.", "The disabled 'Approve for External Sharing' button is a faded red and reads as an active warning. Fine, but a neutral disabled style would be clearer."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase17_t1_review_pack.py", "/app/backend/tests/test_phase17_t1_policies.py", "/app/backend/tests/t33_ui_setup.py", "/app/backend/tests/t33_ui_cleanup.py", "/app/test_reports/pytest/iter33_review_pack.xml", "/app/test_reports/pytest/iter33_policies.xml"],
+  "action_items": [
+    "Reset the attorney form (setF to empty values, setFile(null)) after a successful save in AttorneyRecords.",
+    "Give the 'Approved for External Sharing' badge a tone that differs from the green success tone used for legal 'Approved' and 'Published'.",
+    "Make approve-sharing atomic: add external_sharing_approved != true to the update filter.",
+    "Optional: check PDF/DOCX magic bytes (%PDF / PK) on attorney uploads; store a stable pack_number (e.g. a counter); add delete_object for storage cleanup; fix the 1 px overflow at 390 px on /admin/policies."
+  ],
+  "critical_code_review_comments": [
+    "policies.py approve_sharing: the check and the update are separate, non-atomic steps.",
+    "policies.py attorney_review: trusts the client-sent content_type; reads the whole upload into memory before checking the size (acceptable at 15 MB).",
+    "policies.py _changes: correctly excludes legal_review, body and history and lists only versions with published_at set. An archived version that was never published is correctly left out.",
+    "launch.py legal_review_pack check reads the most recent pack, so a newer test pack temporarily changes what the real checklist shows. Tests delete their packs in teardown."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase17_t1_review_pack.py", "/app/backend/tests/test_phase17_t1_policies.py", "/app/backend/tests/t33_ui_setup.py", "/app/backend/tests/t33_ui_cleanup.py"],
+  "success_rate": {"backend": "100% (27/27)", "frontend": "95% (all flows work; form-reset bug and badge-tone design issue)"},
+  "seed_data_creation": "Temporary only: TEST review packs, a TEST content_admin (test10_*@example.com) and TEST customers, plus a temporary terms v1+v2 publication for the change-log UI. All removed. Policy_versions was restored from a mongodump (7 x v1 pending_review, 2 history entries each, bodies identical to policies/*.md), with 0 policy_acceptances and no policy_* or legal_review_pack launch_checklist docs. The real pack 6af273a06c693e2488c1ac51 (#1) is untouched: not approved, 0 downloads, 0 attorney records. Leftover: TEST attorney PDF objects in object storage (no delete API exists).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run serially: pytest tests/test_phase17_t1_review_pack.py -n 0 and tests/test_phase17_t1_policies.py -n 0. Both clean up after themselves. For UI checks: python tests/t33_ui_setup.py changelog creates 2 TEST packs, a content admin, publishes terms v1+v2 and writes cookies to /tmp/t33_ui.json; python tests/t33_ui_cleanup.py undoes everything. Never approve or annotate the real pack #1 (6af273a06c693e2488c1ac51). Server clock is Nov 2026.",
+  "test_credentials": "Super Admin from /app/memory/test_credentials.md; MFA via pyotp using users.mfa_secret (admin_client helper)."
+}

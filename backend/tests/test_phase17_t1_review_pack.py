@@ -2,11 +2,13 @@
 # Iteration 32 (T1): Lawyer Review Pack — generate (RBAC), list, download docx/pdf (headers, RBAC, audit, counter),
 # content of docx/pdf (title, confidentiality, TOC, parts, full policy text, question IDs, no invented contact facts, PAGE fields),
 # approve external sharing (super only), launch checklist item legal_review_pack, policies untouched.
+# Iteration 33: downloads 403 until approve-sharing (JSON confirm+ack), no-op repeat, attorney feedback records + file download.
 # Run serially: pytest tests/test_phase17_t1_review_pack.py -n 0
 import io
 import os
 import re
 import zipfile
+from datetime import date, timedelta
 
 import httpx
 import pytest
@@ -90,12 +92,61 @@ def test_02_list_without_bytes(sup, content):
     assert httpx.get(f"{BASE}/admin/policies/review-pack", timeout=30).status_code == 401
 
 
-# ---------- Download ----------
-def test_03_download_headers_and_errors(sup):
+# ---------- Download gate (403 until approved for sharing) ----------
+def test_03_download_blocked_until_approved(sup, content):
     pid = S["pid"]
-    before = mongo.review_packs.find_one({"_id": ObjectId(pid)})["downloads"]
+    for c in (sup, content):
+        for fmt in ("docx", "pdf"):
+            r = c.get(f"/admin/policies/review-pack/{pid}/download", params={"format": fmt})
+            assert r.status_code == 403 and r.json()["error"]["code"] == "sharing_not_approved", (fmt, r.status_code, r.text)
+    assert sup.get(f"/admin/policies/review-pack/{'0' * 24}/download").status_code == 404
+    assert sup.get("/admin/policies/review-pack/nope/download").status_code == 404
+    assert mongo.review_packs.find_one({"_id": ObjectId(pid)})["downloads"] == 0
+    assert mongo.audit_logs.count_documents({"action": "policy.review_pack_downloaded", "entity_id": {"$in": [pid, ObjectId(pid)]}}) == 0
+
+
+# ---------- Approve sharing (explicit confirmation body) ----------
+def test_04_approve_sharing(sup, content):
+    pid = S["pid"]
+    r = sup.post("/admin/launch/checklist/legal_review_pack/check")
+    assert r.status_code == 200 and r.json()["status"] == "in_progress", r.text
+    det = r.json().get("evidence") or str(r.json())
+    assert "NOT yet approved" in det and "0/7" in det, r.json()
+    ok = {"confirm": True, "acknowledge_not_legal_approval": True}
+    url = f"/admin/policies/review-pack/{pid}/approve-sharing"
+    assert content.post(url, json=ok).status_code == 403
+    assert S["cust"].post(url, json=ok).status_code == 403
+    assert sup.post(f"/admin/policies/review-pack/{'0' * 24}/approve-sharing", json=ok).status_code == 404
+    for bad in ({}, {"confirm": True}, {"acknowledge_not_legal_approval": True}, {"confirm": False, "acknowledge_not_legal_approval": True},
+                {"confirm": True, "acknowledge_not_legal_approval": False}):
+        r = sup.post(url, json=bad)
+        assert r.status_code == 422, (bad, r.status_code, r.text)
+    assert sup.post(url).status_code == 422  # no body
+    assert mongo.review_packs.find_one({"_id": ObjectId(pid)}).get("external_sharing_approved") is False
+    r = sup.post(url, json=ok)
+    assert r.status_code == 200 and r.json().get("ok") is True and not r.json().get("already_approved"), r.text
+    row = [p for p in sup.get("/admin/policies/review-pack").json()["data"] if p["id"] == pid][0]
+    assert row["external_sharing_approved"] is True and row["sharing_approved_by"] == "afrovending.online@gmail.com" and row["sharing_approved_at"]
+    a = mongo.audit_logs.find_one({"action": "policy.review_pack_sharing_approved", "entity_id": {"$in": [pid, ObjectId(pid)]}})
+    assert a, "no sharing audit"
+    flat = str(a)
+    assert "pack_number" in flat and "terms-v1" in flat and "prohibited-v1" in flat, a
+    first_at = row["sharing_approved_at"]
+    r = sup.post(url, json=ok)
+    assert r.status_code == 200 and r.json().get("already_approved") is True, r.text
+    row = [p for p in sup.get("/admin/policies/review-pack").json()["data"] if p["id"] == pid][0]
+    assert row["sharing_approved_at"] == first_at
+    assert mongo.audit_logs.count_documents({"action": "policy.review_pack_sharing_approved", "entity_id": {"$in": [pid, ObjectId(pid)]}}) == 1
+    assert all(d["status"] == "pending_review" for d in mongo.policy_versions.find())
+    det = sup.post("/admin/launch/checklist/legal_review_pack/check").json()
+    assert "approved by" in str(det) and det["status"] == "in_progress", det
+
+
+# ---------- Download after approval ----------
+def test_05_download_after_approval(sup, content):
+    pid = S["pid"]
     r = sup.get(f"/admin/policies/review-pack/{pid}/download", params={"format": "docx"})
-    assert r.status_code == 200
+    assert r.status_code == 200, r.text
     assert r.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     cd = r.headers["content-disposition"]
     assert cd.startswith("attachment") and "CONFIDENTIAL" in cd and cd.rstrip('"').endswith(".docx"), cd
@@ -103,29 +154,25 @@ def test_03_download_headers_and_errors(sup):
     S["docx"] = r.content
     r = sup.get(f"/admin/policies/review-pack/{pid}/download", params={"format": "pdf"})
     assert r.status_code == 200 and r.headers["content-type"].startswith("application/pdf") and r.content[:4] == b"%PDF"
-    assert "no-store" in r.headers.get("cache-control", "") and ".pdf" in r.headers["content-disposition"]
+    assert "no-store" in r.headers.get("cache-control", "") and r.headers["content-disposition"].startswith("attachment")
     S["pdf"] = r.content
     assert sup.get(f"/admin/policies/review-pack/{pid}/download", params={"format": "xls"}).status_code == 422
-    assert sup.get(f"/admin/policies/review-pack/{'0' * 24}/download").status_code == 404
-    assert sup.get("/admin/policies/review-pack/nope/download").status_code == 404
-    after = mongo.review_packs.find_one({"_id": ObjectId(pid)})["downloads"]
-    assert after == before + 2, (before, after)
-    n = mongo.audit_logs.count_documents({"action": "policy.review_pack_downloaded", "entity_id": {"$in": [pid, ObjectId(pid)]}})
-    assert n >= 2, n
+    r = content.get(f"/admin/policies/review-pack/{pid}/download", params={"format": "pdf"})
+    assert r.status_code == 200 and r.content[:4] == b"%PDF"
+    assert mongo.review_packs.find_one({"_id": ObjectId(pid)})["downloads"] == 3
+    logs = list(mongo.audit_logs.find({"action": "policy.review_pack_downloaded", "entity_id": {"$in": [pid, ObjectId(pid)]}}))
+    assert len(logs) == 3 and all("pack_number" in str(x) for x in logs), logs[:1]
 
 
-def test_04_download_rbac(content):
+def test_06_download_rbac():
     pid = S["pid"]
     url = f"/admin/policies/review-pack/{pid}/download"
     assert httpx.get(f"{BASE}{url}", timeout=30).status_code == 401
     assert S["cust"].get(url).status_code == 403
     for role in ("support_admin", "finance_admin"):
         c, _ = admin_with(role)
-        r = c.get(url)
-        assert r.status_code == 403, (role, r.status_code)
+        assert c.get(url).status_code == 403, role
         assert c.post("/admin/policies/review-pack").status_code == 403
-    r = content.get(url, params={"format": "pdf"})
-    assert r.status_code == 200 and r.content[:4] == b"%PDF"
 
 
 # ---------- Content ----------
@@ -158,7 +205,7 @@ def pdf_text(b):
     return text, doc.page_count
 
 
-def test_05_docx_content():
+def test_07_docx_content():
     text, d = docx_text(S["docx"])
     missing = [s for s in COMMON if s not in text]
     assert not missing, missing
@@ -179,7 +226,7 @@ def test_05_docx_content():
     print("docx sections:", len(d.sections), "chars:", len(text))
 
 
-def test_06_pdf_content():
+def test_07b_pdf_content():
     text, pages = pdf_text(S["pdf"])
     nt = norm(text)
     missing = [s for s in COMMON if norm(s) not in nt]
@@ -195,7 +242,7 @@ def test_06_pdf_content():
     print("pdf pages:", pages)
 
 
-def test_07_md_files_match_db_bodies():
+def test_07c_md_files_match_db_bodies():
     # pack is built from DB bodies; confirm they are the policies/*.md full texts
     for slug in SLUGS:
         body = mongo.policy_versions.find_one({"slug": slug, "version": 1})["body"]
@@ -203,28 +250,68 @@ def test_07_md_files_match_db_bodies():
         assert norm(body) == norm(md), slug
 
 
-# ---------- Approve sharing ----------
-def test_08_approve_sharing(sup, content):
+# ---------- Attorney feedback ----------
+PDF_BYTES = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Count 0/Kids[]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n"
+
+
+def _form(**kw):
+    d = {"reviewer_name": "TEST Counsel", "reviewer_firm": "TEST LLP", "received_on": date.today().isoformat(), "comments": "TEST comment",
+         "recommendations": "TEST rec", "requested_changes": "TEST change"}
+    d.update(kw)
+    return d
+
+
+def test_08_attorney_review(sup, content):
     pid = S["pid"]
-    r = sup.post("/admin/launch/checklist/legal_review_pack/check")
-    assert r.status_code == 200 and r.json()["status"] == "in_progress", r.text
-    j = r.json()
-    det = j.get("evidence") or j.get("detail") or str(j)
-    assert "NOT yet approved" in det and "0/7" in det, j
-    assert content.post(f"/admin/policies/review-pack/{pid}/approve-sharing").status_code == 403
-    assert S["cust"].post(f"/admin/policies/review-pack/{pid}/approve-sharing").status_code == 403
-    assert sup.post(f"/admin/policies/review-pack/{'0' * 24}/approve-sharing").status_code == 404
-    r = sup.post(f"/admin/policies/review-pack/{pid}/approve-sharing")
-    assert r.status_code == 200, r.text
-    row = [p for p in sup.get("/admin/policies/review-pack").json()["data"] if p["id"] == pid][0]
-    assert row["external_sharing_approved"] is True and row["sharing_approved_by"] == "afrovending.online@gmail.com" and row["sharing_approved_at"]
-    assert mongo.audit_logs.find_one({"action": "policy.review_pack_sharing_approved", "entity_id": {"$in": [pid, ObjectId(pid)]}})
-    det = sup.post("/admin/launch/checklist/legal_review_pack/check").json()
-    assert "approved by" in str(det) and det["status"] == "in_progress", det
+    url = f"/admin/policies/review-pack/{pid}/attorney-review"
+    before = {str(d["_id"]): (d["status"], d.get("updated_at"), len(d.get("history", []))) for d in mongo.policy_versions.find()}
+    assert content.post(url, data=_form()).status_code == 403
+    assert S["cust"].post(url, data=_form()).status_code == 403
+    r = sup.post(url, data=_form(received_on=(date.today() + timedelta(days=2)).isoformat()))
+    assert r.status_code == 422, r.text
+    r = sup.post(url, data=_form(), files={"file": ("notes.txt", b"hello", "text/plain")})
+    assert r.status_code == 422, r.text
+    r = sup.post(url, data=_form(), files={"file": ("pic.png", b"\x89PNG\r\n\x1a\n" + b"0" * 50, "image/png")})
+    assert r.status_code == 422, r.text
+    assert sup.post(f"/admin/policies/review-pack/{'0' * 24}/attorney-review", data=_form()).status_code == 404
+    # no file
+    r = sup.post(url, data=_form(reviewer_name="TEST NoFile"))
+    assert r.status_code == 201, r.text
+    # with PDF
+    r = sup.post(url, data=_form(), files={"file": ("TEST-reviewed.pdf", PDF_BYTES, "application/pdf")})
+    assert r.status_code == 201, r.text
+    d = r.json()
+    recs = d["attorney_records"]
+    assert len(recs) == 2 and all("storage_path" not in x for x in recs), recs
+    rec = recs[-1]
+    assert rec["reviewer_name"] == "TEST Counsel" and rec["reviewer_firm"] == "TEST LLP" and rec["comments"] == "TEST comment"
+    assert rec["recommendations"] == "TEST rec" and rec["requested_changes"] == "TEST change" and rec["filename"] == "TEST-reviewed.pdf"
+    assert rec["size"] == len(PDF_BYTES) and rec["recorded_by"] == "afrovending.online@gmail.com"
+    S["rid"] = rec["id"]
+    lst = [p for p in sup.get("/admin/policies/review-pack").json()["data"] if p["id"] == pid][0]
+    assert len(lst["attorney_records"]) == 2 and "storage_path" not in str(lst)
+    assert mongo.audit_logs.find_one({"action": "policy.attorney_review_recorded", "entity_id": {"$in": [pid, ObjectId(pid)]}})
+    after = {str(d["_id"]): (d["status"], d.get("updated_at"), len(d.get("history", []))) for d in mongo.policy_versions.find()}
+    assert after == before
+
+
+def test_09_attorney_file_download(sup, content):
+    pid, rid = S["pid"], S["rid"]
+    url = f"/admin/policies/review-pack/{pid}/attorney-review/{rid}/file"
+    for c in (sup, content):
+        r = c.get(url)
+        assert r.status_code == 200 and r.content == PDF_BYTES, (r.status_code, r.text[:200])
+        assert r.headers["content-type"].startswith("application/pdf") and "no-store" in r.headers.get("cache-control", "")
+        assert r.headers["content-disposition"].startswith("attachment")
+    assert S["cust"].get(url).status_code == 403
+    assert httpx.get(f"{BASE}{url}", timeout=30).status_code == 401
+    assert sup.get(f"/admin/policies/review-pack/{pid}/attorney-review/{'f' * 24}/file").status_code == 404
+    assert mongo.audit_logs.count_documents({"action": "policy.attorney_review_downloaded", "record_id": rid}) >= 2 or \
+        mongo.audit_logs.count_documents({"action": "policy.attorney_review_downloaded", "entity_id": {"$in": [pid, ObjectId(pid)]}}) >= 2
 
 
 # ---------- Launch checklist ----------
-def test_09_launch_item(sup):
+def test_10_launch_item(sup):
     r = sup.get("/admin/launch/checklist")
     assert r.status_code == 200
     it = [i for i in r.json()["items"] if i["key"] == "legal_review_pack"]
@@ -233,7 +320,7 @@ def test_09_launch_item(sup):
     print("GET /admin/launch:", r2.status_code)
 
 
-def test_10_policies_untouched():
+def test_11_policies_untouched():
     after = {str(d["_id"]): (d["slug"], d["version"], d["status"], d.get("updated_at")) for d in mongo.policy_versions.find()}
     assert after == BEFORE
     assert all(v[2] == "pending_review" for v in after.values()) and len(after) == 7

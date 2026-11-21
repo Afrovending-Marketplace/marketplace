@@ -354,6 +354,18 @@ def test_13_v2_non_material_then_material(sup, content):
     assert d["version"] == 2 and d["requires_reacceptance"] is False
     assert mongo.policy_versions.find_one({"_id": ObjectId(v1)})["status"] == "archived"
     assert httpx.get(f"{BASE}/policies/terms", timeout=30).json()["version"] == 2
+    # iteration 33: public change log lists every published version, newest first, no review/body data
+    pub = httpx.get(f"{BASE}/policies/terms", timeout=30).json()
+    ch = pub["changes"]
+    assert [(c["version"], c["current"], c["material"]) for c in ch] == [(2, True, False), (1, False, True)], ch
+    for c in ch:
+        assert set(c) == {"version", "effective_date", "published_at", "change_summary", "material", "current"}, c
+        assert c["published_at"] and c["effective_date"]
+    assert ch[0]["change_summary"] == "TEST first version"
+    assert "legal_review" not in str(pub) and "TEST Counsel" not in str(pub)
+    for s_ in ("shipping", "returns", "cookies"):
+        d = httpx.get(f"{BASE}/policies/{s_}", timeout=30).json()
+        assert d["status"] == "finalising" and "changes" not in d and "body" not in d, d
     assert b.get("/account/policy-status").json()["pending"] == []
     r = content.post("/admin/policies/terms/versions", json={"change_summary": "TEST v3"})
     v3 = r.json()["id"]
@@ -361,6 +373,8 @@ def test_13_v2_non_material_then_material(sup, content):
     approve_publish(sup, "terms", "material")
     pend = b.get("/account/policy-status").json()["pending"]
     assert [(p["slug"], p["version"]) for p in pend] == [("terms", 3)], pend
+    ch = httpx.get(f"{BASE}/policies/terms", timeout=30).json()["changes"]
+    assert [(c["version"], c["current"], c["material"]) for c in ch] == [(3, True, True), (2, False, False), (1, False, True)], ch
 
 
 def test_14_archive_needs_reason(sup, content):
