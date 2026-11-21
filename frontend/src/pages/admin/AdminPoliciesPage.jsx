@@ -241,16 +241,18 @@ const SLUGS = [["terms", "Terms of Service"], ["privacy", "Privacy Policy"], ["v
 
 function ChangeCreator({ pid, r }) {
   const [items, setItems] = useState(null);
-  const start = () => setItems((r.requested_changes || "").split(/\n+/).map((s) => s.replace(/^[-*•\d.)\s]+/, "").trim()).filter((s) => s.length >= 5)
+  const start = () => setItems((r.requested_changes || "").split(/\n+/).map((s) => s.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "").trim()).filter((s) => s.length >= 5)
     .map((description) => ({ description, policy_slug: "", clause: "" })).concat([]).slice(0, 50));
   const upd = (i, k, v) => setItems(items.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   const save = () => {
     const ready = items.filter((x) => x.description.trim().length >= 5);
     if (!ready.length || ready.some((x) => !x.policy_slug)) { toast.error("Choose the affected policy for every item."); return; }
     api.post(`/admin/policies/review-pack/${pid}/attorney-review/${r.id}/changes`, { items: ready })
-      .then((res) => { toast.success(`${res.data.data.length} checklist item(s) created`); setItems(null); window.dispatchEvent(new Event("av:changes-updated")); })
+      .then((res) => { toast.success(`${res.data.data.length} checklist item(s) created`); setItems(null); setCreated(res.data.data.length); window.dispatchEvent(new Event("av:changes-updated")); })
       .catch((e) => toast.error(getErrorMessage(e)));
   };
+  const [created, setCreated] = useState(r.changes_created || 0);
+  if (created) return <p className="mt-2 text-xs text-av-muted" data-testid={`change-created-${r.id}`}>{created} checklist item(s) created from this feedback.</p>;
   if (!items) return <Button size="sm" variant="outline" className="ml-2 mt-2" onClick={start} data-testid={`change-create-${r.id}`}>Turn requested changes into checklist items</Button>;
   return (
     <div className="mt-3 space-y-2" data-testid={`change-creator-${r.id}`}>

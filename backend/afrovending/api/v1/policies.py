@@ -434,6 +434,8 @@ async def create_changes(pid: str, rid: str, body: ChangesIn, request: Request, 
     rec = next((r for r in (d or {}).get("attorney_records", []) if r["id"] == rid), None)
     if not rec:
         raise APIError(404, "not_found", "Attorney record not found.")
+    if rec.get("changes_created") or await db.legal_change_requests.find_one({"pack_id": d["_id"], "attorney_record_id": rid}):
+        raise APIError(409, "conflict", "Checklist items were already created from this attorney record.")
     now, docs = utcnow(), []
     for it in body.items:
         _slug(it.policy_slug)
@@ -444,6 +446,7 @@ async def create_changes(pid: str, rid: str, body: ChangesIn, request: Request, 
                      "attorney_record_id": rid, "reviewer_name": rec["reviewer_name"], "created_by": admin.email, "created_at": now, "updated_at": now,
                      "history": [{"status": "open", "by": admin.email, "at": now, "note": "Created from attorney feedback"}]})
     res = await db.legal_change_requests.insert_many(docs)
+    await db.review_packs.update_one({"_id": d["_id"], "attorney_records.id": rid}, {"$set": {"attorney_records.$.changes_created": len(docs)}})
     await audit("policy.attorney_changes_created", "legal_change_requests", request=request, actor=admin, entity_id=pid, record_id=rid, count=len(docs))
     return {"data": [_chg({**x, "_id": i}) for x, i in zip(docs, res.inserted_ids)]}
 
@@ -466,12 +469,18 @@ async def update_change(cid: str, body: ChangeStatusIn, request: Request, admin:
     d = await db.legal_change_requests.find_one({"_id": ObjectId(cid)}) if ObjectId.is_valid(cid) else None
     if not d:
         raise APIError(404, "not_found", "Change request not found.")
-    if body.status in ("wont_do", "open") and d["status"] != body.status:
+    if d["status"] == body.status:
+        return _chg(d)
+    allowed = {"open": {"in_progress", "done", "wont_do"}, "in_progress": {"done", "wont_do", "open"}, "done": {"open"}, "wont_do": {"open"}}
+    if body.status not in allowed[d["status"]]:
+        raise APIError(409, "conflict", f"Can't move an item from {d['status'].replace('_', ' ')} to {body.status.replace('_', ' ')}. Reopen it first.")
+    if body.status in ("wont_do", "open"):
         _super(admin)
     if body.status in ("done", "wont_do") and len(body.note.strip()) < 5:
         raise APIError(422, "validation_error", "Explain how the change was handled (at least 5 characters).")
     now = utcnow()
-    await db.legal_change_requests.update_one({"_id": d["_id"]}, {"$set": {"status": body.status, "updated_at": now, "resolution_note": body.note or d.get("resolution_note", "")},
+    resolution = body.note if body.status in ("done", "wont_do") else ""
+    await db.legal_change_requests.update_one({"_id": d["_id"]}, {"$set": {"status": body.status, "updated_at": now, "resolution_note": resolution},
                                                                   "$push": {"history": {"status": body.status, "by": admin.email, "at": now, "note": body.note}}})
     await audit(f"policy.attorney_change_{body.status}", "legal_change_requests", request=request, actor=admin, entity_id=cid, slug=d["policy_slug"], note=body.note)
     return _chg(await db.legal_change_requests.find_one({"_id": d["_id"]}))

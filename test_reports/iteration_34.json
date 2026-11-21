@@ -1,0 +1,37 @@
+{
+  "summary": "Tested the Attorney Feedback Tracker on the backend and frontend. Backend: 10/10 pytest pass (tests/test_phase17_t1_feedback_tracker.py). Covered: create (201, version link, open status, pack_number, reviewer_name, history, audit; content_admin/customer get 403; unknown rid or pack gets 404; invalid slug gets 404 and a mixed batch inserts nothing; a description under 5 characters or an empty items list gets 422), list (?slug filter, the 4 status counts, customer 403, unknown slug 404), update rules (content_admin can set in_progress and done with a note; done with no note or a short note gets 422; wont_do and reopen get 403; super can set wont_do with a note and reopen; history grows; every status change is audited), approve guard (409 attorney_changes_open while items are open or in_progress, 200 once all are resolved, other policies stay blocked), launch policy_terms and policy_cookies details show 'N attorney-requested change(s) open' and policy_privacy does not, pack #1 is still approved with no attorney records and docx (PK) and pdf (%PDF) download. Frontend (Super Admin, 1920 and 390): change-create pre-fills 3 rows from multi-line requested_changes and strips '1.' and '-' prefixes; saving without a policy shows a toast error; after choosing policies, 3 items are created and the tracker refreshes by itself; the terms tab reads '2 open — approval blocked'; Start, Done (no note shows an error, with a note it works), Won't do and Reopen all update change-status-<id> and the count; cookies tab shows 1 open; privacy has no tracker. At 390 px nothing in the tracker or creator overflows; the page is still 391/390 (the 1 px overflow reported before). All test data is cleaned up and policy data is restored (7 x v1 pending_review, 2 history entries each).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PUT /api/v1/admin/policies/changes/{id}", "issue": "content_admin can move a done or wont_do item back to in_progress (verified: 200). This works as a reopen that skips the Super-Admin-only rule and can undo a Super Admin wont_do. Allow in_progress only from open, or require super_admin when the current status is done or wont_do."},
+      {"endpoint": "PUT /api/v1/admin/policies/changes/{id}", "issue": "No transition rules: setting the same status again (e.g. done -> done) adds another history entry and audit row. Reopen with an empty note keeps the old resolution_note, so a reopened item still shows 'Resolution: …' in the UI."},
+      {"endpoint": "POST /api/v1/admin/policies/review-pack/{pid}/attorney-review/{rid}/changes", "issue": "No duplicate protection: the same record can be turned into items again and again (the UI button stays visible after creation). Also, the pack does not have to be approved for sharing first."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ChangeCreator", "issue": "The 'Turn requested changes into checklist items' button is still there after the items are created. Clicking it again makes duplicate items. Hide or disable it, or show 'N items created', once items exist for that record.", "selector": "change-create-<rid>", "priority": "LOW"},
+      {"component": "ChangeTracker", "issue": "A reopened item still shows the old 'Resolution:' text.", "selector": "change-item-<id>", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/policies at 390px", "issues": ["The page is still 1 px wider than the screen (scrollWidth 391 vs 390), reported before; the tracker and creator themselves fit.", "The prefix regex /^[-*•\\d.)\\s]+/ also removes leading numbers that belong to the text (e.g. '2026 terms…' becomes 'terms…')."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase17_t1_feedback_tracker.py", "/app/backend/tests/t34_ui_setup.py", "/app/backend/tests/t34_ui_cleanup.py", "/app/test_reports/pytest/pytest_t34.xml"],
+  "action_items": [
+    "Block content_admin from moving done or wont_do items to in_progress (super_admin only, like reopen).",
+    "Optional: reject updates that don't change the status; clear resolution_note on reopen; stop duplicate creation from the same attorney record (in the UI and/or the backend)."
+  ],
+  "critical_code_review_comments": [
+    "update_change: the super-admin check only covers target statuses wont_do and open, so done/wont_do -> in_progress gets around it.",
+    "list_changes silently ignores an invalid ?status value; counts are computed with 4 separate count_documents calls (an aggregate would be better, though load is low).",
+    "ChangeTracker swallows load errors (.catch(() => {})) and returns null, so an API failure hides the tracker without any message."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase17_t1_feedback_tracker.py", "/app/backend/tests/t34_ui_setup.py", "/app/backend/tests/t34_ui_cleanup.py"],
+  "success_rate": {"backend": "100% (10/10); 1 RBAC gap found (content_admin can reopen via in_progress)", "frontend": "100% of the requested flows"},
+  "seed_data_creation": "None kept. The TEST packs (pytest pack + UI pack #2), their change items, the TEST content_admin, the TEST customer and the policy_/legal_review_pack launch docs were all deleted. policy_versions was restored from a mongodump and checked (same slug/version/status/history count/body). Pack #1's downloads counter went from 2 to 6 because the download test fetched docx and pdf twice; it is still approved with no attorney records and no change items.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && pytest tests/test_phase17_t1_feedback_tracker.py -n 0 (it restores itself). UI: python tests/t34_ui_setup.py creates a TEST pack (approved, attorney record with 3 change lines), dumps policy_versions to /tmp/polbak_t34ui and writes Super Admin cookies to /tmp/t34_ui.json (add them with context.add_cookies); python tests/t34_ui_cleanup.py undoes it. Never touch pack #1 (6af273a06c693e2488c1ac51). The server clock is Nov 2026."
+}
