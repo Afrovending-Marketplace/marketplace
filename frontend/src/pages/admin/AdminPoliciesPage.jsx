@@ -101,8 +101,51 @@ function PolicyDetail({ p, isSuper, reload }) {
           <li key={v.id}><button type="button" onClick={() => setSel(v.id)} className={`w-full rounded-lg px-3 py-2 text-left ${sel === v.id ? "bg-av-sand font-semibold" : "hover:bg-av-sand/60"}`} data-testid={`policy-version-${v.version}`}>
             v{v.version} · {LABEL[v.status]}</button></li>))}</ul>
       </div>
-      {sel && <VersionPanel key={sel} id={sel} meta={p} isSuper={isSuper} reload={refresh} />}
+      <div className="space-y-6">
+        <ChangeTracker slug={p.slug} isSuper={isSuper} />
+        {sel && <VersionPanel key={sel} id={sel} meta={p} isSuper={isSuper} reload={refresh} />}
+      </div>
     </div>
+  );
+}
+
+const CHG = { open: "Open", in_progress: "In progress", done: "Done", wont_do: "Won't do" };
+const CHG_TONE = { open: "danger", in_progress: "gold", done: "success", wont_do: "neutral" };
+
+function ChangeTracker({ slug, isSuper }) {
+  const [d, setD] = useState(null);
+  const [notes, setNotes] = useState({});
+  const load = useCallback(() => api.get("/admin/policies/changes", { params: { slug } }).then((r) => setD(r.data)).catch(() => {}), [slug]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    window.addEventListener("av:changes-updated", load);
+    return () => window.removeEventListener("av:changes-updated", load);
+  }, [load]);
+  if (!d || !d.data.length) return null;
+  const set = (c, status) => api.put(`/admin/policies/changes/${c.id}`, { status, note: notes[c.id] || "" })
+    .then(() => { toast.success(`Marked ${CHG[status].toLowerCase()}`); setNotes({ ...notes, [c.id]: "" }); load(); }).catch((e) => toast.error(getErrorMessage(e)));
+  const open = d.counts.open + d.counts.in_progress;
+  return (
+    <section className="space-y-3 rounded-2xl border border-av-line bg-white p-4 text-sm" data-testid="change-tracker">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-semibold">Attorney-requested changes</h3>
+        <StatusBadge tone={open ? "danger" : "success"} testId="change-tracker-open-count">{open ? `${open} open — approval blocked` : "All resolved"}</StatusBadge>
+      </div>
+      <ul className="space-y-2">{d.data.map((c) => (
+        <li key={c.id} className="space-y-2 rounded-xl bg-av-sand p-3" data-testid={`change-item-${c.id}`}>
+          <div className="flex flex-wrap items-center gap-2"><StatusBadge tone={CHG_TONE[c.status]} testId={`change-status-${c.id}`}>{CHG[c.status]}</StatusBadge>
+            <span className="text-xs text-av-muted">v{c.version}{c.clause && ` · clause ${c.clause}`} · {c.reviewer_name} (pack #{c.pack_number})</span></div>
+          <p className="whitespace-pre-wrap">{c.description}</p>
+          {c.resolution_note && <p className="text-xs text-av-muted">Resolution: {c.resolution_note}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <Input placeholder="Note (required for Done / Won't do)" value={notes[c.id] || ""} onChange={(e) => setNotes({ ...notes, [c.id]: e.target.value })} className="h-8 max-w-xs" data-testid={`change-note-${c.id}`} />
+            {c.status === "open" && <Button size="sm" variant="outline" onClick={() => set(c, "in_progress")} data-testid={`change-progress-${c.id}`}>Start</Button>}
+            {["open", "in_progress"].includes(c.status) && <Button size="sm" variant="outline" onClick={() => set(c, "done")} data-testid={`change-done-${c.id}`}>Done</Button>}
+            {isSuper && ["open", "in_progress"].includes(c.status) && <Button size="sm" variant="outline" onClick={() => set(c, "wont_do")} data-testid={`change-wontdo-${c.id}`}>Won't do</Button>}
+            {isSuper && ["done", "wont_do"].includes(c.status) && <Button size="sm" variant="outline" onClick={() => set(c, "open")} data-testid={`change-reopen-${c.id}`}>Reopen</Button>}
+          </div>
+        </li>))}</ul>
+    </section>
   );
 }
 
@@ -193,6 +236,41 @@ function PackRow({ p, isSuper, download, reload }) {
   );
 }
 
+const SLUGS = [["terms", "Terms of Service"], ["privacy", "Privacy Policy"], ["vendor_agreement", "Vendor Agreement"], ["shipping", "Shipping & Delivery"],
+  ["returns", "Returns & Refunds"], ["cookies", "Cookie Policy"], ["prohibited", "Prohibited Products"]];
+
+function ChangeCreator({ pid, r }) {
+  const [items, setItems] = useState(null);
+  const start = () => setItems((r.requested_changes || "").split(/\n+/).map((s) => s.replace(/^[-*•\d.)\s]+/, "").trim()).filter((s) => s.length >= 5)
+    .map((description) => ({ description, policy_slug: "", clause: "" })).concat([]).slice(0, 50));
+  const upd = (i, k, v) => setItems(items.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const save = () => {
+    const ready = items.filter((x) => x.description.trim().length >= 5);
+    if (!ready.length || ready.some((x) => !x.policy_slug)) { toast.error("Choose the affected policy for every item."); return; }
+    api.post(`/admin/policies/review-pack/${pid}/attorney-review/${r.id}/changes`, { items: ready })
+      .then((res) => { toast.success(`${res.data.data.length} checklist item(s) created`); setItems(null); window.dispatchEvent(new Event("av:changes-updated")); })
+      .catch((e) => toast.error(getErrorMessage(e)));
+  };
+  if (!items) return <Button size="sm" variant="outline" className="ml-2 mt-2" onClick={start} data-testid={`change-create-${r.id}`}>Turn requested changes into checklist items</Button>;
+  return (
+    <div className="mt-3 space-y-2" data-testid={`change-creator-${r.id}`}>
+      {items.map((x, i) => (
+        <div key={i} className="grid gap-2 sm:grid-cols-[180px_90px_1fr]" data-testid={`change-draft-${i}`}>
+          <select value={x.policy_slug} onChange={(e) => upd(i, "policy_slug", e.target.value)} className="h-9 rounded-md border border-av-line px-2" data-testid={`change-draft-policy-${i}`}>
+            <option value="">Affected policy…</option>{SLUGS.map(([s, t]) => <option key={s} value={s}>{t}</option>)}
+          </select>
+          <Input placeholder="Clause" value={x.clause} onChange={(e) => upd(i, "clause", e.target.value)} className="h-9" data-testid={`change-draft-clause-${i}`} />
+          <Input value={x.description} onChange={(e) => upd(i, "description", e.target.value)} className="h-9" data-testid={`change-draft-desc-${i}`} />
+        </div>))}
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => setItems([...items, { description: "", policy_slug: "", clause: "" }])} data-testid="change-draft-add">Add item</Button>
+        <Button size="sm" onClick={save} data-testid="change-draft-save">Create checklist items</Button>
+        <Button size="sm" variant="outline" onClick={() => setItems(null)} data-testid="change-draft-cancel">Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 function AttorneyRecords({ p, isSuper, reload }) {
   const [open, setOpen] = useState(false);
   const EMPTY = { reviewer_name: "", reviewer_firm: "", received_on: "", comments: "", recommendations: "", requested_changes: "" };
@@ -219,6 +297,7 @@ function AttorneyRecords({ p, isSuper, reload }) {
           {r.recommendations && <p className="mt-1 whitespace-pre-wrap"><b>Recommendations:</b> {r.recommendations}</p>}
           {r.requested_changes && <p className="mt-1 whitespace-pre-wrap"><b>Requested changes:</b> {r.requested_changes}</p>}
           {r.filename && <Button size="sm" variant="outline" className="mt-2" onClick={() => getFile(r)} data-testid={`attorney-file-${r.id}`}>Download {r.filename}</Button>}
+          {isSuper && <ChangeCreator pid={p.id} r={r} />}
         </div>))}
       {isSuper && !open && <Button size="sm" variant="outline" onClick={() => setOpen(true)} data-testid={`attorney-add-${p.id}`}>Record attorney feedback / upload reviewed document</Button>}
       {isSuper && open && (

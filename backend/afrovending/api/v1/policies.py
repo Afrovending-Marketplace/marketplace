@@ -212,6 +212,10 @@ async def approve(vid: str, body: ApproveIn, request: Request, admin: User = Dep
         raise APIError(422, "legal_review_required", "Confirm that an external legal review has actually been completed.")
     if body.review_date > date.today():
         raise APIError(422, "validation_error", "The legal review date can't be in the future.")
+    pre = await _version(vid)
+    open_n = await db.legal_change_requests.count_documents({"policy_slug": pre["slug"], "status": {"$in": ["open", "in_progress"]}})
+    if open_n:
+        raise APIError(409, "attorney_changes_open", f"{open_n} attorney-requested change(s) for this policy are still open. Resolve them first.")
     d = await _version(vid)
     first = not await db.policy_versions.find_one({"slug": d["slug"], "published_at": {"$ne": None}})
     needs = pol.META[d["slug"]]["acceptance"] is not None and (first or body.classification == "material")
@@ -401,4 +405,74 @@ async def attorney_file(pid: str, rid: str, request: Request, admin: User = Depe
     data, _ = await run_in_threadpool(get_object, rec["storage_path"])
     await audit("policy.attorney_review_downloaded", "review_packs", request=request, actor=admin, entity_id=pid, record_id=rid)
     return Response(content=data, media_type=rec["content_type"], headers={"Content-Disposition": f'attachment; filename="{rec["filename"]}"', "Cache-Control": "no-store"})
+
+
+# ---------- attorney feedback tracker ----------
+CHANGE_STATUSES = ("open", "in_progress", "done", "wont_do")
+
+
+def _chg(d: dict) -> dict:
+    return {**{k: _iso(v) for k, v in d.items() if k not in ("_id", "history")}, "id": str(d["_id"]),
+            "history": [{k: _iso(v) for k, v in h.items()} for h in d.get("history", [])]}
+
+
+class ChangeItem(BaseModel):
+    policy_slug: str
+    clause: str = Field(default="", max_length=100)
+    description: str = Field(min_length=5, max_length=2000)
+
+
+class ChangesIn(BaseModel):
+    items: list[ChangeItem] = Field(min_length=1, max_length=50)
+
+
+@router.post("/admin/policies/review-pack/{pid}/attorney-review/{rid}/changes", status_code=201)
+async def create_changes(pid: str, rid: str, body: ChangesIn, request: Request, admin: User = Depends(EDITOR)):
+    """Turn attorney-requested changes into tracked items, each linked to the policy version it affects."""
+    _super(admin)
+    d = await db.review_packs.find_one({"_id": ObjectId(pid)}, {"files": 0}) if ObjectId.is_valid(pid) else None
+    rec = next((r for r in (d or {}).get("attorney_records", []) if r["id"] == rid), None)
+    if not rec:
+        raise APIError(404, "not_found", "Attorney record not found.")
+    now, docs = utcnow(), []
+    for it in body.items:
+        _slug(it.policy_slug)
+        v = await db.policy_versions.find_one({"slug": it.policy_slug, "status": {"$in": ["draft", "pending_review", "approved"]}}, sort=[("version", -1)]) \
+            or await db.policy_versions.find_one({"slug": it.policy_slug}, sort=[("version", -1)])
+        docs.append({"policy_slug": it.policy_slug, "policy_title": pol.META[it.policy_slug]["title"], "version_id": v["_id"], "version": v["version"],
+                     "clause": it.clause, "description": it.description, "status": "open", "pack_id": d["_id"], "pack_number": d.get("pack_number", 1),
+                     "attorney_record_id": rid, "reviewer_name": rec["reviewer_name"], "created_by": admin.email, "created_at": now, "updated_at": now,
+                     "history": [{"status": "open", "by": admin.email, "at": now, "note": "Created from attorney feedback"}]})
+    res = await db.legal_change_requests.insert_many(docs)
+    await audit("policy.attorney_changes_created", "legal_change_requests", request=request, actor=admin, entity_id=pid, record_id=rid, count=len(docs))
+    return {"data": [_chg({**x, "_id": i}) for x, i in zip(docs, res.inserted_ids)]}
+
+
+@router.get("/admin/policies/changes")
+async def list_changes(slug: Optional[str] = None, status: Optional[str] = None, _: User = Depends(EDITOR)):
+    q = {**({"policy_slug": _slug(slug)} if slug else {}), **({"status": status} if status in CHANGE_STATUSES else {})}
+    docs = await db.legal_change_requests.find(q).sort([("status", 1), ("created_at", 1)]).to_list(500)
+    counts = {s: await db.legal_change_requests.count_documents({**({"policy_slug": slug} if slug else {}), "status": s}) for s in CHANGE_STATUSES}
+    return {"data": [_chg(x) for x in docs], "counts": counts}
+
+
+class ChangeStatusIn(BaseModel):
+    status: Literal["open", "in_progress", "done", "wont_do"]
+    note: str = Field(default="", max_length=2000)
+
+
+@router.put("/admin/policies/changes/{cid}")
+async def update_change(cid: str, body: ChangeStatusIn, request: Request, admin: User = Depends(EDITOR)):
+    d = await db.legal_change_requests.find_one({"_id": ObjectId(cid)}) if ObjectId.is_valid(cid) else None
+    if not d:
+        raise APIError(404, "not_found", "Change request not found.")
+    if body.status in ("wont_do", "open") and d["status"] != body.status:
+        _super(admin)
+    if body.status in ("done", "wont_do") and len(body.note.strip()) < 5:
+        raise APIError(422, "validation_error", "Explain how the change was handled (at least 5 characters).")
+    now = utcnow()
+    await db.legal_change_requests.update_one({"_id": d["_id"]}, {"$set": {"status": body.status, "updated_at": now, "resolution_note": body.note or d.get("resolution_note", "")},
+                                                                  "$push": {"history": {"status": body.status, "by": admin.email, "at": now, "note": body.note}}})
+    await audit(f"policy.attorney_change_{body.status}", "legal_change_requests", request=request, actor=admin, entity_id=cid, slug=d["policy_slug"], note=body.note)
+    return _chg(await db.legal_change_requests.find_one({"_id": d["_id"]}))
 

@@ -151,7 +151,9 @@ async def _check(key: str) -> tuple[str, str]:
         if cur and (cur.get("legal_review") or {}).get("confirmed"):
             lr = cur["legal_review"]
             return "verified", f"v{cur['version']} published; legal review by {lr['reviewer_name']} on {lr['review_date']}."
-        return "blocked", f"Legal approval: {'yes' if approved else 'no'} · Published: no · Draft — Pending Legal Review."
+        open_chg = await db.legal_change_requests.count_documents({"policy_slug": slug, "status": {"$in": ["open", "in_progress"]}})
+        chg = f" · {open_chg} attorney-requested change(s) open" if open_chg else ""
+        return "blocked", f"Legal approval: {'yes' if approved else 'no'} · Published: no · Draft — Pending Legal Review{chg}."
     if key == "super_admin_mfa":
         supers = await db.users.find({"roles": "super_admin", "status": "active"}, {"email": 1, "mfa_enabled_at": 1}).to_list(50)
         missing = [a["email"] for a in supers if not a.get("mfa_enabled_at")]
