@@ -79,6 +79,28 @@ function Errors() {
   );
 }
 
+function EmailLog() {
+  const [status, setStatus] = useState("");
+  const [d, setD] = useState(null);
+  useEffect(() => { api.get("/admin/ops/emails", { params: status ? { status } : {} }).then((r) => setD(r.data)).catch((e) => toast.error(getErrorMessage(e))); }, [status]);
+  if (!d) return null;
+  return (
+    <section className="space-y-3 rounded-2xl border border-av-line bg-white p-5" data-testid="ops-emails">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold">Email deliveries</h2>
+        <Sel value={status} onChange={setStatus} options={["failed", "bounced", "complained", "delayed", "sent", "delivered"]} label="Statuses" testId="ops-emails-filter" />
+      </div>
+      <p className="text-xs text-av-muted" data-testid="ops-emails-state">Sending {d.sending_enabled ? "enabled" : "disabled"} · Resend key {d.provider_configured ? "configured" : "missing"}</p>
+      {d.data.length === 0 ? <p className="text-sm text-av-muted" data-testid="ops-emails-empty">No email deliveries match.</p> : (
+        <ul className="divide-y divide-av-line text-sm">{d.data.map((m) => (
+          <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid={`ops-email-${m.id}`}>
+            <span className="break-words"><b>{m.category}</b> · {m.subject} · {m.to_masked} · {m.attempts}× · {NY(m.updated_at)}{m.error && ` · ${m.error}`}</span>
+            <StatusBadge tone={["sent", "delivered"].includes(m.status) ? "success" : m.status === "delayed" ? "gold" : "danger"}>{m.status}</StatusBadge>
+          </li>))}</ul>)}
+    </section>
+  );
+}
+
 function AlertConfig() {
   const [c, setC] = useState(null);
   useEffect(() => { api.get("/admin/ops/config").then((r) => setC(r.data)).catch(() => {}); }, []);
@@ -108,6 +130,7 @@ export default function AdminOpsPage() {
         <p className="mt-1 text-sm text-av-muted">Times shown in US Eastern (America/New_York). Logs are kept 30 days.</p></div>
       <Health h={h} reload={load} />
       <Errors />
+      <EmailLog />
       <AlertConfig />
     </div>
   );

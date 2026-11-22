@@ -2,7 +2,7 @@
 # Restore drill: check SHA-256, restore the archive into <DB_NAME>_restore_check, compare counts, then drop the check DB.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-set -a; . ./.env; set +a
+[ -f ./.env ] && { set -a; . ./.env; set +a; }
 FILE="$1"; CHECK="${DB_NAME}_restore_check"
 sha256sum -c "$FILE.sha256" --quiet
 mongorestore --uri="$MONGO_URL" --gzip --archive="$FILE" --nsFrom="${DB_NAME}.*" --nsTo="${CHECK}.*" --drop --quiet

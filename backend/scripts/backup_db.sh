@@ -2,7 +2,7 @@
 # Verified backup of the new marketplace database: gzip archive + SHA-256 + per-collection counts.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-set -a; . ./.env; set +a
+[ -f ./.env ] && { set -a; . ./.env; set +a; }
 OUT="${BACKUP_DIR:-/app/backups}"; mkdir -p "$OUT"
 TS=$(date -u +%Y%m%dT%H%M%SZ); FILE="$OUT/${DB_NAME}-${TS}.archive.gz"
 mongodump --uri="$MONGO_URL" --db="$DB_NAME" --gzip --archive="$FILE" --quiet

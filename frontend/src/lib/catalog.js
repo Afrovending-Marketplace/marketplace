@@ -2,8 +2,8 @@
 import { CATEGORIES as DEV_CATEGORIES, VENDORS as DEV_VENDORS, PRODUCTS as DEV_PRODUCTS } from "@/data/dev/catalog";
 
 let CATEGORIES = DEV_CATEGORIES;
-// Sample products/vendors appear only on preview hosts; the live site starts with an empty catalog (clean launch).
-export const isPreviewHost = () => /(^localhost$)|(\.preview\.emergentagent\.com$)/.test(window.location.hostname) && localStorage.getItem("av_no_sample") !== "1";
+// Sample products/vendors appear only when the build sets REACT_APP_SHOW_SAMPLE_CATALOG=true; production starts with an empty catalog (clean launch).
+export const isPreviewHost = () => (process.env.REACT_APP_SHOW_SAMPLE_CATALOG === "true" || window.location.hostname === "localhost") && localStorage.getItem("av_no_sample") !== "1";
 const USE_DEV = isPreviewHost();
 let VENDORS = USE_DEV ? DEV_VENDORS : [];
 let PRODUCTS = USE_DEV ? DEV_PRODUCTS : [];

@@ -1,0 +1,68 @@
+name: afrovending
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "5" }
+
+services:
+  web:
+    image: afrovending-web:${RELEASE:?set RELEASE}
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      args:
+        REACT_APP_BACKEND_URL: https://${SITE_DOMAIN:?set SITE_DOMAIN}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    volumes: [caddy_data:/data, caddy_config:/config]
+    depends_on:
+      backend: { condition: service_healthy }
+    restart: unless-stopped
+    mem_limit: 256m
+    logging: *logging
+
+  backend:
+    image: afrovending-backend:${RELEASE}
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    env_file: .env.production
+    environment:
+      BACKUP_DIR: /backups
+    volumes: [backups:/backups:ro]
+    expose: ["8001"]
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1.5
+    logging: *logging
+
+  cron:
+    image: alpine:3.20
+    entrypoint: ["/bin/sh", "/cron/entrypoint.sh"]
+    environment:
+      WEBHOOK_CRON_SECRET: ${WEBHOOK_CRON_SECRET:?set WEBHOOK_CRON_SECRET}
+    volumes: [./cron:/cron:ro]
+    depends_on:
+      backend: { condition: service_healthy }
+    restart: unless-stopped
+    mem_limit: 64m
+    logging: *logging
+
+  backup:
+    image: afrovending-backup:${RELEASE}
+    build:
+      context: ..
+      dockerfile: deploy/backup.Dockerfile
+      args: { RELEASE: "${RELEASE}" }
+    env_file: [.env.production, .env.backup]
+    volumes: [backups:/backups]
+    restart: unless-stopped
+    mem_limit: 512m
+    logging: *logging
+
+volumes:
+  caddy_data:
+  caddy_config:
+  backups:

@@ -1,4 +1,6 @@
-"""Emergent managed email (Resend). Bodies come only from the server-side templates below."""
+"""Transactional email via AfroVending's own Resend account. Bodies come only from the server-side templates below."""
+import asyncio
+import hashlib
 import ipaddress
 import logging
 import os
@@ -14,10 +16,38 @@ from afrovending.core.config import settings
 
 logger = logging.getLogger("afrovending.email")
 
-EMAIL_BASE_URL = "https://integrations.emergentagent.com"
-EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
+RESEND_URL = "https://api.resend.com/emails"
 EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
 EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
+EMAIL_DOMAIN = os.environ.get("EMAIL_DOMAIN", "afrovending.com")
+SENDERS = {"orders": "orders", "vendors": "vendors", "security": "security", "notifications": "notifications", "alerts": "alerts"}
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+
+
+def _key() -> str:
+    return (os.environ.get("RESEND_API_KEY") or "").strip()
+
+
+def sending_enabled() -> bool:
+    return os.environ.get("EMAIL_SENDING_ENABLED", "false").lower() == "true"
+
+
+def sender_for(subject: str) -> str:
+    s = subject.lower()
+    if "[afrovending alert]" in s:
+        return "alerts"
+    if any(w in s for w in ("verify", "password", "security", "sign-in", "mfa")):
+        return "security"
+    if any(w in s for w in ("vendor", "low-stock", "payout", "statement", "application")):
+        return "vendors"
+    if any(w in s for w in ("order", "receipt", "pickup", "refund", "ship", "deliver", "cancel")):
+        return "orders"
+    return "notifications"
+
+
+def _from_address(category: str) -> str:
+    override = (os.environ.get("EMAIL_SENDER_OVERRIDE") or "").strip()
+    return f"{EMAIL_FROM_NAME} <{override or SENDERS[category] + '@' + EMAIL_DOMAIN}>"
 
 _SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
 _CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
@@ -91,34 +121,61 @@ def _assert_safe_email(subject: str, html: str) -> None:
                 raise ValueError(f"Anchor text {m.group(1)!r} ≠ real link host {real!r} (G3)")
 
 
-async def send_email(*, to: str, subject: str, html: str) -> str | None:
+def _mask(addr: str) -> str:
+    user, _, dom = addr.partition("@")
+    return f"{user[:2]}***@{dom}"
+
+
+async def _post(payload: dict, idem: str) -> httpx.Response:
+    headers = {"Authorization": f"Bearer {_key()}", "Idempotency-Key": idem}
+    async with httpx.AsyncClient(timeout=30) as client:
+        for attempt in range(3):
+            resp = await client.post(RESEND_URL, headers=headers, json=payload)
+            if resp.status_code not in _RETRY_STATUS or attempt == 2:
+                return resp
+            await asyncio.sleep(2 ** attempt)
+    return resp
+
+
+async def send_email(*, to: str, subject: str, html: str, category: str | None = None) -> str | None:
+    from afrovending.core.db import db
+    from afrovending.core.models import utcnow
     _assert_safe_email(subject, html)
-    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
-    if EMAIL_REPLY_TO:
-        payload["contact_email"] = EMAIL_REPLY_TO
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(f"{EMAIL_BASE_URL}/api/v1/email/send", headers={"X-Email-Key": EMAIL_KEY}, json=payload)
-        resp.raise_for_status()
-        return resp.json().get("id")
-    except httpx.HTTPStatusError as e:
-        try:
-            code = e.response.json().get("code", "")
-        except ValueError:
-            code = ""
-        if code in ("insufficient_credits", "integration_disabled", "daily_limit_reached"):
-            logger.warning(f"Email paused: {code} ({e.response.status_code}): {e.response.json().get('message', '')}")
-            raise HTTPException(status_code=503, detail="Email is temporarily unavailable")
-        logger.error(f"Email send failed: {e.response.status_code} {e.response.text}")
-        err = HTTPException(status_code=502, detail=f"Failed to send email (provider HTTP {e.response.status_code})")
-        err.upstream = e.response.status_code
+    category = category or sender_for(subject)
+    idem = hashlib.sha256(f"{to}|{subject}|{html}|{utcnow().date()}".encode()).hexdigest()
+    if await db.email_deliveries.find_one({"idempotency_key": idem, "status": {"$in": ["sent", "delivered"]}}):
+        return None
+    base = {"idempotency_key": idem, "to_masked": _mask(to), "subject": subject[:200], "category": category, "updated_at": utcnow()}
+    if not _key():
+        await db.email_deliveries.update_one({"idempotency_key": idem}, {"$set": {**base, "status": "failed", "error": "RESEND_API_KEY not configured"},
+                                                                       "$setOnInsert": {"created_at": utcnow()}, "$inc": {"attempts": 1}}, upsert=True)
+        err = HTTPException(status_code=503, detail="Email provider is not configured")
+        err.upstream = "not_configured"
         raise err
-    except Exception as e:
-        logger.error(f"Email send error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to send email")
+    payload = {"from": _from_address(category), "to": [to], "subject": subject, "html": html}
+    if EMAIL_REPLY_TO:
+        payload["reply_to"] = EMAIL_REPLY_TO
+    try:
+        resp = await _post(payload, idem)
+    except httpx.HTTPError as e:
+        resp, net_err = None, type(e).__name__
+    ok = resp is not None and resp.status_code < 300
+    provider_id = resp.json().get("id") if ok else None
+    error = None if ok else (f"provider HTTP {resp.status_code}" if resp is not None else f"network error {net_err}")
+    await db.email_deliveries.update_one({"idempotency_key": idem}, {"$set": {**base, "status": "sent" if ok else "failed", "provider_id": provider_id, "error": error},
+                                                                   "$setOnInsert": {"created_at": utcnow()}, "$inc": {"attempts": 1}}, upsert=True)
+    if ok:
+        return provider_id
+    logger.error("Email send failed: %s", error)
+    err = HTTPException(status_code=502, detail=f"Failed to send email ({error})")
+    err.upstream = resp.status_code if resp is not None else "network"
+    raise err
 
 
 async def try_send(**kwargs) -> bool:
+    if not sending_enabled():
+        logger.info("email suppressed: EMAIL_SENDING_ENABLED is not true")
+        return True
     if not _allowed_outside_production(kwargs.get("to", "")):
         logger.info("email suppressed outside production (recipient not on test allowlist)")
         return True

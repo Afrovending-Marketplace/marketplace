@@ -115,3 +115,12 @@ Owner actions before go-live: claim the Stripe sandbox and enable Connect (real 
 - CSV import does not include images; images are uploaded per product.
 - Contact form delivery to info@afrovending.com still PENDING (domain DNS/MX).
 - Vendor Agreement is a draft; version string `vendor-agreement-draft-2026-10-17` must be bumped when legal text is approved (vendors will re-accept).
+
+## DigitalOcean self-hosting preparation (2026-11-22). Prepared, NOT deployed
+- Removed Emergent components: page script, analytics snippet, dev overlay and visual-edit packages, the Emergent email relay, and the unused Python AI packages. The sample catalog is now switched by a build flag instead of the preview host name.
+- Kept by owner choice: Emergent managed file storage (needs the storage key in production).
+- Added `deploy/`: Dockerfiles, docker-compose, Caddyfile (HTTPS + security headers), cron container, encrypted backup container, server hardening, deploy and rollback scripts, and env templates.
+- Email: direct Resend with per-type senders, retries, de-duplication, a delivery log, a webhook, and an Ops "Email deliveries" panel. Production sending is OFF.
+- Launch checklist adds three items: email sending activated, DigitalOcean hosting verified, and storage review.
+- Pending owner actions: Resend account + domain DNS, Atlas cluster, Droplet, Spaces bucket, and explicit approval to deploy or change DNS.
+

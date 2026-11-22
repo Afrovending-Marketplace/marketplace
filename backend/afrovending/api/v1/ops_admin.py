@@ -74,6 +74,15 @@ async def set_status(incident_id: str, body: StatusIn, request: Request, admin: 
     return {"ok": True}
 
 
+@router.get("/emails")
+async def email_deliveries(status: Optional[Literal["failed", "bounced", "complained", "delayed", "sent", "delivered"]] = None,
+                           limit: int = Query(50, ge=1, le=200), _: User = Depends(OPS_ADMIN)):
+    from afrovending.core import email as mail
+    q = {"status": status} if status else {}
+    docs = await db.email_deliveries.find(q, {"events": 0, "idempotency_key": 0}).sort("updated_at", -1).limit(limit).to_list(limit)
+    return {"data": [_out(d) for d in docs], "sending_enabled": mail.sending_enabled(), "provider_configured": bool(mail._key())}
+
+
 class ConfigIn(BaseModel):
     error_threshold: int = Field(ge=1, le=1000)
     window_minutes: int = Field(ge=1, le=60)

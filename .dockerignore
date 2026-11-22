@@ -1,0 +1,16 @@
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.env
+**/.env.*
+.git
+.emergent
+backups
+memory
+test_reports
+tests
+backend/tests
+frontend/build
+docs/legacy_site_research
+.screenshots

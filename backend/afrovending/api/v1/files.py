@@ -16,7 +16,14 @@ router = APIRouter(tags=["files"])
 IMAGE_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 DOC_TYPES = {**IMAGE_TYPES, "application/pdf": "pdf"}
 PUBLIC_PURPOSES = {"logo", "banner", "product_main", "product_thumb"}
+MAGIC = {"image/jpeg": (b"\xff\xd8\xff",), "image/png": (b"\x89PNG\r\n\x1a\n",), "application/pdf": (b"%PDF-",)}
 LIMITS = {"logo": 2_000_000, "banner": 5_000_000, "verification_doc": 10_000_000, "review_photo": 5_000_000}
+
+
+def content_matches(data: bytes, content_type: str) -> bool:
+    if content_type == "image/webp":
+        return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+    return any(data.startswith(m) for m in MAGIC.get(content_type, ()))
 
 
 def file_out(doc: dict) -> dict:
@@ -38,6 +45,8 @@ async def upload(request: Request, purpose: str = Form(...), file: UploadFile = 
     data = await file.read()
     if not data or len(data) > LIMITS[purpose]:
         raise APIError(422, "validation_error", f"File must be under {LIMITS[purpose] // 1_000_000} MB.")
+    if not content_matches(data, file.content_type):
+        raise APIError(422, "validation_error", "File content does not match its type.")
     folder = "private/vendor-docs" if purpose == "verification_doc" else "public/vendor-media"
     path = f"{APP_PREFIX}/{folder}/{user.id}/{uuid.uuid4()}.{allowed[file.content_type]}"
     try:

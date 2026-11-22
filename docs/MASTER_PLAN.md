@@ -42,3 +42,7 @@ Storefront pages read through `frontend/src/lib/catalog.js`. Phase 04/05 replace
 
 ## Current status
 See PHASE_STATUS.md.
+
+## Hosting (2026-11-22)
+Production target: one DigitalOcean Droplet (2 vCPU / 4 GB) running Docker Compose with MongoDB Atlas, the owner's Resend account and Emergent managed file storage. The guide is in `docs/LAUNCH_GUIDE_DIGITALOCEAN.md`. Nothing is deployed without the owner's explicit approval.
+
