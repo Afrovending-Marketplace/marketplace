@@ -8,6 +8,10 @@ import httpx
 from afrovending.core import founding
 from tests.test_phase03_vendors import BASE, admin_client, mongo
 from tests.test_phase10_admin import MADE as ADMINS_MADE, admin_with
+from afrovending.api.v1.launch import ITEMS as L_ITEMS  # checklist grew (pay_*, policy_*, legal_review_pack, monitoring)
+from afrovending.core.orders_gate import PAYMENT_KEYS
+ALL_KEYS = [k for k, *_ in L_ITEMS]
+FIN_KEYS = {"stripe_test", *[k for k in PAYMENT_KEYS if k != "super_admin_mfa"]}
 
 SAVED = {}
 VENDORS, USERS = [], []
@@ -37,13 +41,13 @@ def teardown_module():
 def test_01_checklist_access_and_rules():
     sup = admin_client()
     d = sup.get("/admin/launch/checklist").json()
-    assert d["total"] == 10 and "never changes DNS" in d["safety"] and d["is_super_admin"]
+    assert d["total"] == len(ALL_KEYS) and "never changes DNS" in d["safety"] and d["is_super_admin"]
     fin, _ = admin_with("finance_admin")
     f = fin.get("/admin/launch/checklist").json()
-    assert set(f["can_edit"]) == {"stripe_test", "live_payments"} and not f["is_super_admin"]
+    assert set(f["can_edit"]) == FIN_KEYS and not f["is_super_admin"]
     assert fin.put("/admin/launch/checklist/phase13_audit", json={"status": "verified", "evidence": "x" * 20}).status_code == 403
     assert fin.put("/admin/launch/checklist/final_approval", json={"status": "verified", "evidence": "x" * 20}).status_code == 403
-    assert fin.put("/admin/launch/checklist/live_payments", json={"status": "blocked", "evidence": "Connect not enabled yet"}).status_code == 200
+    assert fin.put("/admin/launch/checklist/pay_connect", json={"status": "blocked", "evidence": "Connect not enabled yet"}).status_code == 200
     mk, _ = admin_with("marketplace_admin")
     assert mk.get("/admin/launch/checklist").status_code == 403
     assert httpx.get(f"{BASE}/admin/launch/checklist").status_code == 401
@@ -71,7 +75,7 @@ def test_02_automatic_checks():
 
 def test_03_final_approval_reopens_and_launch_record_gate():
     sup = admin_client()
-    for k in ("dns", "ssl", "stripe_test", "live_payments", "admin_mfa", "email_domain", "phase13_audit", "marketplace_testing", "backup_rollback"):
+    for k in [k for k in ALL_KEYS if k != "final_approval"]:
         mongo.launch_checklist.update_one({"key": k}, {"$set": {"key": k, "status": "verified"}}, upsert=True)
     assert sup.post("/admin/launch/public-launch", json={"confirm": "RECORD PUBLIC LAUNCH"}).json()["error"]["code"] == "not_approved"
     assert sup.put("/admin/launch/checklist/final_approval", json={"status": "verified", "evidence": "TEST owner approval reference"}).status_code == 200

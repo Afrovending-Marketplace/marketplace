@@ -301,7 +301,7 @@ function AttorneyRecords({ p, isSuper, reload }) {
           {r.filename && <Button size="sm" variant="outline" className="mt-2" onClick={() => getFile(r)} data-testid={`attorney-file-${r.id}`}>Download {r.filename}</Button>}
           {isSuper && <ChangeCreator pid={p.id} r={r} />}
         </div>))}
-      {isSuper && !open && <Button size="sm" variant="outline" onClick={() => setOpen(true)} data-testid={`attorney-add-${p.id}`}>Record attorney feedback / upload reviewed document</Button>}
+      {isSuper && !open && <Button size="sm" variant="outline" className="h-auto whitespace-normal text-left" onClick={() => setOpen(true)} data-testid={`attorney-add-${p.id}`}>Record attorney feedback / upload reviewed document</Button>}
       {isSuper && open && (
         <div className="space-y-2 rounded-xl border border-av-line p-3" data-testid={`attorney-form-${p.id}`}>
           <p className="text-xs text-av-muted">Recording feedback doesn't approve or publish any policy. Each policy still needs its own legal approval and publication.</p>

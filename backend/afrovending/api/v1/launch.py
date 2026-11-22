@@ -59,6 +59,9 @@ async def _items() -> list[dict]:
     out = []
     for k, label, mode, perm in ITEMS:
         d = docs.get(k, {})
+        if not d and (k.startswith("policy_") or k == "legal_review_pack"):
+            st, ev = await _check(k)
+            d = {"status": st, "evidence": f"[live check] {ev}"}
         out.append({"key": k, "label": label, "mode": mode, "editable_by": "finance_or_super" if perm == FIN_MANAGE else "super_admin",
                     "status": d.get("status", "not_started"), "evidence": d.get("evidence", ""), "note": d.get("note", ""),
                     "updated_by": d.get("updated_by"), "updated_at": _iso(d.get("updated_at")), "verified_by": d.get("verified_by"), "verified_at": _iso(d.get("verified_at")),

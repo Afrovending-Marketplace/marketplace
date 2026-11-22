@@ -20,6 +20,7 @@ def teardown_module():
     ids = S.get("buyers", [])
     mongo.files.delete_many({"owner_user_id": {"$in": ids}})
     mongo.notifications.delete_many({"user_id": {"$in": ids}})
+    mongo.wishlists.delete_many({"user_id": {"$in": ids}})  # was leaking one wishlist row per run
     mongo.rate_limits.delete_many({"key": {"$regex": "^(login|forgot):.*qa13"}})
     p10.teardown_module()
 
@@ -27,7 +28,8 @@ def teardown_module():
 # --- security headers / request id / health
 def test_01_headers_request_id_health():
     r = httpx.get(f"{BASE}/health", timeout=30)
-    assert r.status_code == 200 and r.json()["database"] == "ok"
+    # public health is minimal now (status only); component detail lives at /v1/health/ready (ops.monitor)
+    assert r.status_code == 200 and r.json()["status"] == "ok" and "database" not in r.json()
     assert r.headers.get("x-content-type-options") == "nosniff" and r.headers.get("x-request-id")
     e = httpx.get(f"{BASE}/catalog/products/does-not-exist-qa13", timeout=30)
     assert e.status_code == 404 and e.json()["error"]["request_id"]

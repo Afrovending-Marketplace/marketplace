@@ -1,0 +1,53 @@
+{
+  "summary": "Final pre-launch regression. BACKEND: all requested suites were run serially (-n 0). Phase 13: 24/25 on the first run. Phase 14: 39/45. Phase 15+16: 30/30. Phase 17 (policies, review pack, feedback tracker): 37/37. The 7 failures were all out-of-date tests, not app bugs. test_phase13_qa_audit expected /api/health to include 'database', but it is now minimal on purpose. The phase14 launch-checklist tests assumed 10 items and a 'live_payments' key; the checklist now has 28 items (pay_*, policy_*, legal_review_pack, monitoring). After fixing those tests, the phase13 and phase14 files I re-ran all pass. One extra phase14 failure (restore_verify.sh exit 1 inside test_05_backup_rollback_after_scripts) did not happen again: the script passed when run by hand and on the re-run, so it counts as flaky. NEW E2E (tests/test_phase18_t1_final_regression.py, 6/6, on the public preview URL): registration with accept_policies, then login and /auth/me; vendor application (policy checkbox: false gives 422, true gives 200), admin approval, store publish; product created, submitted and approved by an admin; the listing appears in /catalog/search and on /catalog/products/{slug}; cart, address, /checkout/start, Stripe TEST session (cs_test_, checkout.stripe.com); signed checkout.session.completed webhook with a real test PaymentIntent; the order is paid and shows in the customer's /payments/orders and the vendor's /vendor/orders; vendor accept; partial refund 1 of 2 unshipped, then shipping 2 is refused (409/422) and shipping 1 works, then the remaining unit is refunded and a third refund is refused; RBAC: support_admin gets 403 on refunds, content_admin gets 403 on approve and publish (policy stays pending_review), a customer gets 403 on 5 admin routes; /api/health and /api/v1/health return only {status, service}; /health/ready gives 401 anonymous, 403 customer, 200 Super Admin; no draft text on public /policies; pack #1 download gives 403 to a customer and a %PDF to the Super Admin; orders-status accepting:true. SECURITY (already-passing suites): concurrent last-unit checkout (1 ok, 1 409, phase15 test_01), spoofed X-Forwarded-For still locked out (phase15 test_02), emergency stop then 503 on checkout/start and payment checkout then resume with TOTP (phase16), bcrypt $2b$, CORS echoes only allowed origins with credentials, seed_admin only creates and never overwrites. FRONTEND (1920 + 390): home OK; /terms and /privacy show 'This policy is being finalised'; cart has no 'Checkout is closed' notice in preview; /checkout has no closed notice (it redirects to login when signed out); /admin/launch shows 28 items including all 7 policy_* and legal_review_pack; /admin/ops renders; /admin/policies has 7 tabs, and pack #1 shows 'Approved for External Sharing' and 'Not legally approved'. No page errors. The final DB state was checked against a mongodump taken before testing.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/v1/admin/launch/checklist", "issue": "Automatic items (policy_*, legal_review_pack) are only stored when someone runs 'Run check'. In the clean DB only super_admin_mfa exists, so /admin/launch shows the policy_* items and legal_review_pack as 'Not started', not Blocked / In progress as expected. The checks themselves are correct: running them gives policy_terms and policy_privacy blocked and legal_review_pack in_progress. To keep the clean state, I deleted those check docs afterwards. Consider working out the auto items when the page loads, or running the auto checks in the 15-minute ops tick."},
+      {"endpoint": "backend/tests/test_phase14_t1_founding_public.py::test_05_backup_rollback_after_scripts", "issue": "Flaky: restore_verify.sh exited 1 once (out of 3 runs) while other suites were writing to the DB, most likely count drift between backup and restore. It passed when run by hand and on the re-run."},
+      {"endpoint": "/admin/ops health", "issue": "After the test suites, the ops health showed 'degraded' (checkout_payments critical incident, email errors 1h: 152). The suites cause this on purpose (error-capture tests and amount-mismatch tests). I removed the new error_events, error_incidents, ops_incidents and ops_alerts after the run."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminPoliciesPage review pack row (390px)", "issue": "The 'Record attorney feedback / upload reviewed document' button doesn't wrap and runs past the card edge. This is the cause of the 391/390 px page overflow reported in iteration 34.", "selector": "[data-testid^='review-pack-'] button (attorney record)", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/launch", "issues": ["Auto items show 'Not started' until a check is run (see backend minor). Visually fine at 1920 and 390."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase18_t1_final_regression.py",
+    "/app/backend/tests/test_phase13_qa_audit.py",
+    "/app/backend/tests/test_phase14_launch_checklist.py",
+    "/app/backend/tests/test_phase14_t1_launch_extended.py",
+    "/app/test_reports/pytest/pytest_t35_p13.xml",
+    "/app/test_reports/pytest/pytest_t35_p14.xml",
+    "/app/test_reports/pytest/pytest_t35_p15_16.xml",
+    "/app/test_reports/pytest/pytest_t35_p17.xml",
+    "/app/test_reports/pytest/pytest_t35_e2e.xml"
+  ],
+  "action_items": [
+    "Optional: work out the automatic launch-checklist items (policy_*, legal_review_pack, dns/ssl…) when the page loads or on the ops tick, so a clean DB shows Blocked / In progress instead of Not started.",
+    "Let the attorney-record button on the review pack row wrap at 390 px (fixes the 1 px page overflow).",
+    "Pre-existing orphan test leftovers that belong to deleted users (I did not touch them, because they were there before this run): 4 wishlists, 1 vendor_policy_acceptances row (application 6af1308b9485bbd9dbdca7bc) and 1 stock_adjustments row (product 6af1308c9485bbd9dbdca7cb). Delete these by id for a fully clean launch DB. The wishlist leak came from test_phase13_qa_audit, and I fixed its teardown.",
+    "The newest /app/backups archives were taken by the backup tests while TEST data existed. Take a fresh backup of the clean DB before planning launch (backup_db.sh keeps the newest 14)."
+  ],
+  "critical_code_review_comments": [
+    "No real app bug found in this regression. All 7 suite failures were tests that had fallen behind deliberate changes: the minimal public health response, and the checklist growing from 10 to 28 items with live_payments replaced by pay_*.",
+    "launch.py: the status of 'auto' items is only stored when a check runs (POST /check). _items() reads stored docs only, so a clean DB looks 'Not started' even where the outcome is clearly Blocked.",
+    "POST /admin/policies/versions/{vid}/approve checks the request body before the role check, so content_admin with an incomplete body gets 422 instead of 403. This is harmless (with a valid body the result is 403), but the permission is checked only after validation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase13_qa_audit.py (health assertion matches the minimal health response; teardown deletes wishlists)",
+    "/app/backend/tests/test_phase14_launch_checklist.py (uses launch.ITEMS / PAYMENT_KEYS instead of a hard-coded 10-item list and live_payments)",
+    "/app/backend/tests/test_phase14_t1_launch_extended.py (same)",
+    "/app/backend/tests/test_phase18_t1_final_regression.py (new)"
+  ],
+  "success_rate": {"backend": "100% after updating out-of-date tests (first pass 130/137; 7 failures all from out-of-date tests, 1 flaky); new E2E 6/6", "frontend": "100% of the requested smoke checks (the 'policy_* Blocked / legal_review_pack In progress' expectation differs because the clean DB holds no check results)"},
+  "seed_data_creation": "None kept. A mongodump taken before testing was used to remove every new doc in error_events, error_incidents, ops_alerts, ops_incidents, orders_gate_log (2 TEST_ drill rows), notifications, sessions and wishlists. The suite cleanups removed TEST users, vendors, products, orders and payments. Pack #1 downloads went back to 8 (the phase17 suite and my download raised it to 10). platform_settings orders.live and ops.config and launch_checklist super_admin_mfa were restored exactly from the dump. Final state: 1 user (Super Admin), 0 vendors, products, orders, policy_acceptances and legal_change_requests, 7 policy_versions v1 pending_review with 2 history entries each, pack #1 approved with 0 attorney records, 1 launch_checklist doc (super_admin_mfa), gate unpaused (orders-status accepting:true). Audit_logs, cron_runs, health_checks and webhook_events rows written by the tests were left in place as the history record.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run suites serially: cd /app/backend && pytest tests/<file> -n 0. phase13 takes ~4 min, so run it on its own. test_phase18_t1_final_regression.py is the full API E2E (it registers delivered+t35…@resend.dev users with the TEST6_ name prefix, cleaned by the imported phase06/07 fixtures; its teardown restores pack #1 downloads). Take a mongodump before running anything: the suites leave ops noise (error_events, incidents, sessions, orders_gate_log). Never touch pack #1 (6af273a06c693e2488c1ac51). The server clock is Nov 2026."
+}

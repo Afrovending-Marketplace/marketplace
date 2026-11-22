@@ -8,11 +8,15 @@ from bson import ObjectId
 from afrovending.core import founding
 from tests.test_phase03_vendors import BASE, admin_client, mongo
 from tests.test_phase10_admin import MADE as ADMINS_MADE, admin_with
+from afrovending.api.v1.launch import ITEMS as L_ITEMS  # checklist grew (pay_*, policy_*, legal_review_pack, monitoring)
+from afrovending.core.orders_gate import PAYMENT_KEYS
+ALL_KEYS = [k for k, *_ in L_ITEMS]
+FIN_KEYS = {"stripe_test", *[k for k in PAYMENT_KEYS if k != "super_admin_mfa"]}
 
 SAVED = {}
 VENDORS, USERS = [], []
 AUTO = ("dns", "ssl", "stripe_test", "admin_mfa", "backup_rollback")
-NON_FINAL = ("dns", "ssl", "stripe_test", "live_payments", "admin_mfa", "email_domain", "phase13_audit", "marketplace_testing", "backup_rollback")
+NON_FINAL = tuple(k for k in ALL_KEYS if k != "final_approval")
 
 
 def setup_module():
@@ -41,13 +45,13 @@ def teardown_module():
 def test_01_access_matrix():
     sup = admin_client()
     d = sup.get("/admin/launch/checklist").json()
-    assert d["total"] == 10 and len(d["items"]) == 10 and d["is_super_admin"] is True
+    assert d["total"] == len(ALL_KEYS) and len(d["items"]) == len(ALL_KEYS) and d["is_super_admin"] is True
     assert [i["key"] for i in d["items"]][-1] == "final_approval"
     assert set(d["can_edit"]) == {i["key"] for i in d["items"]}
     assert all(i["status"] in ("not_started", "in_progress", "verified", "blocked") for i in d["items"])
     fin, _ = admin_with("finance_admin")
     f = fin.get("/admin/launch/checklist").json()
-    assert sorted(f["can_edit"]) == ["live_payments", "stripe_test"] and f["is_super_admin"] is False
+    assert set(f["can_edit"]) == FIN_KEYS and f["is_super_admin"] is False
     assert fin.post("/admin/launch/checklist/dns/check").status_code == 403
     assert fin.post("/admin/launch/public-launch", json={"confirm": "RECORD PUBLIC LAUNCH"}).status_code == 403
     assert fin.get("/admin/founding-vendors").status_code == 403
@@ -115,13 +119,13 @@ def test_04_final_approval_gate_and_reopen():
     r = sup.put("/admin/launch/checklist/final_approval", json={"status": "verified", "evidence": "TEST owner approval reference"})
     assert r.status_code == 200
     d = sup.get("/admin/launch/checklist").json()
-    assert d["verified"] == 10
-    # finance admin reopens by changing live_payments
-    assert fin.put("/admin/launch/checklist/live_payments", json={"status": "in_progress", "evidence": "keys rotated"}).status_code == 200
+    assert d["verified"] == len(ALL_KEYS)
+    # finance admin reopens by changing pay_connect
+    assert fin.put("/admin/launch/checklist/pay_connect", json={"status": "in_progress", "evidence": "keys rotated"}).status_code == 200
     f = next(i for i in sup.get("/admin/launch/checklist").json()["items"] if i["key"] == "final_approval")
-    assert f["status"] == "in_progress" and "Reopened" in f["note"] and "live_payments" in f["note"]
+    assert f["status"] == "in_progress" and "Reopened" in f["note"] and "pay_connect" in f["note"]
     # auto check returning blocked also reopens
-    mongo.launch_checklist.update_one({"key": "live_payments"}, {"$set": {"status": "verified"}})
+    mongo.launch_checklist.update_one({"key": "pay_connect"}, {"$set": {"status": "verified"}})
     assert sup.put("/admin/launch/checklist/final_approval", json={"status": "verified", "evidence": "TEST owner approval reference"}).status_code == 200
     sup.post("/admin/launch/checklist/dns/check")
     f = mongo.launch_checklist.find_one({"key": "final_approval"})
