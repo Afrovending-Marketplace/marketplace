@@ -36,7 +36,7 @@ def sender_for(subject: str) -> str:
     s = subject.lower()
     if "[afrovending alert]" in s:
         return "alerts"
-    if any(w in s for w in ("verify", "password", "security", "sign-in", "mfa")):
+    if any(w in s for w in ("verify", "password", "security", "sign-in", "mfa", "invite", "admin")):
         return "security"
     if any(w in s for w in ("vendor", "low-stock", "payout", "statement", "application")):
         return "vendors"
@@ -160,7 +160,10 @@ async def send_email(*, to: str, subject: str, html: str, category: str | None =
     except httpx.HTTPError as e:
         resp, net_err = None, type(e).__name__
     ok = resp is not None and resp.status_code < 300
-    provider_id = resp.json().get("id") if ok else None
+    try:
+        provider_id = resp.json().get("id") if ok else None
+    except ValueError:
+        provider_id = None
     error = None if ok else (f"provider HTTP {resp.status_code}" if resp is not None else f"network error {net_err}")
     await db.email_deliveries.update_one({"idempotency_key": idem}, {"$set": {**base, "status": "sent" if ok else "failed", "provider_id": provider_id, "error": error},
                                                                    "$setOnInsert": {"created_at": utcnow()}, "$inc": {"attempts": 1}}, upsert=True)

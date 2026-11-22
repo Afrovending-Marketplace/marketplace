@@ -1,0 +1,39 @@
+{
+  "summary": "Tested the DigitalOcean/Emergent clean-up changes on the backend and frontend. Backend: new test_phase19_t1_do_cleanup.py passed 17/17. It covers: registration and forgot-password still succeed with no Resend key and write a failed email_deliveries record (error 'RESEND_API_KEY not configured', category security, to_masked, attempts>=1, no plain email address stored); the contact form to info@ is suppressed outside production and returns 201; sender_for() maps subjects to alerts, security, vendors, orders and notifications as specified; allowlist suppression; GET /admin/ops/emails returns data, sending_enabled and provider_configured=false, the ?status=failed filter works, an invalid status gives 422, anonymous gets 401 and a customer gets 401/403; POST /webhooks/resend returns 503; _verify() unit test (valid Svix signature accepted, multi-signature header accepted, wrong signature, changed body, timestamp older than 5 minutes and missing id all rejected); uploads with mismatched magic bytes (text or MZ sent as PNG, PNG sent as JPEG, MZ sent as PDF, AVI sent as WEBP) return 422 'File content does not match its type.'; valid PNG, JPEG, WEBP and PDF uploads return 201; a private verification_doc gives 404 on public GET; the launch checklist has email_sending, do_hosting and storage_review. Existing launch tests (test_phase14_t1_launch_extended + test_phase14_launch_checklist) passed 15/15 after one flaky failure. Static checks: docker-compose.yml is valid YAML (services web, backend, cron, backup); all deploy/*.sh pass bash -n; export_files.py compiles; no 'emergent' in frontend/src, frontend/public, package.json, yarn.lock, craco.config.js or requirements.txt; only core/storage.py still uses Emergent. Frontend: home, /shop (sample catalog, 64 cards, SAMPLE badges, preview announcement bar), login, MFA and /admin load with no page errors. The DOM has no Emergent scripts; the only third-party script is the Cloudflare insights beacon, which the preview CDN injects. The Admin Operations 'Email deliveries' section shows 'Sending enabled · Resend key missing'; the filter works (delivered shows the empty state, failed shows 9 rows).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/v1/webhooks/resend (_verify)", "issue": "Once RESEND_WEBHOOK_SECRET is set, a non-numeric svix-timestamp makes int(ts) raise ValueError, which becomes a 500 instead of 401. A malformed secret (bad base64) also raises. A body that is validly signed but not JSON makes json.loads raise a 500. Wrap these in try/except and return 401/400."},
+      {"endpoint": "core/email.py sender_for", "issue": "The admin invite subject 'AfroVending: You're invited to AfroVending admin' maps to 'notifications'. It should probably be 'security' (account/admin access). Add 'invite' or 'admin' to the security keywords, or pass category='security' explicitly."},
+      {"endpoint": "core/email.py send_email", "issue": "The idempotency key hashes the html, which contains a random token per call, so it does not stop repeat sends for verify/reset. The find_one and then send is also not atomic, so two concurrent sends could both go out. Low risk."},
+      {"endpoint": "core/email.py send_email", "issue": "resp.json() on a 2xx response with a non-JSON body would raise outside the try. Edge case."},
+      {"endpoint": "backend/.env", "issue": "The unused leftover key EMERGENT_EMAIL_KEY is still present. It is not shipped (the Dockerfile removes .env), but clean it up for the 'remove Emergent' goal."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin Operations > Email deliveries", "issues": ["Each row puts category, subject, masked email, attempts, date and error on one long line that wraps. A small table or columns would scan better. There is no pagination (capped at 50)."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_phase19_t1_do_cleanup.py", "/app/test_reports/pytest/pytest_iter36.xml"],
+  "action_items": [
+    "Harden the _verify/resend_webhook parsing (non-numeric timestamp, bad secret, non-JSON body) so they return 401/400 instead of 500",
+    "Optional: categorize admin invite emails as 'security'",
+    "Optional: remove EMERGENT_EMAIL_KEY from backend/.env",
+    "Older test suites (e.g. test_phase10_admin invites) leave email_deliveries records (te***@example.com) behind. The 9 failed rows in the admin log are from those runs. Consider cleaning them up in their teardowns."
+  ],
+  "critical_code_review_comments": [
+    "With EMAIL_SENDING_ENABLED=false (the production default per .env.production.example), try_send returns True and writes no record. Verification and reset emails are skipped silently, so production users cannot verify email until sending is approved. This is expected, but keep the email_sending launch item blocking.",
+    "_allowed_outside_production re-imports os inside the function (redundant).",
+    "Caddy web container and compose look correct. web.Dockerfile forces REACT_APP_SHOW_SAMPLE_CATALOG=false, which is good. Docker build/runtime was not checked because Docker is not available here."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase19_t1_do_cleanup.py"],
+  "success_rate": {"backend": "100% (17/17 new; 15/15 existing launch tests, after one flaky failure)", "frontend": "100%"},
+  "flaky_tests": ["test_phase14_launch_checklist.py::test_02_automatic_checks failed once (1 of 2 runs) because a concurrent run's transient test10_marketplace_admin user had not yet enrolled MFA. It passed on rerun."],
+  "seed_data_creation": "None kept. The TEST_T36 user, the uploaded file docs, the email_deliveries rows and the contact_messages row were deleted by id in teardown (verified 0 left).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && python -m pytest tests/test_phase19_t1_do_cleanup.py -n 0. Admin MFA uses the mfa_secret in Mongo (see admin_client in test_phase03_vendors). The Resend key is intentionally unset; EMAIL_SENDING_ENABLED=true in preview, so allowlisted recipients (resend.dev, example.com) produce failed delivery records."
+}

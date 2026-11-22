@@ -18,9 +18,12 @@ STATUS = {"email.delivered": "delivered", "email.bounced": "bounced", "email.com
 
 
 def _verify(secret: str, msg_id: str, ts: str, body: bytes, header: str) -> bool:
-    if not (msg_id and ts and header) or abs(time.time() - int(ts or 0)) > 300:
+    try:
+        if not (msg_id and header) or abs(time.time() - int(ts)) > 300:
+            return False
+        key = base64.b64decode(secret.split("_", 1)[1] if secret.startswith("whsec_") else secret)
+    except (ValueError, TypeError):
         return False
-    key = base64.b64decode(secret.split("_", 1)[1] if secret.startswith("whsec_") else secret)
     expected = base64.b64encode(hmac.new(key, f"{msg_id}.{ts}.".encode() + body, hashlib.sha256).digest()).decode()
     return any(hmac.compare_digest(expected, part.split(",", 1)[-1]) for part in header.split())
 
@@ -34,7 +37,10 @@ async def resend_webhook(request: Request):
     h = request.headers
     if not _verify(secret, h.get("svix-id", ""), h.get("svix-timestamp", "0"), body, h.get("svix-signature", "")):
         raise APIError(401, "invalid_signature", "Invalid webhook signature.")
-    evt = json.loads(body)
+    try:
+        evt = json.loads(body)
+    except ValueError:
+        raise APIError(400, "invalid_payload", "Webhook body is not JSON.")
     status = STATUS.get(evt.get("type", ""))
     email_id = (evt.get("data") or {}).get("email_id")
     if status and email_id:
