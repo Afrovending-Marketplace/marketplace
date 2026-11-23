@@ -124,7 +124,7 @@ Owner actions before go-live: claim the Stripe sandbox and enable Connect (real 
 - Launch checklist adds three items: email sending activated, DigitalOcean hosting verified, and storage review.
 - Pending owner actions: Resend account + domain DNS, Atlas cluster, Droplet, Spaces bucket, and explicit approval to deploy or change DNS.
 - 2026-11-22 Staging plan: docs/STAGING_PLAN_DIGITALOCEAN.md. Added deploy/Caddyfile.staging (password-protected, noindex) and deploy/.env.staging.example, plus the launch checklist item `staging_verified`. Status: WAITING for the owner to approve the configuration and the ≈ $33.80/month cost.
-- 2026-11-22 Staging APPROVED (owner-created, guided one step at a time). Address: staging.afrovending.com. Progress: Step 1 Droplet ✅ 104.131.113.79 (NYC3 confirmed from the VPC default-nyc3) → 2 Cloud Firewall ⚠️ (80/443 are correct; the SSH source is set to the tag afrovending-staging instead of the owner's IP, which locks out the owner) ⏳ → 3 Atlas M0 → 4 Spaces bucket → 5 server hardening → 6 DNS A record (staging only) → 7 env + deploy → 8 checks → 9 monitoring → mark `staging_verified`.
+- 2026-11-22 Staging APPROVED (owner-created, guided one step at a time). Address: staging.afrovending.com. Progress: Step 1 Droplet ✅ 104.131.113.79 (NYC3 confirmed from the VPC default-nyc3) → 2 Cloud Firewall ✅ (the owner's SSH works; SSH is blocked from other IPs; 80/443 open) → 3 Atlas M0 ⏳ → 3 Atlas M0 → 4 Spaces bucket → 5 server hardening → 6 DNS A record (staging only) → 7 env + deploy → 8 checks → 9 monitoring → mark `staging_verified`.
 
 
 
