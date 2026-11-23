@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # One-time Droplet hardening (Ubuntu 24.04). Run as root:  bash server_setup.sh <your-ssh-public-key-file>
 set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
 KEY_FILE="${1:?pass the path to your SSH public key}"
 
-apt-get update && apt-get -y upgrade
+apt-get update && apt-get -y -o Dpkg::Options::=--force-confold upgrade
 apt-get install -y ca-certificates curl ufw fail2ban unattended-upgrades git
 dpkg-reconfigure -f noninteractive unattended-upgrades
 
