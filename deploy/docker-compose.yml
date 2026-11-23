@@ -16,6 +16,9 @@ services:
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+      CADDY_CONFIG: ${CADDY_CONFIG:-Caddyfile}
+      STAGING_AUTH_USER: ${STAGING_AUTH_USER:-}
+      STAGING_AUTH_HASH: ${STAGING_AUTH_HASH:-}
     volumes: [caddy_data:/data, caddy_config:/config]
     depends_on:
       backend: { condition: service_healthy }

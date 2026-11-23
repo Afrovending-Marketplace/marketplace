@@ -79,6 +79,8 @@
 | D-081 | 2026-11-22 | Self-hosting on one DigitalOcean Droplet with Docker Compose (Caddy for HTTPS and the React build, FastAPI/uvicorn, a cron container and an encrypted off-Droplet backup container). The database is MongoDB Atlas (only the Droplet's IP is allowed in). All Emergent page scripts, analytics, editor packages and the Emergent email relay are removed. Emergent managed file storage stays, because the owner chose it. | DigitalOcean move |
 | D-082 | 2026-11-22 | Email goes through the owner's own Resend account. The sender address depends on the email type (orders@, vendors@, security@, notifications@, alerts@) and replies go to info@. There's an idempotency key per message per day, up to 3 retries on 429/5xx errors, and every attempt is logged in `email_deliveries`. Delivery status comes from Svix-signed Resend webhooks. In production, nothing sends until the Super Admin sets EMAIL_SENDING_ENABLED=true. | Email |
 | D-083 | 2026-11-22 | Uploaded files are checked by their content (magic bytes), not only by the type the browser declares. Files can be exported with `scripts/export_files.py`, which writes a SHA-256 manifest for moving to another storage provider. | Storage |
+| D-084 | 2026-11-22 | Staging setup: a DO Droplet in NYC3 (2 vCPU / 4 GB, weekly backups), Atlas M0 in AWS us-east-1, and a Spaces bucket for encrypted dumps (≈ $33.80/month). APP_ENV=staging, Stripe test keys, emails only to allow-listed addresses. The site is behind a basic-auth password and noindex at https://<ip>.sslip.io, with no afrovending.com DNS change. Infrastructure is created only after the owner approves, by guided clicks (preferred) or scoped tokens that expire. | Staging |
+
 
 
 

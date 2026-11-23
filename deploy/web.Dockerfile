@@ -10,4 +10,5 @@ RUN yarn build
 
 FROM caddy:2-alpine
 COPY --from=build /src/build /srv/www
-COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY deploy/Caddyfile deploy/Caddyfile.staging /etc/caddy/
+CMD ["sh", "-c", "exec caddy run --config /etc/caddy/${CADDY_CONFIG:-Caddyfile} --adapter caddyfile"]

@@ -123,4 +123,6 @@ Owner actions before go-live: claim the Stripe sandbox and enable Connect (real 
 - Email: direct Resend with per-type senders, retries, de-duplication, a delivery log, a webhook, and an Ops "Email deliveries" panel. Production sending is OFF.
 - Launch checklist adds three items: email sending activated, DigitalOcean hosting verified, and storage review.
 - Pending owner actions: Resend account + domain DNS, Atlas cluster, Droplet, Spaces bucket, and explicit approval to deploy or change DNS.
+- 2026-11-22 Staging plan: docs/STAGING_PLAN_DIGITALOCEAN.md. Added deploy/Caddyfile.staging (password-protected, noindex) and deploy/.env.staging.example, plus the launch checklist item `staging_verified`. Status: WAITING for the owner to approve the configuration and the ≈ $33.80/month cost.
+
 

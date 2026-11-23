@@ -59,13 +59,13 @@ def buyer():
     return {"c": c, "email": email, "prefix": prefix}
 
 
-# Registration succeeds without RESEND_API_KEY and writes a failed delivery record (security category)
+# Registration writes a delivery record (security category): sent with a Resend key, failed without one
 def test_01_register_logs_failed_delivery(buyer):
     time.sleep(1)
     docs = [d for d in _deliveries(buyer["prefix"]) if d["subject"].startswith("Verify your")]
     assert docs, "no email_deliveries record for verification email"
     d = docs[0]
-    assert d["status"] == "failed" and d["error"] == "RESEND_API_KEY not configured"
+    assert (d["status"] == "sent" and d["provider_id"]) or (d["status"] == "failed" and d["error"] == "RESEND_API_KEY not configured")
     assert d["category"] == "security" and d["attempts"] >= 1 and d["to_masked"].endswith("***@resend.dev")
     assert buyer["email"] not in str(d)
 
@@ -76,7 +76,7 @@ def test_02_forgot_password_logs(buyer):
     assert r.status_code in (200, 202), r.text
     time.sleep(1)
     docs = [d for d in _deliveries(buyer["prefix"]) if d["subject"] == "Reset your AfroVending password"]
-    assert docs and docs[0]["status"] == "failed" and docs[0]["category"] == "security"
+    assert docs and docs[0]["status"] in ("sent", "failed") and docs[0]["category"] == "security"
 
 
 # Contact form to info@ (not allowlisted outside production) is suppressed and still succeeds
@@ -113,7 +113,7 @@ def test_05_admin_emails(buyer):
     assert r.status_code == 200, r.text
     j = r.json()
     assert set(j) >= {"data", "sending_enabled", "provider_configured"}
-    assert j["provider_configured"] is False and isinstance(j["sending_enabled"], bool)
+    assert isinstance(j["provider_configured"], bool) and isinstance(j["sending_enabled"], bool)
     assert all("idempotency_key" not in d and "_id" not in d and "id" in d for d in j["data"])
     f = a.get("/admin/ops/emails", params={"status": "failed"}).json()["data"]
     assert f and all(d["status"] == "failed" for d in f)

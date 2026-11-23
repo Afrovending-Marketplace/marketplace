@@ -1,0 +1,49 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Staging: password-protected, never indexed. Health and webhooks stay open so monitors and Stripe/Resend test webhooks work.
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=86400"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+
+	@open path /api/v1/health /api/health /api/stripe/webhook /api/v1/webhooks/*
+	@protected not path /api/v1/health /api/health /api/stripe/webhook /api/v1/webhooks/*
+	basic_auth @protected {
+		{$STAGING_AUTH_USER} {$STAGING_AUTH_HASH}
+	}
+
+	handle /robots.txt {
+		respond "User-agent: *
+Disallow: /" 200
+	}
+
+	request_body /api/* {
+		max_size 25MB
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8001 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
