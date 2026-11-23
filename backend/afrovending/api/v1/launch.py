@@ -32,7 +32,7 @@ ITEMS = [  # key, label, mode, who may edit
     ("monitoring", "Uptime monitoring (external) and production error reporting configured and alert-tested", "manual", SETTINGS),
     ("email_domain", "Resend sending domain verified (SPF, DKIM, DMARC)", "manual", SETTINGS),
     ("email_sending", "Production email sending activated with Super Admin approval (EMAIL_SENDING_ENABLED)", "manual", SETTINGS),
-    ("staging_verified", "Staging on DigitalOcean + Atlas passed (sign-in, MFA, admin, test checkout, restore drill)", "manual", SETTINGS),
+    ("staging_verified", "Staging at staging.afrovending.com (DigitalOcean + Atlas) passed: sign-in, MFA, admin, test checkout, restore drill", "manual", SETTINGS),
     ("do_hosting", "DigitalOcean Droplet hardened, Docker stack deployed, HTTPS and firewall verified", "manual", SETTINGS),
     ("storage_review", "File storage capacity, pricing, backups/export and availability confirmed", "manual", SETTINGS),
     ("phase13_audit", "Phase 13 audit cleared and launch blockers resolved", "manual", SETTINGS),
