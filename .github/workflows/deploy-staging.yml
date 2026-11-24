@@ -1,0 +1,36 @@
+# Manual only: never runs on push. Requires the "staging" GitHub Environment (add yourself as a required reviewer).
+name: Deploy to staging (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Reviewed commit SHA or tag to deploy"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 30
+    steps:
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.STAGING_KNOWN_HOSTS }}
+          HOST: ${{ vars.STAGING_HOST }}
+          REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          [[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "invalid ref"; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh deploy@"$HOST" "cd /opt/afrovending && bash deploy/scripts/deploy.sh '$REF'"

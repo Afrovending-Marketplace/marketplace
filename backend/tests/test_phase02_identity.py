@@ -10,7 +10,7 @@ from dotenv import dotenv_values
 _ENV = dotenv_values(os.path.join(os.path.dirname(__file__), "..", ".env"))
 # Secure cookies require HTTPS, so default to the public preview URL.
 BASE = os.environ.get("API_BASE_URL", _ENV["FRONTEND_URL"]) + "/api/v1"
-ADMIN = {"email": "afrovending.online@gmail.com", "password": os.environ.get("ADMIN_PASSWORD", "r6A4E28e1ijx0ZQYf7fmYZj1!Av9")}
+ADMIN = {"email": "afrovending.online@gmail.com", "password": os.environ["ADMIN_PASSWORD"]}
 mongo = MongoClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))[os.environ.get("DB_NAME", "test_database")]
 
 

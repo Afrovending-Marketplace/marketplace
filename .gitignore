@@ -91,6 +91,8 @@ migration/reports/
 .env.*
 *.env
 !deploy/.env*.example
+!backend/.env.example
+!frontend/.env.example
 credentials.json
 *.key
 .credentials

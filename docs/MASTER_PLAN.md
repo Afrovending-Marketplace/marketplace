@@ -47,6 +47,8 @@ See PHASE_STATUS.md.
 Production target: one DigitalOcean Droplet (2 vCPU / 4 GB) running Docker Compose with MongoDB Atlas, the owner's Resend account and Emergent managed file storage. The guide is in `docs/LAUNCH_GUIDE_DIGITALOCEAN.md`. Nothing is deployed without the owner's explicit approval.
 Staging comes before production: a DO NYC3 Droplet + Atlas M0 us-east-1 behind a password at an sslip.io address. The plan is in `docs/STAGING_PLAN_DIGITALOCEAN.md`, and nothing is created until the owner approves it.
 Staging approved on 2026-11-22. The address is staging.afrovending.com, and the owner creates the resources with guidance.
+2026-11-22 Export and readiness report: `docs/DEPLOYMENT_READINESS_STAGING.md`. Repo afrovending/Main-Marketplace, manual workflows only. Deploying waits for the owner's approval.
+
 
 
 

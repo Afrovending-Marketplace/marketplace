@@ -48,7 +48,7 @@ Files are in `deploy/`: `docker-compose.yml`, `web.Dockerfile`, `backend.Dockerf
 scp deploy/scripts/server_setup.sh ~/.ssh/id_ed25519.pub root@<droplet-ip>:/root/
 ssh root@<droplet-ip> 'bash /root/server_setup.sh /root/id_ed25519.pub'
 ssh deploy@<droplet-ip>
-git clone <your GitHub repo> afrovending && cd afrovending/deploy
+git clone git@github.com:afrovending/Main-Marketplace.git /opt/afrovending && cd /opt/afrovending/deploy
 cp .env.example .env && cp .env.production.example .env.production && cp .env.backup.example .env.backup
 nano .env.production .env.backup .env       # fill in the real values
 chmod 600 .env .env.production .env.backup
