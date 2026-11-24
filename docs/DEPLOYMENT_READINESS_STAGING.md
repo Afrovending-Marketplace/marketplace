@@ -10,7 +10,7 @@ Status: **ready for export; NOT deployed.** We wait for the owner's approval bef
 ## 2. Secret scan (tracked files + full history, 85 commits)
 - Patterns searched: Stripe `sk_/rk_/whsec_`, Resend `re_`, Emergent keys, `mongodb://user:pass@`, private keys, AWS/GitHub tokens, and the actual current values of JWT_SECRET, WEBHOOK_CRON_SECRET, the storage key, the Stripe key and the Resend key. **No matches.**
 - No `.env` file or `test_credentials.md` has ever been committed.
-- **One finding:** the preview Super Admin password was hard-coded as a test default in `backend/tests/test_phase02_identity.py` (commit b9e3069, 2026-10-17). It is removed from the current code, but it **remains in git history** and goes to GitHub with it. **Required:** treat that password as exposed. Staging and production use new passwords (`ADMIN_PASSWORD` in the server env), and the preview admin password should be changed.
+- **One finding:** the preview Super Admin password was hard-coded as a test default in `backend/tests/test_phase02_identity.py` (commit b9e3069, 2026-10-17). It is removed from the current code, but it remains in the Emergent job history. **Resolved 2026-11-22:** the account password was rotated to a random value (only the hash is stored), all admin sessions were revoked, and the action was audited. The owner sets a new password through the secure secrets card. A **sanitized single-commit export** (570 files, commit 931445b) was built and scanned: 0 real secrets, no .env or credential files. Save to GitHub pushes the **full original history** (Emergent support), so it would still carry the old, now useless, password.
 
 ## 3. Application structure exported
 ```
@@ -72,8 +72,8 @@ curl -fsS https://staging.afrovending.com/api/v1/health
 Afterwards: bootstrap the Super Admin, enrol MFA, use **Stop New Orders** until testing, run the checks in STAGING_PLAN §4 step 8, then the restore drill.
 
 ## 8. Outstanding blockers
-1. **Rotate the exposed preview admin password** (in git history). Use new secrets everywhere on staging.
-2. **Confirm with Emergent** that managed storage works from an outside server and what it costs. If not, uploads (images and documents) won't work on staging.
+1. ~~Rotate the exposed preview admin password~~ Rotated and sessions revoked. The owner still has to set the new password via the secure card. Choose the export path: Save to GitHub (full history, old password now useless) or the sanitized single-commit export.
+2. **Emergent managed storage outside Emergent is unconfirmed.** Known: authentication uses the Emergent universal key, a 5 GB quota per organization, no delete support, and no separate storage charge within the quota. Not documented: support for external hosting, SLA, bandwidth/rate limits, redundancy, export. Ask support@emergent.sh with the job ID, or switch to DigitalOcean Spaces (about $5/month, already used for backups).
 3. Atlas details not yet confirmed (tier/region/network entry/hostname).
 4. The GitHub repo must be **private**. Add the `staging` Environment with a required reviewer before using the deploy workflow.
 5. A Stripe test webhook for the staging URL plus its signing secret. `RESEND_WEBHOOK_SECRET` is still not set.
